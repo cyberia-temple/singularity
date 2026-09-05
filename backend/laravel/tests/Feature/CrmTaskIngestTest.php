@@ -136,6 +136,6 @@ test('records filed by the daemon stay out of how long a task lives', function (
         ->get(route('crm.tasks.index'))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('stats.median_days', 4.0)
+            ->where('stats.median_days', 4)
             ->where('stats.closed_7d', 11));
 });
