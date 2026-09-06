@@ -8,11 +8,13 @@ import { arenaCatalogueGame } from '@/lib/arenaCatalogue';
 import { arenaMessages } from '@/lib/arenaMessages';
 import {
     arenaAction,
+    arenaErrorCode,
     arenaGameLists,
     arenaHasOpponent,
     arenaMatchPath,
     arenaShareUrl,
     arenaSecondsRemaining,
+    arenaTransactionUrl,
     formatArenaCountdown,
     parseArenaGameId,
     readArenaGame,
@@ -56,6 +58,10 @@ const stake = ref('0.01');
 const move = ref<ArenaMove>(1);
 const game = ref<ArenaGame | null>(null);
 const message = ref('');
+const lastTransactionHash = ref('');
+const transactionUrl = computed(() =>
+    arenaTransactionUrl(props.config.explorerUrl, lastTransactionHash.value),
+);
 const loading = ref(false);
 const catalogueLoading = ref(false);
 const catalogueError = ref('');
@@ -177,12 +183,22 @@ const run = async (
     loading.value = true;
     message.value = '';
     try {
-        await action();
+        const result = await action();
+        const hash =
+            typeof result === 'string'
+                ? result
+                : typeof result === 'object' &&
+                    result !== null &&
+                    'hash' in result &&
+                    typeof result.hash === 'string'
+                  ? result.hash
+                  : '';
+        if (hash) lastTransactionHash.value = hash;
         message.value = success;
         await refresh();
         await refreshCatalogue();
     } catch (error) {
-        message.value = error instanceof Error ? error.message : t('txError');
+        message.value = t(`error_${arenaErrorCode(error)}`);
     } finally {
         loading.value = false;
     }
@@ -197,6 +213,7 @@ const create = () =>
             gameId.value = result.gameId.toString();
             history.replaceState({}, '', arenaMatchPath(result.gameId));
         }
+        return result;
     }, t('created'));
 const join = () =>
     run(
@@ -629,6 +646,15 @@ onBeforeUnmount(() => {
                 <p v-if="message" class="cw-note" style="margin-top: 12px">
                     {{ message }}
                 </p>
+                <a
+                    v-if="transactionUrl"
+                    class="cw-ghost"
+                    :href="transactionUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    {{ t('viewTransaction') }} ↗
+                </a>
             </template>
         </template>
     </section>

@@ -90,6 +90,16 @@ export const arenaMessages: Messages = {
         claimed: 'Payout claimed.',
         readError: 'Unable to read game',
         txError: 'Transaction failed',
+        viewTransaction: 'View transaction',
+        error_rejected: 'Signature cancelled. Nothing was sent.',
+        error_insufficientFunds:
+            'Not enough CYBER for the stake and network fee.',
+        error_wrongPhase:
+            'This phase has changed. The match is being refreshed.',
+        error_rpc:
+            'Cyberia RPC is temporarily unreachable. Check the match before retrying.',
+        error_unknown:
+            'The transaction was not completed. Check its status before retrying.',
         tabAbout: 'About',
         tabPlay: 'Play',
         tabCommunity: 'Community',
@@ -183,6 +193,15 @@ export const arenaMessages: Messages = {
         claimed: 'Выплата получена.',
         readError: 'Не удалось прочитать игру',
         txError: 'Транзакция не выполнена',
+        viewTransaction: 'Открыть транзакцию',
+        error_rejected: 'Подпись отменена. Ничего не отправлено.',
+        error_insufficientFunds:
+            'Недостаточно CYBER для ставки и комиссии сети.',
+        error_wrongPhase: 'Фаза уже изменилась. Матч обновляется.',
+        error_rpc:
+            'RPC Cyberia временно недоступен. Проверьте матч перед повтором.',
+        error_unknown:
+            'Транзакция не завершена. Проверьте её статус перед повтором.',
         tabAbout: 'Об игре',
         tabPlay: 'Играть',
         tabCommunity: 'Сообщество',
@@ -271,6 +290,12 @@ export const arenaMessages: Messages = {
         claimed: '奖励已领取。',
         readError: '无法读取游戏',
         txError: '交易失败',
+        viewTransaction: '查看交易',
+        error_rejected: '签名已取消，未发送任何内容。',
+        error_insufficientFunds: 'CYBER 不足以支付下注和网络费用。',
+        error_wrongPhase: '阶段已变化，正在刷新对局。',
+        error_rpc: 'Cyberia RPC 暂时不可用，重试前请检查对局。',
+        error_unknown: '交易未完成，重试前请检查状态。',
         tabAbout: '介绍',
         tabPlay: '游玩',
         tabCommunity: '社区',

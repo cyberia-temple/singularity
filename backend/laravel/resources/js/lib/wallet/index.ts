@@ -278,6 +278,11 @@ export {
     formatArenaCountdown,
 } from '@/lib/wallet/arenaTime';
 export {
+    arenaErrorCode,
+    arenaTransactionUrl,
+} from '@/lib/wallet/arenaPresentation';
+export type { ArenaErrorCode } from '@/lib/wallet/arenaPresentation';
+export {
     arenaAction,
     arenaGameLists,
     arenaNeedsAction,
