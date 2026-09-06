@@ -53,3 +53,31 @@ export const arenaAction = (
 
 export const arenaNeedsAction = (action: ArenaAction): boolean =>
     !['wait', 'complete'].includes(action);
+
+export type ArenaGameLists = {
+    attention: ArenaGame[];
+    mine: ArenaGame[];
+    open: ArenaGame[];
+    complete: ArenaGame[];
+};
+
+export const arenaGameLists = (
+    games: readonly ArenaGame[],
+    address: string,
+    nowSeconds = Date.now() / 1000,
+): ArenaGameLists => ({
+    attention: games.filter(
+        (game) =>
+            arenaRole(game, address) !== 'spectator' &&
+            arenaNeedsAction(arenaAction(game, address, nowSeconds)),
+    ),
+    mine: games.filter(
+        (game) => arenaRole(game, address) !== 'spectator' && game.state < 4,
+    ),
+    open: games.filter(
+        (game) => game.state === 1 && arenaRole(game, address) === 'spectator',
+    ),
+    complete: games.filter(
+        (game) => arenaRole(game, address) !== 'spectator' && game.state >= 4,
+    ),
+});

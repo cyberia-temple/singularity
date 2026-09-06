@@ -270,10 +270,15 @@ export {
 } from '@/lib/wallet/arena';
 export {
     arenaAction,
+    arenaGameLists,
     arenaNeedsAction,
     arenaRole,
 } from '@/lib/wallet/arenaState';
-export type { ArenaAction, ArenaRole } from '@/lib/wallet/arenaState';
+export type {
+    ArenaAction,
+    ArenaGameLists,
+    ArenaRole,
+} from '@/lib/wallet/arenaState';
 export type {
     ArenaGame,
     ArenaMove,

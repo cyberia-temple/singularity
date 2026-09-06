@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     arenaAction,
+    arenaGameLists,
     arenaNeedsAction,
     arenaRole,
 } from '../../resources/js/lib/wallet/arenaState.ts';
@@ -57,4 +58,39 @@ test('waiting and completed games stay out of attention', () => {
     assert.equal(arenaNeedsAction('wait'), false);
     assert.equal(arenaNeedsAction('complete'), false);
     assert.equal(arenaNeedsAction('reveal'), true);
+});
+
+test('matches are partitioned into actionable, personal, open and completed lists', () => {
+    const lists = arenaGameLists(
+        [
+            game({ id: 1n }),
+            game({ id: 2n, playerOneCommitted: true }),
+            game({
+                id: 3n,
+                playerOne: outsider,
+                playerTwo: '0x0000000000000000000000000000000000000000',
+                state: 1,
+            }),
+            game({ id: 4n, state: 4 }),
+        ],
+        one,
+        100,
+    );
+
+    assert.deepEqual(
+        lists.attention.map(({ id }) => id),
+        [1n],
+    );
+    assert.deepEqual(
+        lists.mine.map(({ id }) => id),
+        [1n, 2n],
+    );
+    assert.deepEqual(
+        lists.open.map(({ id }) => id),
+        [3n],
+    );
+    assert.deepEqual(
+        lists.complete.map(({ id }) => id),
+        [4n],
+    );
 });
