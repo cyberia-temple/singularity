@@ -265,6 +265,12 @@ export {
     revealArenaMove,
     settleArenaGame,
 } from '@/lib/wallet/arena';
+export {
+    arenaAction,
+    arenaNeedsAction,
+    arenaRole,
+} from '@/lib/wallet/arenaState';
+export type { ArenaAction, ArenaRole } from '@/lib/wallet/arenaState';
 export type {
     ArenaGame,
     ArenaMove,
