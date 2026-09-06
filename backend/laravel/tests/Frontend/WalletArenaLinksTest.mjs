@@ -8,8 +8,10 @@ import {
 
 test('Arena deep links accept only canonical positive integer ids', () => {
     assert.equal(parseArenaGameId('42'), 42n);
-    for (const value of [null, '', '0', '-1', '1.5', '1x', ' 1'])
+
+    for (const value of [null, '', '0', '-1', '1.5', '1x', ' 1']) {
         assert.equal(parseArenaGameId(value), null);
+    }
 });
 
 test('Arena invitations stay on the wallet game surface', () => {

@@ -25,6 +25,7 @@ test('Arena discovery preserves order while bounding concurrent RPC work', async
             peak = Math.max(peak, active);
             await new Promise((resolve) => setTimeout(resolve, 2));
             active--;
+
             return value * 2;
         },
         2,

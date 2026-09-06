@@ -26,23 +26,43 @@ export const arenaAction = (
     address: string,
     nowSeconds = Date.now() / 1000,
 ): ArenaAction => {
-    if (game.payout > 0n) return 'claim';
-    if (game.state >= 4) return 'complete';
-    if (nowSeconds > game.deadline) return 'settleTimeout';
+    if (game.payout > 0n) {
+        return 'claim';
+    }
+
+    if (game.state >= 4) {
+        return 'complete';
+    }
+
+    if (nowSeconds > game.deadline) {
+        return 'settleTimeout';
+    }
 
     const role = arenaRole(game, address);
-    if (game.state === 1) return role === 'spectator' ? 'join' : 'wait';
-    if (role === 'spectator') return 'wait';
+
+    if (game.state === 1) {
+        return role === 'spectator' ? 'join' : 'wait';
+    }
+
+    if (role === 'spectator') {
+        return 'wait';
+    }
 
     const isOne = role === 'playerOne';
+
     if (game.state === 2) {
         return (isOne ? game.playerOneCommitted : game.playerTwoCommitted)
             ? 'wait'
             : 'commit';
     }
+
     if (game.state === 3) {
         const mine = isOne ? game.playerOneMove : game.playerTwoMove;
-        if (mine === 0) return 'reveal';
+
+        if (mine === 0) {
+            return 'reveal';
+        }
+
         return game.playerOneMove !== 0 && game.playerTwoMove !== 0
             ? 'resolve'
             : 'wait';

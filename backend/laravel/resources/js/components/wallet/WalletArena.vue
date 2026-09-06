@@ -2,8 +2,8 @@
 import { formatEther, parseEther } from 'ethers';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
-import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useLocale } from '@/composables/useLocale';
+import type { MultiWallet } from '@/composables/useMultiWallet';
 import { arenaCatalogueGame } from '@/lib/arenaCatalogue';
 import { arenaMessages } from '@/lib/arenaMessages';
 import {
@@ -31,7 +31,6 @@ const props = defineProps<{
         explorerUrl: string;
     };
 }>();
-const emit = defineEmits<{ back: [] }>();
 const { t } = useLocale(arenaMessages);
 const product = arenaCatalogueGame('rps')!;
 
@@ -45,7 +44,11 @@ const savedFeedback = ref<string[]>(
 );
 const saveFeedback = (): void => {
     const value = feedback.value.trim();
-    if (!value) return;
+
+    if (!value) {
+        return;
+    }
+
     savedFeedback.value.unshift(value);
     localStorage.setItem(
         'cyberia-arena-feedback',
@@ -121,9 +124,13 @@ const moves = computed<{ id: ArenaMove; glyph: string; name: string }[]>(() => [
 
 const refresh = async (): Promise<void> => {
     const parsedGameId = parseArenaGameId(gameId.value);
-    if (!props.config.enabled || parsedGameId === null || !account.value)
+
+    if (!props.config.enabled || parsedGameId === null || !account.value) {
         return;
+    }
+
     loading.value = true;
+
     try {
         game.value = await readArenaGame(
             props.config.contractAddress,
@@ -139,9 +146,13 @@ const refresh = async (): Promise<void> => {
     }
 };
 const refreshCatalogue = async (): Promise<void> => {
-    if (!props.config.enabled || !account.value) return;
+    if (!props.config.enabled || !account.value) {
+        return;
+    }
+
     catalogueLoading.value = true;
     catalogueError.value = '';
+
     try {
         recentGames.value = await readRecentArenaGames(
             props.config.contractAddress,
@@ -163,16 +174,23 @@ const openMatch = (match: ArenaGame): void => {
 };
 const requiredGameId = (): bigint => {
     const parsed = parseArenaGameId(gameId.value);
-    if (parsed === null) throw new Error(t('invalidGameId'));
+
+    if (parsed === null) {
+        throw new Error(t('invalidGameId'));
+    }
+
     return parsed;
 };
 const shareMatch = async (): Promise<void> => {
     const parsed = requiredGameId();
     const url = arenaShareUrl(window.location.origin, parsed);
+
     if (navigator.share) {
         await navigator.share({ title: t('rps'), url });
+
         return;
     }
+
     await navigator.clipboard.writeText(url);
     message.value = t('inviteCopied');
 };
@@ -182,6 +200,7 @@ const run = async (
 ): Promise<void> => {
     loading.value = true;
     message.value = '';
+
     try {
         const result = await action();
         const hash =
@@ -193,7 +212,11 @@ const run = async (
                     typeof result.hash === 'string'
                   ? result.hash
                   : '';
-        if (hash) lastTransactionHash.value = hash;
+
+        if (hash) {
+            lastTransactionHash.value = hash;
+        }
+
         message.value = success;
         await refresh();
         await refreshCatalogue();
@@ -209,10 +232,12 @@ const create = () =>
             props.config.contractAddress,
             parseEther(stake.value),
         );
+
         if (result.gameId) {
             gameId.value = result.gameId.toString();
             history.replaceState({}, '', arenaMatchPath(result.gameId));
         }
+
         return result;
     }, t('created'));
 const join = () =>
@@ -264,6 +289,7 @@ const startPolling = (): void => {
     timer = window.setInterval(() => {
         nowSeconds.value = Date.now() / 1000;
         ticks++;
+
         if (ticks % 5 === 0) {
             void refresh();
             void refreshCatalogue();
@@ -273,8 +299,10 @@ const startPolling = (): void => {
 const onVisibilityChange = (): void => {
     if (document.hidden) {
         stopPolling();
+
         return;
     }
+
     nowSeconds.value = Date.now() / 1000;
     void refresh();
     void refreshCatalogue();

@@ -59,3 +59,32 @@ hashMove(gameId, player, move, secret)
 
 `resolveGame` and `cancelExpiredGame` may be called by anyone because their
 outcomes are fully determined by committed contract state.
+
+## Wallet discovery contract
+
+The first production client discovers matches without a trusted indexer. It
+reads `nextGameId`, takes at most the 50 newest positive ids, and fetches them
+newest-first with no more than four concurrent RPC tasks. The window is a
+deliberate prototype bound: it makes open and personal matches usable without
+turning a browser refresh into an unbounded Cyberia load.
+
+The wallet partitions those canonical contract reads into:
+
+- matches requiring this player's action;
+- this player's active matches;
+- waiting games this address may join;
+- completed personal matches.
+
+An indexer may replace discovery when volume outgrows the bounded window, but
+it remains a derived cache. Before presenting an action, the client must still
+read the selected game from the contract.
+
+Invitation links contain only a positive `gameId` and open the wallet route:
+
+```text
+/wallet?screen=arena&game={gameId}
+```
+
+They never contain a move, commitment secret, private key or wallet vault
+material. Polling pauses while the document is hidden and refreshes
+immediately when it becomes visible again.

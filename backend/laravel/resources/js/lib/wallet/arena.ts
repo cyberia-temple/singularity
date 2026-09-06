@@ -67,10 +67,18 @@ export const arenaRecentGameIds = (
     limit = 50,
 ): bigint[] => {
     const last = nextGameId - 1n;
-    if (last < 1n || limit < 1) return [];
+
+    if (last < 1n || limit < 1) {
+        return [];
+    }
+
     const first = last > BigInt(limit) ? last - BigInt(limit) + 1n : 1n;
     const ids: bigint[] = [];
-    for (let id = last; id >= first; id -= 1n) ids.push(id);
+
+    for (let id = last; id >= first; id -= 1n) {
+        ids.push(id);
+    }
+
     return ids;
 };
 
@@ -84,6 +92,7 @@ export const mapArenaConcurrently = async <Input, Output>(
     if (!Number.isInteger(concurrency) || concurrency < 1) {
         throw new Error('Arena read concurrency must be a positive integer');
     }
+
     const output = new Array<Output>(values.length);
     let cursor = 0;
     const worker = async (): Promise<void> => {
@@ -95,6 +104,7 @@ export const mapArenaConcurrently = async <Input, Output>(
     await Promise.all(
         Array.from({ length: Math.min(concurrency, values.length) }, worker),
     );
+
     return output;
 };
 
@@ -131,6 +141,7 @@ export const readArenaGame = async (
         ARENA_ABI,
         provider(rpcUrl),
     );
+
     return readArenaGameFromContract(contract, gameId, playerAddress);
 };
 
@@ -202,11 +213,14 @@ const write = async (
     }
 
     let gameId: bigint | undefined;
+
     if (method === 'createGame') {
         const parser = new Interface(ARENA_ABI);
+
         for (const log of receipt.logs) {
             try {
                 const event = parser.parseLog(log);
+
                 if (event?.name === 'GameCreated') {
                     gameId = event.args.gameId as bigint;
                     break;

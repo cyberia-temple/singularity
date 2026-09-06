@@ -25,6 +25,8 @@ uses chain ID `49406` and `https://rpc.cyberia.church` unless
 
 Never commit `.env` or a private key.
 
-The contract lifecycle, commitment encoding and payout rules are documented in
-[`docs/RPS_SPEC.md`](docs/RPS_SPEC.md). Phase 2 is implemented and locally
-tested; deployment is the next roadmap phase.
+The contract lifecycle, commitment encoding, payout rules and bounded wallet
+discovery protocol are documented in [`docs/RPS_SPEC.md`](docs/RPS_SPEC.md).
+The contract and wallet vertical slice are implemented and tested. Deployment
+to Cyberia, a two-wallet mainnet smoke match and a durable event indexer are
+the remaining production milestones.
