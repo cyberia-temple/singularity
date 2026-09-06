@@ -257,11 +257,13 @@ export {
     ARENA_ABI,
     arenaCommitment,
     arenaHasOpponent,
+    arenaRecentGameIds,
     commitArenaMove,
     createArenaGame,
     createArenaSecret,
     joinArenaGame,
     readArenaGame,
+    readRecentArenaGames,
     revealArenaMove,
     settleArenaGame,
 } from '@/lib/wallet/arena';

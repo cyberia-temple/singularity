@@ -28,6 +28,7 @@ export const ARENA_ABI = [
     'function cancelExpiredGame(uint256 gameId)',
     'function claimPayout(uint256 gameId)',
     'function pendingPayout(uint256 gameId, address player) view returns (uint256)',
+    'function nextGameId() view returns (uint256)',
     'function getGame(uint256 gameId) view returns ((address playerOne,address playerTwo,uint96 stake,uint64 deadline,uint8 state,uint8 result,address winner,bytes32 playerOneCommitment,bytes32 playerTwoCommitment,uint8 playerOneMove,uint8 playerTwoMove))',
 ] as const;
 
@@ -60,6 +61,18 @@ const provider = (rpcUrl?: string): JsonRpcProvider =>
     });
 
 const checkedContract = (address: string): string => getAddress(address);
+
+export const arenaRecentGameIds = (
+    nextGameId: bigint,
+    limit = 50,
+): bigint[] => {
+    const last = nextGameId - 1n;
+    if (last < 1n || limit < 1) return [];
+    const first = last > BigInt(limit) ? last - BigInt(limit) + 1n : 1n;
+    const ids: bigint[] = [];
+    for (let id = last; id >= first; id -= 1n) ids.push(id);
+    return ids;
+};
 
 export const createArenaSecret = (): string => hexlify(randomBytes(32));
 
@@ -117,6 +130,24 @@ export const readArenaGame = async (
         playerTwoMove: Number(row.playerTwoMove),
         payout,
     };
+};
+
+export const readRecentArenaGames = async (
+    contractAddress: string,
+    playerAddress: string,
+    rpcUrl?: string,
+    limit = 50,
+): Promise<ArenaGame[]> => {
+    const address = checkedContract(contractAddress);
+    const rpc = provider(rpcUrl);
+    const contract = new Contract(address, ARENA_ABI, rpc);
+    const nextGameId = (await contract.nextGameId()) as bigint;
+
+    return Promise.all(
+        arenaRecentGameIds(nextGameId, limit).map((id) =>
+            readArenaGame(address, id, playerAddress, rpcUrl),
+        ),
+    );
 };
 
 type ArenaWriteResult = { hash: string; gameId?: bigint };
