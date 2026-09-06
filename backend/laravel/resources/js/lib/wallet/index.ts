@@ -262,6 +262,7 @@ export {
     createArenaGame,
     createArenaSecret,
     joinArenaGame,
+    mapArenaConcurrently,
     readArenaGame,
     readRecentArenaGames,
     revealArenaMove,

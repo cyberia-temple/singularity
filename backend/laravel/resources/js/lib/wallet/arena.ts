@@ -76,6 +76,28 @@ export const arenaRecentGameIds = (
 
 export const createArenaSecret = (): string => hexlify(randomBytes(32));
 
+export const mapArenaConcurrently = async <Input, Output>(
+    values: readonly Input[],
+    task: (value: Input) => Promise<Output>,
+    concurrency = 4,
+): Promise<Output[]> => {
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+        throw new Error('Arena read concurrency must be a positive integer');
+    }
+    const output = new Array<Output>(values.length);
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+        while (cursor < values.length) {
+            const index = cursor++;
+            output[index] = await task(values[index]);
+        }
+    };
+    await Promise.all(
+        Array.from({ length: Math.min(concurrency, values.length) }, worker),
+    );
+    return output;
+};
+
 /** Byte-identical mirror of RockPaperScissors.hashMove(). */
 export const arenaCommitment = (
     contract: string,
@@ -109,6 +131,14 @@ export const readArenaGame = async (
         ARENA_ABI,
         provider(rpcUrl),
     );
+    return readArenaGameFromContract(contract, gameId, playerAddress);
+};
+
+const readArenaGameFromContract = async (
+    contract: Contract,
+    gameId: bigint,
+    playerAddress: string,
+): Promise<ArenaGame> => {
     const row = await contract.getGame(gameId);
     const payout = (await contract.pendingPayout(
         gameId,
@@ -143,10 +173,8 @@ export const readRecentArenaGames = async (
     const contract = new Contract(address, ARENA_ABI, rpc);
     const nextGameId = (await contract.nextGameId()) as bigint;
 
-    return Promise.all(
-        arenaRecentGameIds(nextGameId, limit).map((id) =>
-            readArenaGame(address, id, playerAddress, rpcUrl),
-        ),
+    return mapArenaConcurrently(arenaRecentGameIds(nextGameId, limit), (id) =>
+        readArenaGameFromContract(contract, id, playerAddress),
     );
 };
 
