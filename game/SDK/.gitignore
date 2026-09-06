@@ -18,6 +18,7 @@ cache/
 
 # TypeScript
 *.tsbuildinfo
+types/
 
 # Logs
 *.log

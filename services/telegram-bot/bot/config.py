@@ -346,6 +346,9 @@ APP_DOWNLOAD_URL = os.environ.get("APP_DOWNLOAD_URL", PROJECT_WEBSITE_URL.rstrip
 WALLET_MINI_APP_URL = os.environ.get(
     "WALLET_MINI_APP_URL", PROJECT_WEBSITE_URL.rstrip("/") + "/wallet"
 )
+ARENA_MINI_APP_URL = os.environ.get(
+    "ARENA_MINI_APP_URL", PROJECT_WEBSITE_URL.rstrip("/") + "/wallet?screen=arena"
+)
 
 # Whether to put the Mini App behind the chat menu button (the ☰ beside the
 # input box) at startup. Off switches the bot back to the plain command menu.

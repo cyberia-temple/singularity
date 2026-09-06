@@ -46,6 +46,17 @@ export type VaultContents = {
     accounts: WalletAccountRecord[];
     /** Which account the app is currently acting as. */
     activeId: string;
+    /** Unrevealed Arena moves; encrypted under the same local vault key. */
+    arenaSecrets: ArenaSecretRecord[];
+};
+
+export type ArenaSecretRecord = {
+    contract: string;
+    gameId: string;
+    player: string;
+    move: 1 | 2 | 3;
+    secret: string;
+    createdAt: string;
 };
 
 /**
@@ -211,6 +222,7 @@ export const saveVault = async (
         phrase: normalized,
         accounts: defaultAccountRecords(),
         activeId: PRIMARY_ACCOUNT_ID,
+        arenaSecrets: [],
     };
 
     await seal(contents, key, salt, PBKDF2_ITERATIONS, storage);
@@ -234,6 +246,7 @@ const readContents = (plaintext: string): VaultContents => {
         phrase: plaintext,
         accounts: defaultAccountRecords(),
         activeId: PRIMARY_ACCOUNT_ID,
+        arenaSecrets: [],
     };
 
     let parsed: unknown;
@@ -265,6 +278,9 @@ const readContents = (plaintext: string): VaultContents => {
             ? accounts
             : [...defaultAccountRecords(), ...accounts],
         activeId: contents.activeId || PRIMARY_ACCOUNT_ID,
+        arenaSecrets: Array.isArray(contents.arenaSecrets)
+            ? contents.arenaSecrets
+            : [],
     };
 };
 

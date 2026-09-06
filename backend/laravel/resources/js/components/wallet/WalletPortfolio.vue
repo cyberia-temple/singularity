@@ -4,6 +4,7 @@ import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import StatusPill from '@/components/wallet/StatusPill.vue';
 import TxList from '@/components/wallet/TxList.vue';
 import { useLocale } from '@/composables/useLocale';
+import { arenaMessages } from '@/lib/arenaMessages';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { canOpenProxySettings, openProxySettings } from '@/lib/native';
 import { WALLET_FAMILY_GROUPS, formatUnits, walletChain } from '@/lib/wallet';
@@ -55,10 +56,12 @@ const emit = defineEmits<{
     bridge: [];
     earn: [];
     browse: [];
+    arena: [];
     preferences: [];
 }>();
 
 const { locale, t } = useLocale(walletMessages);
+const { t: arenaT } = useLocale(arenaMessages);
 
 const activeRecord = computed(() => props.wallet.activeAccount.value);
 
@@ -505,6 +508,18 @@ const recent = computed(() =>
                 }}</span>
             </button>
         </div>
+
+        <button
+            type="button"
+            class="cw-card cw-card-button"
+            style="margin: 10px 0; padding: 14px 16px"
+            @click="emit('arena')"
+        >
+            <span class="cw-row"
+                ><span>{{ arenaT('tile') }}</span
+                ><span class="cw-label">{{ arenaT('tileHint') }}</span></span
+            >
+        </button>
 
         <!--
           A second row, and the difference from the first is what they are

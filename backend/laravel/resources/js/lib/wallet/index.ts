@@ -254,6 +254,52 @@ export {
 export type { CatalogueNetwork } from '@/lib/wallet/catalogue';
 export type { UtxoAddressType } from '@/lib/wallet/utxo';
 export {
+    ARENA_ABI,
+    arenaCommitment,
+    arenaHasOpponent,
+    arenaRecentGameIds,
+    commitArenaMove,
+    createArenaGame,
+    createArenaSecret,
+    joinArenaGame,
+    mapArenaConcurrently,
+    readArenaGame,
+    readRecentArenaGames,
+    revealArenaMove,
+    settleArenaGame,
+} from '@/lib/wallet/arena';
+export {
+    arenaMatchPath,
+    arenaShareUrl,
+    parseArenaGameId,
+} from '@/lib/wallet/arenaLinks';
+export {
+    arenaSecondsRemaining,
+    formatArenaCountdown,
+} from '@/lib/wallet/arenaTime';
+export {
+    arenaErrorCode,
+    arenaTransactionUrl,
+} from '@/lib/wallet/arenaPresentation';
+export type { ArenaErrorCode } from '@/lib/wallet/arenaPresentation';
+export {
+    arenaAction,
+    arenaGameLists,
+    arenaNeedsAction,
+    arenaRole,
+} from '@/lib/wallet/arenaState';
+export type {
+    ArenaAction,
+    ArenaGameLists,
+    ArenaRole,
+} from '@/lib/wallet/arenaState';
+export type {
+    ArenaGame,
+    ArenaMove,
+    ArenaResult,
+    ArenaState,
+} from '@/lib/wallet/arena';
+export {
     ERC20_TRANSFER_GAS_CAP,
     blockscoutTokens,
     erc20Balance,
@@ -352,4 +398,8 @@ export {
     seedFromMnemonic,
     unsealVault,
 } from '@/lib/wallet/vault';
-export type { OpenedVault, VaultContents } from '@/lib/wallet/vault';
+export type {
+    ArenaSecretRecord,
+    OpenedVault,
+    VaultContents,
+} from '@/lib/wallet/vault';

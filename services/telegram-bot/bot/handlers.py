@@ -20,7 +20,7 @@ from bot.config import (
     CYBER_CA_SOLANA, CYBER_CA_EVM,
     WHALE_CHAT_ID, WHALE_MIN_CYBER_SOL, WHALE_VERIFY_URL, WHALE_LINK_TTL_MINUTES,
     SWAP_URL, NFT_MARKET_URL, PIXEL_BATTLE_URL, APP_DOWNLOAD_URL,
-    WALLET_MINI_APP_URL,
+    WALLET_MINI_APP_URL, ARENA_MINI_APP_URL,
     CYBER_SOL_DECIMALS,
     AI_ENABLED,
 )
@@ -260,6 +260,20 @@ async def open_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "own storage, and clearing Telegram's cache clears it — the phrase is "
         "what brings it back.",
         reply_markup=mini_app_markup(_is_private(update)),
+    )
+
+
+async def arena_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Open the same non-custodial Arena screen used by every Cyberia shell."""
+    button = InlineKeyboardButton(
+        "⚔️ Enter Arena",
+        web_app=WebAppInfo(url=ARENA_MINI_APP_URL) if _is_private(update) else None,
+        url=None if _is_private(update) else ARENA_MINI_APP_URL,
+    )
+    await update.message.reply_text(
+        "Cyberia Arena — commit, reveal and settlement happen on Cyberia. "
+        "The bot only opens the game and never sees your move secret or keys.",
+        reply_markup=InlineKeyboardMarkup([[button]]),
     )
 
 
