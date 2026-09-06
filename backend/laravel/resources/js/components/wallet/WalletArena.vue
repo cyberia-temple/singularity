@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useLocale } from '@/composables/useLocale';
+import { arenaCatalogueGame } from '@/lib/arenaCatalogue';
 import { arenaMessages } from '@/lib/arenaMessages';
 import { arenaHasOpponent, readArenaGame } from '@/lib/wallet';
 import type { ArenaGame, ArenaMove } from '@/lib/wallet';
@@ -19,6 +20,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ back: [] }>();
 const { t } = useLocale(arenaMessages);
+const product = arenaCatalogueGame('rps')!;
 
 const query = new URLSearchParams(window.location.search);
 const selectedGame = ref(query.has('game'));
@@ -198,7 +200,7 @@ onBeforeUnmount(() => window.clearInterval(timer));
                 class="arena-feature cw-card"
                 @click="selectedGame = true"
             >
-                <img src="/images/arena/rps-cover.png" alt="" />
+                <img :src="product.cover" alt="" />
                 <span class="arena-feature-copy">
                     <span class="cw-label" style="color: var(--cw-accent)">{{
                         t('live')
@@ -239,7 +241,7 @@ onBeforeUnmount(() => window.clearInterval(timer));
             <button class="cw-back" type="button" @click="selectedGame = false">
                 ← {{ t('back') }}
             </button>
-            <img class="arena-hero" src="/images/arena/rps-cover.png" alt="" />
+            <img class="arena-hero" :src="product.cover" alt="" />
             <p class="cw-eyebrow">{{ t('live') }} · {{ t('chain') }}</p>
             <h1 class="cw-title">{{ t('rps') }}</h1>
             <div class="arena-tabs">
