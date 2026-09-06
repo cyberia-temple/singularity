@@ -6,7 +6,13 @@ import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useLocale } from '@/composables/useLocale';
 import { arenaCatalogueGame } from '@/lib/arenaCatalogue';
 import { arenaMessages } from '@/lib/arenaMessages';
-import { arenaHasOpponent, readArenaGame } from '@/lib/wallet';
+import {
+    arenaAction,
+    arenaGameLists,
+    arenaHasOpponent,
+    readArenaGame,
+    readRecentArenaGames,
+} from '@/lib/wallet';
 import type { ArenaGame, ArenaMove } from '@/lib/wallet';
 
 const props = defineProps<{
@@ -45,12 +51,16 @@ const move = ref<ArenaMove>(1);
 const game = ref<ArenaGame | null>(null);
 const message = ref('');
 const loading = ref(false);
+const catalogueLoading = ref(false);
+const catalogueError = ref('');
+const recentGames = ref<ArenaGame[]>([]);
 const account = computed(
     () =>
         props.wallet.accounts.value.find((row) => row.family === 'evm')
             ?.address ?? '',
 );
 const me = computed(() => account.value.toLowerCase());
+const lists = computed(() => arenaGameLists(recentGames.value, account.value));
 const isPlayer = computed(
     () =>
         game.value &&
@@ -106,6 +116,29 @@ const refresh = async (): Promise<void> => {
         loading.value = false;
     }
 };
+const refreshCatalogue = async (): Promise<void> => {
+    if (!props.config.enabled || !account.value) return;
+    catalogueLoading.value = true;
+    catalogueError.value = '';
+    try {
+        recentGames.value = await readRecentArenaGames(
+            props.config.contractAddress,
+            account.value,
+            props.config.rpcUrl,
+        );
+    } catch {
+        catalogueError.value = t('matchesError');
+    } finally {
+        catalogueLoading.value = false;
+    }
+};
+const openMatch = (match: ArenaGame): void => {
+    game.value = match;
+    gameId.value = match.id.toString();
+    selectedGame.value = true;
+    tab.value = 'play';
+    history.replaceState({}, '', `/wallet?screen=arena&game=${match.id}`);
+};
 const run = async (
     action: () => Promise<unknown>,
     success: string,
@@ -116,6 +149,7 @@ const run = async (
         await action();
         message.value = success;
         await refresh();
+        await refreshCatalogue();
     } catch (error) {
         message.value = error instanceof Error ? error.message : t('txError');
     } finally {
@@ -181,6 +215,7 @@ const settle = (method: 'resolveGame' | 'cancelExpiredGame' | 'claimPayout') =>
 let timer = 0;
 onMounted(() => {
     void refresh();
+    void refreshCatalogue();
     timer = window.setInterval(refresh, 5000);
 });
 onBeforeUnmount(() => window.clearInterval(timer));
@@ -227,6 +262,68 @@ onBeforeUnmount(() => window.clearInterval(timer));
                     <p class="cw-note">{{ t('localOnly') }}</p>
                 </article>
             </div>
+            <section v-if="config.enabled" class="arena-matches">
+                <div class="cw-row">
+                    <p class="cw-label">{{ t('matches') }}</p>
+                    <button
+                        class="cw-ghost"
+                        type="button"
+                        :disabled="catalogueLoading"
+                        @click="refreshCatalogue"
+                    >
+                        {{ t('refreshMatches') }}
+                    </button>
+                </div>
+                <p v-if="catalogueError" class="cw-note">
+                    {{ catalogueError }}
+                </p>
+                <p
+                    v-else-if="catalogueLoading && recentGames.length === 0"
+                    class="cw-note"
+                >
+                    {{ t('loadingMatches') }}
+                </p>
+                <template
+                    v-for="group in [
+                        ['attention', lists.attention],
+                        ['mine', lists.mine],
+                        ['openGames', lists.open],
+                    ] as const"
+                    :key="group[0]"
+                >
+                    <div v-if="group[1].length" class="arena-match-group">
+                        <span class="cw-label">{{ t(group[0]) }}</span>
+                        <button
+                            v-for="match in group[1]"
+                            :key="match.id.toString()"
+                            type="button"
+                            class="arena-match cw-card"
+                            @click="openMatch(match)"
+                        >
+                            <span
+                                ><strong>#{{ match.id }}</strong
+                                ><small>{{
+                                    t(`action_${arenaAction(match, account)}`)
+                                }}</small></span
+                            >
+                            <span
+                                ><strong
+                                    >{{
+                                        formatEther(match.stake)
+                                    }}
+                                    CYBER</strong
+                                ><small>{{ states[match.state] }}</small></span
+                            >
+                        </button>
+                    </div>
+                </template>
+                <p
+                    v-if="!catalogueLoading && recentGames.length === 0"
+                    class="cw-note"
+                >
+                    {{ t('noMatches') }}
+                </p>
+            </section>
             <p class="cw-label" style="margin: 26px 0 10px">
                 {{ t('allGames') }}
             </p>
@@ -519,6 +616,41 @@ onBeforeUnmount(() => window.clearInterval(timer));
     grid-template-columns: 1.4fr 1fr;
     gap: 10px;
     margin-top: 10px;
+}
+.arena-matches {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.arena-match-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.arena-match {
+    width: 100%;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    text-align: left;
+    cursor: pointer;
+}
+.arena-match > span {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.arena-match > span:last-child {
+    text-align: right;
+}
+.arena-match strong {
+    color: var(--cw-text);
+    font: 500 12px/1 var(--cw-mono);
+}
+.arena-match small {
+    color: var(--cw-dim);
+    font: 400 10px/1.2 var(--cw-sans);
 }
 .arena-panel,
 .arena-coming {
