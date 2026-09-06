@@ -269,6 +269,11 @@ export {
     settleArenaGame,
 } from '@/lib/wallet/arena';
 export {
+    arenaMatchPath,
+    arenaShareUrl,
+    parseArenaGameId,
+} from '@/lib/wallet/arenaLinks';
+export {
     arenaAction,
     arenaGameLists,
     arenaNeedsAction,

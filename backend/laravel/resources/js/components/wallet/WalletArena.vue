@@ -10,6 +10,9 @@ import {
     arenaAction,
     arenaGameLists,
     arenaHasOpponent,
+    arenaMatchPath,
+    arenaShareUrl,
+    parseArenaGameId,
     readArenaGame,
     readRecentArenaGames,
 } from '@/lib/wallet';
@@ -29,7 +32,8 @@ const { t } = useLocale(arenaMessages);
 const product = arenaCatalogueGame('rps')!;
 
 const query = new URLSearchParams(window.location.search);
-const selectedGame = ref(query.has('game'));
+const linkedGameId = parseArenaGameId(query.get('game'));
+const selectedGame = ref(linkedGameId !== null);
 const tab = ref<'about' | 'play' | 'community'>('about');
 const feedback = ref('');
 const savedFeedback = ref<string[]>(
@@ -45,7 +49,7 @@ const saveFeedback = (): void => {
     );
     feedback.value = '';
 };
-const gameId = ref(query.get('game') ?? '');
+const gameId = ref(linkedGameId?.toString() ?? '');
 const stake = ref('0.01');
 const move = ref<ArenaMove>(1);
 const game = ref<ArenaGame | null>(null);
@@ -100,12 +104,14 @@ const moves = computed<{ id: ArenaMove; glyph: string; name: string }[]>(() => [
 ]);
 
 const refresh = async (): Promise<void> => {
-    if (!props.config.enabled || !gameId.value || !account.value) return;
+    const parsedGameId = parseArenaGameId(gameId.value);
+    if (!props.config.enabled || parsedGameId === null || !account.value)
+        return;
     loading.value = true;
     try {
         game.value = await readArenaGame(
             props.config.contractAddress,
-            BigInt(gameId.value),
+            parsedGameId,
             account.value,
             props.config.rpcUrl,
         );
@@ -137,7 +143,22 @@ const openMatch = (match: ArenaGame): void => {
     gameId.value = match.id.toString();
     selectedGame.value = true;
     tab.value = 'play';
-    history.replaceState({}, '', `/wallet?screen=arena&game=${match.id}`);
+    history.replaceState({}, '', arenaMatchPath(match.id));
+};
+const requiredGameId = (): bigint => {
+    const parsed = parseArenaGameId(gameId.value);
+    if (parsed === null) throw new Error(t('invalidGameId'));
+    return parsed;
+};
+const shareMatch = async (): Promise<void> => {
+    const parsed = requiredGameId();
+    const url = arenaShareUrl(window.location.origin, parsed);
+    if (navigator.share) {
+        await navigator.share({ title: t('rps'), url });
+        return;
+    }
+    await navigator.clipboard.writeText(url);
+    message.value = t('inviteCopied');
 };
 const run = async (
     action: () => Promise<unknown>,
@@ -164,11 +185,7 @@ const create = () =>
         );
         if (result.gameId) {
             gameId.value = result.gameId.toString();
-            history.replaceState(
-                {},
-                '',
-                `/wallet?screen=arena&game=${gameId.value}`,
-            );
+            history.replaceState({}, '', arenaMatchPath(result.gameId));
         }
     }, t('created'));
 const join = () =>
@@ -176,7 +193,7 @@ const join = () =>
         () =>
             props.wallet.arenaJoin(
                 props.config.contractAddress,
-                BigInt(gameId.value),
+                requiredGameId(),
                 game.value!.stake,
             ),
         t('joined'),
@@ -186,7 +203,7 @@ const commit = () =>
         () =>
             props.wallet.arenaCommit(
                 props.config.contractAddress,
-                BigInt(gameId.value),
+                requiredGameId(),
                 account.value,
                 move.value,
             ),
@@ -197,7 +214,7 @@ const reveal = () =>
         () =>
             props.wallet.arenaReveal(
                 props.config.contractAddress,
-                BigInt(gameId.value),
+                requiredGameId(),
                 account.value,
             ),
         t('revealed'),
@@ -207,7 +224,7 @@ const settle = (method: 'resolveGame' | 'cancelExpiredGame' | 'claimPayout') =>
         () =>
             props.wallet.arenaSettle(
                 props.config.contractAddress,
-                BigInt(gameId.value),
+                requiredGameId(),
                 method,
             ),
         method === 'claimPayout' ? t('claimed') : t('settled'),
@@ -429,6 +446,13 @@ onBeforeUnmount(() => window.clearInterval(timer));
                                         : t('waiting')
                                 }}
                             </p>
+                            <button
+                                class="cw-ghost"
+                                type="button"
+                                @click="shareMatch"
+                            >
+                                {{ t('invite') }}
+                            </button>
                         </template>
                     </div>
 
