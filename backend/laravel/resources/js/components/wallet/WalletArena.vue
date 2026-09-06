@@ -12,6 +12,8 @@ import {
     arenaHasOpponent,
     arenaMatchPath,
     arenaShareUrl,
+    arenaSecondsRemaining,
+    formatArenaCountdown,
     parseArenaGameId,
     readArenaGame,
     readRecentArenaGames,
@@ -58,6 +60,7 @@ const loading = ref(false);
 const catalogueLoading = ref(false);
 const catalogueError = ref('');
 const recentGames = ref<ArenaGame[]>([]);
+const nowSeconds = ref(Date.now() / 1000);
 const account = computed(
     () =>
         props.wallet.accounts.value.find((row) => row.family === 'evm')
@@ -87,7 +90,14 @@ const revealed = computed(
             : game.value.playerTwoMove) !== 0,
 );
 const expired = computed(
-    () => !!game.value && Date.now() / 1000 > game.value.deadline,
+    () => !!game.value && nowSeconds.value > game.value.deadline,
+);
+const countdown = computed(() =>
+    game.value
+        ? formatArenaCountdown(
+              arenaSecondsRemaining(game.value.deadline, nowSeconds.value),
+          )
+        : '',
 );
 const states = computed(() => [
     '—',
@@ -230,12 +240,37 @@ const settle = (method: 'resolveGame' | 'cancelExpiredGame' | 'claimPayout') =>
         method === 'claimPayout' ? t('claimed') : t('settled'),
     );
 let timer = 0;
-onMounted(() => {
+let ticks = 0;
+const stopPolling = (): void => window.clearInterval(timer);
+const startPolling = (): void => {
+    stopPolling();
+    timer = window.setInterval(() => {
+        nowSeconds.value = Date.now() / 1000;
+        ticks++;
+        if (ticks % 5 === 0) {
+            void refresh();
+            void refreshCatalogue();
+        }
+    }, 1000);
+};
+const onVisibilityChange = (): void => {
+    if (document.hidden) {
+        stopPolling();
+        return;
+    }
+    nowSeconds.value = Date.now() / 1000;
     void refresh();
     void refreshCatalogue();
-    timer = window.setInterval(refresh, 5000);
+    startPolling();
+};
+onMounted(() => {
+    onVisibilityChange();
+    document.addEventListener('visibilitychange', onVisibilityChange);
 });
-onBeforeUnmount(() => window.clearInterval(timer));
+onBeforeUnmount(() => {
+    stopPolling();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+});
 </script>
 
 <template>
@@ -438,6 +473,9 @@ onBeforeUnmount(() => window.clearInterval(timer));
                                     >{{ formatEther(game.stake) }} CYBER</span
                                 >
                             </div>
+                            <p v-if="game.state < 4" class="cw-label">
+                                {{ t('deadline') }} · {{ countdown }}
+                            </p>
                             <p class="cw-note">
                                 P1 {{ game.playerOne }}<br />P2
                                 {{

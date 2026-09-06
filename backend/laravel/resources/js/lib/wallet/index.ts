@@ -274,6 +274,10 @@ export {
     parseArenaGameId,
 } from '@/lib/wallet/arenaLinks';
 export {
+    arenaSecondsRemaining,
+    formatArenaCountdown,
+} from '@/lib/wallet/arenaTime';
+export {
     arenaAction,
     arenaGameLists,
     arenaNeedsAction,
