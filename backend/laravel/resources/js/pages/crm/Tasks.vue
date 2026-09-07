@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, nextTick, ref } from 'vue';
 import Linked from '@/components/console/Linked.vue';
 import Rule from '@/components/console/Rule.vue';
@@ -646,6 +646,12 @@ const footer = computed(() =>
                                     >
                                         {{ t('tasks.edit') }}
                                     </button>
+                                    <Link
+                                        :href="tasks.show.url(task.id)"
+                                        class="mk-btn mk-ghost task-action--page"
+                                    >
+                                        {{ t('tasks.page') }}
+                                    </Link>
                                     <button
                                         type="button"
                                         class="mk-btn mk-ghost task-delete"

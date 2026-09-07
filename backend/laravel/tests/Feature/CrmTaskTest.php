@@ -21,12 +21,49 @@ test('guests and non-operators cannot reach tasks', function () {
     $task = CrmTask::factory()->create();
 
     $this->actingAs($stranger)->get(route('crm.tasks.index'))->assertNotFound();
+    $this->actingAs($stranger)->get(route('crm.tasks.show', $task))->assertNotFound();
     $this->actingAs($stranger)->post(route('crm.tasks.store'), ['title' => 'x'])->assertNotFound();
     $this->actingAs($stranger)->put(route('crm.tasks.update', $task), ['status' => 'done'])->assertNotFound();
     $this->actingAs($stranger)->post(route('crm.tasks.comments.store', $task), ['body' => 'Nope'])->assertNotFound();
     $this->actingAs($stranger)->delete(route('crm.tasks.destroy', $task))->assertNotFound();
 
     expect($task->fresh()->status)->toBe('open');
+});
+
+test('an operator can open a task workspace with its people and activity', function () {
+    $this->withoutVite();
+
+    $operator = User::factory()->crmAdmin()->create(['name' => 'Lain']);
+    $creator = secondOperator();
+    $contact = CrmContact::factory()->create(['name' => 'Alice']);
+    $task = CrmTask::factory()->assignedTo($operator)->create([
+        'created_by_user_id' => $creator->id,
+        'crm_contact_id' => $contact->id,
+        'title' => 'Prepare the report',
+        'description' => "First line\nSecond line",
+        'priority' => 'high',
+    ]);
+    CrmTaskComment::factory()->create([
+        'crm_task_id' => $task->id,
+        'user_id' => $operator->id,
+        'body' => 'Started collecting data',
+    ]);
+
+    $this->actingAs($operator)
+        ->get(route('crm.tasks.show', $task))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('crm/Task')
+            ->where('task.title', 'Prepare the report')
+            ->where('task.description', "First line\nSecond line")
+            ->where('task.priority', 'high')
+            ->where('task.assignee', 'Lain')
+            ->where('task.creator', $creator->name)
+            ->where('task.contact.name', 'Alice')
+            ->where('task.comments.0.body', 'Started collecting data')
+            ->has('options.statuses', 4)
+            ->has('options.priorities', 3)
+        );
 });
 
 test('the board sorts tasks into late, now and later, and lifts out the unowned', function () {
