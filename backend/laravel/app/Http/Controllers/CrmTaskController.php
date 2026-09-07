@@ -105,6 +105,38 @@ class CrmTaskController extends Controller
         return back()->with('success', 'Task created');
     }
 
+    /**
+     * One task as a workspace: its editable brief, ownership and conversation.
+     */
+    public function show(Request $request, CrmTask $task): Response
+    {
+        $task->load([
+            'assignee:id,name',
+            'creator:id,name',
+            'contact:id,name,telegram,x_handle',
+            'comments.user:id,name',
+        ]);
+
+        return Inertia::render('crm/Task', [
+            'task' => [
+                ...$this->row($task, $request->user()?->id),
+                'created_at' => $task->created_at?->toIso8601String(),
+                'updated_at' => $task->updated_at?->toIso8601String(),
+                'completed_at' => $task->completed_at?->toIso8601String(),
+                'creator' => $task->creator?->name,
+                'external_id' => $task->external_id,
+            ],
+            'options' => [
+                'statuses' => CrmTask::STATUSES,
+                'priorities' => CrmTask::PRIORITIES,
+                'assignees' => User::crmOperators()
+                    ->get(['id', 'name'])
+                    ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])
+                    ->all(),
+            ],
+        ]);
+    }
+
     public function update(UpdateCrmTaskRequest $request, CrmTask $task): RedirectResponse
     {
         $task->update($request->validated());
@@ -136,7 +168,7 @@ class CrmTaskController extends Controller
 
         ConsoleFeed::forget();
 
-        return back()->with('success', 'Task deleted');
+        return to_route('crm.tasks.index')->with('success', 'Task deleted');
     }
 
     /**

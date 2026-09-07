@@ -552,6 +552,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('tasks', [CrmTaskController::class, 'index'])->name('tasks.index');
         Route::post('tasks', [CrmTaskController::class, 'store'])->name('tasks.store');
+        Route::get('tasks/{task}', [CrmTaskController::class, 'show'])->name('tasks.show');
         Route::put('tasks/{task}', [CrmTaskController::class, 'update'])->name('tasks.update');
         Route::post('tasks/{task}/comments', [CrmTaskCommentController::class, 'store'])->name('tasks.comments.store');
         Route::post('tasks/{task}/claim', [CrmTaskController::class, 'claim'])->name('tasks.claim');
