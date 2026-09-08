@@ -45,6 +45,15 @@ function crossChains(): array
                 'vmType' => 'evm',
                 'disabled' => true,
             ],
+            [
+                'id' => 8253038,
+                'displayName' => 'Bitcoin',
+                'currency' => ['symbol' => 'BTC', 'decimals' => 8],
+                'vmType' => 'bvm',
+                'explorerUrl' => 'https://mempool.space',
+                'tokenSupport' => 'Limited',
+                'depositEnabled' => true,
+            ],
         ],
     ];
 }
@@ -257,6 +266,7 @@ it('hands the browser one transaction per step and nothing else', function () {
 
     expect($step['id'])->toBe('deposit')
         ->and($step['items'][0])->toBe([
+            'vm' => 'evm',
             'chainId' => 8453,
             'to' => '0x4cd00e387622c35bddb9b4c962c136462338bc31',
             'data' => '0x49290c1c',
@@ -280,17 +290,71 @@ it('keeps every amount a string, decimals beside it', function () {
 });
 
 it('refuses an origin leg this wallet could never sign', function () {
+    // Bitcoin: the router routes it, the wallet has no way to put a signature
+    // on the payload it would answer with. Refused before the call, because
+    // finding out after somebody agreed to a route is the failure worth
+    // spending a round trip to avoid.
     $this->postJson('/api/wallet/crosschain/quote', crossPayload([
-        'originChainId' => 792703809,
+        'originChainId' => 8253038,
         'destinationChainId' => 8453,
-        'originCurrency' => '11111111111111111111111111111111',
+        'originCurrency' => 'bitcoin',
         'destinationCurrency' => '0x0000000000000000000000000000000000000000',
         'recipient' => '0x2222222222222222222222222222222222222222',
     ]))
         ->assertStatus(422)
-        ->assertJsonPath('error', 'The wallet can only start a cross-chain swap from an EVM network.');
+        ->assertJsonPath('error', 'The wallet cannot sign a transaction on the source network.');
 
     Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), '/quote'));
+});
+
+it('starts a route on Solana, and hands over the parts a signature needs', function () {
+    app()->instance('cross.quote', crossQuote(['steps' => [[
+        'id' => 'swap',
+        'description' => 'Swapping',
+        'items' => [[
+            'status' => 'incomplete',
+            'data' => [
+                'instructions' => [[
+                    'programId' => 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
+                    'keys' => [[
+                        'pubkey' => '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+                        'isSigner' => true,
+                        'isWritable' => true,
+                    ]],
+                    'data' => 'AQIDBA==',
+                ]],
+                'addressLookupTableAddresses' => ['Hm9fUgcn7qwDaiNTFiGh6pNtVATgnaRcmK6Bbx6EMZfP'],
+            ],
+        ]],
+    ]]]));
+
+    $step = $this->postJson('/api/wallet/crosschain/quote', crossPayload([
+        'originChainId' => 792703809,
+        'destinationChainId' => 792703809,
+        'originCurrency' => '11111111111111111111111111111111',
+        'destinationCurrency' => 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        'recipient' => '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+    ]))
+        ->assertOk()
+        ->json('quote.steps.0');
+
+    // Instructions and the tables they resolve against — nothing else. A v0
+    // transaction is compiled in the browser, which is what lets the signer
+    // see what it is signing.
+    expect($step['id'])->toBe('swap')
+        ->and($step['items'][0])->toBe([
+            'vm' => 'svm',
+            'instructions' => [[
+                'programId' => 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
+                'keys' => [[
+                    'pubkey' => '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+                    'isSigner' => true,
+                    'isWritable' => true,
+                ]],
+                'data' => 'AQIDBA==',
+            ]],
+            'lookupTables' => ['Hm9fUgcn7qwDaiNTFiGh6pNtVATgnaRcmK6Bbx6EMZfP'],
+        ]);
 });
 
 it('refuses a network the router does not serve', function () {

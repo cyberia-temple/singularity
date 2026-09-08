@@ -1104,9 +1104,11 @@ export const walletMessages: Messages = {
         swapImpactWarn:
             'This trade moves the pool price by {impact}%. The pool is thin for an amount this size — a smaller amount pays a better rate.',
         swapNoDex:
-            'No exchange is deployed on {chain}, so there is nothing here to trade against. Swapping works on the networks that run one.',
+            'Nothing this wallet can reach trades on {chain} — no exchange of ours, and no router that lists it. The networks below do.',
         swapOnNetwork: 'Swap on {chain}',
         routeTitle: 'Swap on {chain}',
+        swapRouterDown:
+            'The wallet could not reach the routing service, so it cannot say what is tradable here. This is about right now, not about this network.',
         routeVenue: 'ROUTED BY AN AGGREGATOR · NOT A CYBERIA POOL',
         routeExplain:
             'Cyberia runs no exchange on {chain}, so the wallet asks a router that already trades there. It finds the route, holds the inventory and can decline; the wallet only signs what comes back. Cyberia’s fee is for finding the route, and is shown below exactly as the route priced it.',
@@ -2492,9 +2494,11 @@ export const walletMessages: Messages = {
         swapImpactWarn:
             'Сделка двигает цену пула на {impact}%. Для такой суммы пул тонкий — на меньшем объёме курс будет лучше.',
         swapNoDex:
-            'В сети {chain} биржа не развёрнута, обменивать здесь не с чем. Обмен работает в сетях, где есть роутер.',
+            'В сети {chain} кошельку торговать не через что: своей биржи здесь нет, и ни один маршрутизатор её не обслуживает. Сети ниже — обслуживаются.',
         swapOnNetwork: 'Обменять в сети {chain}',
         routeTitle: 'Обмен в сети {chain}',
+        swapRouterDown:
+            'Кошелёк не смог достучаться до маршрутизатора и потому не может сказать, что здесь торгуется. Это про сейчас, а не про эту сеть.',
         routeVenue: 'МАРШРУТ ОТ АГРЕГАТОРА · НЕ ПУЛ CYBERIA',
         routeExplain:
             'В сети {chain} у Cyberia своей биржи нет, поэтому кошелёк спрашивает маршрутизатор, который там уже торгует. Он находит маршрут, держит ликвидность и может отказать; кошелёк лишь подписывает то, что пришло в ответ. Комиссия Cyberia — за поиск маршрута, и ниже показана ровно такой, какой её посчитал маршрут.',
@@ -3828,9 +3832,11 @@ export const walletMessages: Messages = {
         swapImpactWarn:
             '这笔交易会把池子价格推动 {impact}%。对这个数额来说池子太浅了 — 小一点的数额能换到更好的价。',
         swapNoDex:
-            '{chain} 上没有部署交易所，所以这里没有可以交易的对手方。兑换在跑着交易所的网络上才有。',
+            '本钱包在 {chain} 上无处成交：这里没有我们的交易所，也没有路由器收录它。下面的网络可以。',
         swapOnNetwork: '在 {chain} 上兑换',
         routeTitle: '在 {chain} 上兑换',
+        swapRouterDown:
+            '钱包无法连接路由服务，因此无法判断这里能交易什么。这是此刻的问题，不是这条链的问题。',
         routeVenue: '由聚合器路由 · 非 CYBERIA 池子',
         routeExplain:
             'Cyberia 在 {chain} 上没有自己的交易所，因此钱包会询问已在该链交易的路由器。它负责寻找路由、持有库存，也可能拒绝；钱包只签署返回的内容。Cyberia 的费用是路由查找费，下面显示的就是该路由实际计价的金额。',

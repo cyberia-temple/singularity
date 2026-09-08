@@ -39,7 +39,21 @@ class CrosschainRouter
     public const NATIVE = '0x0000000000000000000000000000000000000000';
 
     /** Origin legs the wallet can actually sign. See `quote()`. */
-    private const SIGNABLE_VM = 'evm';
+    /**
+     * The virtual machines this wallet can put a signature on.
+     *
+     * Not a list of what the router serves — it serves eight — but of what a
+     * browser holding this vault can actually sign. EVM has been here from the
+     * start; Solana joined it because the wallet already derives a keypair,
+     * already builds and broadcasts transactions on it, and the router answers
+     * an SVM leg with plain instructions rather than a payload only a
+     * specialist wallet could read.
+     *
+     * Bitcoin, TON, Tron and the rest stay out until the same is true of them:
+     * a leg the wallet cannot sign is a route that fails after somebody has
+     * already agreed to it, which is the one failure worth refusing early.
+     */
+    private const SIGNABLE_VMS = ['evm', 'svm'];
 
     public function enabled(): bool
     {
@@ -265,8 +279,8 @@ class CrosschainRouter
             throw new RuntimeException('This router does not serve the source network.');
         }
 
-        if ($origin['vm'] !== self::SIGNABLE_VM) {
-            throw new RuntimeException('The wallet can only start a cross-chain swap from an EVM network.');
+        if (! in_array($origin['vm'], self::SIGNABLE_VMS, true)) {
+            throw new RuntimeException('The wallet cannot sign a transaction on the source network.');
         }
 
         if ($this->chain((int) $request['destinationChainId']) === null) {
@@ -393,11 +407,71 @@ class CrosschainRouter
             foreach ((array) ($step['items'] ?? []) as $item) {
                 $data = is_array($item['data'] ?? null) ? $item['data'] : [];
 
+                /*
+                 * Two shapes, and the difference is the chain's, not ours.
+                 *
+                 * An EVM leg is one transaction — where to, what calldata, how
+                 * much value. A Solana leg is a list of instructions plus the
+                 * lookup tables they are compiled against, because that is what
+                 * a v0 transaction is made of and the router leaves the
+                 * assembling to whoever holds the key.
+                 *
+                 * Both are stripped to exactly the fields a signature needs.
+                 * Nothing else in the router's answer reaches the browser: a
+                 * step naming another chain, or carrying anything the signer
+                 * does not read, is a step nobody can audit on the way past.
+                 */
+                if (isset($data['instructions']) && is_array($data['instructions'])) {
+                    $instructions = [];
+
+                    foreach ($data['instructions'] as $instruction) {
+                        if (! is_array($instruction)) {
+                            continue;
+                        }
+
+                        $keys = [];
+
+                        foreach ((array) ($instruction['keys'] ?? []) as $key) {
+                            if (! is_array($key) || ! isset($key['pubkey'])) {
+                                continue;
+                            }
+
+                            $keys[] = [
+                                'pubkey' => (string) $key['pubkey'],
+                                'isSigner' => (bool) ($key['isSigner'] ?? false),
+                                'isWritable' => (bool) ($key['isWritable'] ?? false),
+                            ];
+                        }
+
+                        $instructions[] = [
+                            'programId' => (string) ($instruction['programId'] ?? ''),
+                            'keys' => $keys,
+                            'data' => (string) ($instruction['data'] ?? ''),
+                        ];
+                    }
+
+                    if ($instructions === []) {
+                        continue;
+                    }
+
+                    $items[] = [
+                        'vm' => 'svm',
+                        'instructions' => $instructions,
+                        'lookupTables' => array_values(array_map(
+                            static fn ($address): string => (string) $address,
+                            (array) ($data['addressLookupTableAddresses'] ?? []),
+                        )),
+                    ];
+
+                    continue;
+                }
+
                 if (! isset($data['to'], $data['chainId'])) {
                     continue;
                 }
 
                 $items[] = [
+                    'vm' => 'evm',
                     'chainId' => (int) $data['chainId'],
                     'to' => (string) $data['to'],
                     'data' => (string) ($data['data'] ?? '0x'),

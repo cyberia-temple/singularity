@@ -74,7 +74,19 @@ class WalletCrosschainController extends Controller
             'destinationChainId' => ['required', 'integer', 'min:1'],
             'originCurrency' => ['required', 'string', 'max:128'],
             'destinationCurrency' => ['required', 'string', 'max:128'],
-            'user' => ['required', 'string', 'regex:/^0x[0-9a-fA-F]{40}$/'],
+            /*
+             * Who is spending. Constrained where `recipient` is not, because
+             * this is the address whose balance the route is priced against
+             * and quoting somebody else's is not a mistake worth allowing —
+             * and the two shapes here are exactly the two the wallet can put a
+             * signature on: an EVM address, or a base58 Solana one. Adding a
+             * third means teaching the executor to sign for it first.
+             */
+            'user' => [
+                'required',
+                'string',
+                'regex:/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/',
+            ],
             'recipient' => ['required', 'string', 'max:128'],
             'amount' => ['required', 'string', 'regex:/^[1-9][0-9]{0,39}$/'],
             'slippageBps' => ['nullable', 'integer', 'min:0', 'max:1000'],

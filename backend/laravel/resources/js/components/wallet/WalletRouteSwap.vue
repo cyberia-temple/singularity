@@ -7,11 +7,12 @@ import type { MultiWallet } from '@/composables/useMultiWallet';
 import { formatUnits, parseUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
 import {
-    CROSS_NATIVE,
     crossFeeShareBps,
     crossSwapStatus,
     fetchCrossTokens,
     quoteCrossSwap,
+    routerChainId,
+    routerNativeCurrency,
 } from '@/lib/wallet/crosschain';
 import type {
     CrossQuote,
@@ -53,6 +54,16 @@ const { locale, t } = useLocale(walletMessages);
 
 const chain = computed(() => walletChain(props.chain));
 
+/**
+ * How the router names this network. An EVM chain answers with its own id;
+ * Solana has none and the router invented one, which is why this is asked for
+ * rather than read off the chain.
+ */
+const routedId = computed(() => routerChainId(props.chain));
+
+/** How the router names this network's own coin — not the same string on both. */
+const nativeCurrency = computed(() => routerNativeCurrency(props.chain));
+
 const account = computed(() =>
     props.wallet.accounts.value.find(
         (candidate) => candidate.chain === props.chain,
@@ -69,8 +80,8 @@ const account = computed(() =>
  */
 const payable = computed<CrossToken[]>(() => {
     const coin: CrossToken = {
-        chainId: chain.value.chainId ?? 0,
-        address: CROSS_NATIVE,
+        chainId: routedId.value ?? 0,
+        address: nativeCurrency.value,
         symbol: chain.value.symbol,
         name: chain.value.label,
         decimals: chain.value.decimals,
@@ -80,7 +91,7 @@ const payable = computed<CrossToken[]>(() => {
 
     const held = (props.wallet.tokens.value[props.chain]?.items ?? []).map(
         (token) => ({
-            chainId: chain.value.chainId ?? 0,
+            chainId: routedId.value ?? 0,
             address: token.address,
             symbol: token.symbol,
             name: token.name ?? token.symbol,
@@ -114,7 +125,7 @@ const balance = computed<bigint | null>(() => {
         return null;
     }
 
-    if (token.address === CROSS_NATIVE) {
+    if (token.address === nativeCurrency.value) {
         return props.wallet.balances.value[props.chain]?.value ?? null;
     }
 
@@ -165,9 +176,9 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null;
  * in a page, and the router's search already knows which of them have routes.
  */
 const search = (): void => {
-    const chainId = chain.value.chainId;
+    const chainId = routedId.value;
 
-    if (chainId === undefined) {
+    if (chainId === null) {
         return;
     }
 
@@ -209,7 +220,8 @@ const quote = ref<CrossQuote | null>(null);
 const quoting = ref(false);
 const quoteError = ref<string | null>(null);
 
-const evmAddress = computed(() => account.value?.address ?? null);
+/** Who is spending, in whatever form this chain writes an address. */
+const spender = computed(() => account.value?.address ?? null);
 
 /**
  * A quote costs nothing and answers the question people arrive with — what is
@@ -221,15 +233,15 @@ const canQuote = computed(
         from.value !== null &&
         to.value !== null &&
         amountRaw.value !== null &&
-        evmAddress.value !== null &&
-        chain.value.chainId !== undefined,
+        spender.value !== null &&
+        routedId.value !== null,
 );
 
 const ask = async (): Promise<void> => {
-    const chainId = chain.value.chainId;
-    const address = evmAddress.value;
+    const chainId = routedId.value;
+    const address = spender.value;
 
-    if (!canQuote.value || chainId === undefined || address === null) {
+    if (!canQuote.value || chainId === null || address === null) {
         return;
     }
 

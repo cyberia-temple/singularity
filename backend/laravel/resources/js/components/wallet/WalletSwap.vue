@@ -39,7 +39,7 @@ import type {
     WrapDirection,
     WrapQuote,
 } from '@/lib/wallet';
-import { fetchCrosschainConfig } from '@/lib/wallet/crosschain';
+import { fetchCrosschainConfig, routerChainId } from '@/lib/wallet/crosschain';
 import { formatUsd, shortAddress, usdValue } from '@/lib/wallet/format';
 import {
     announceWalletEvent,
@@ -143,11 +143,22 @@ const chain = computed(() => walletChain(props.chain));
 const routerChains = ref<number[] | null>(null);
 const routerAsked = ref(false);
 
-const routable = computed(
-    () =>
-        chain.value.chainId !== undefined &&
-        (routerChains.value ?? []).includes(chain.value.chainId),
-);
+/**
+ * The router could not be reached, which is a different sentence from "the
+ * router does not serve this chain".
+ *
+ * One is a fact about the network and the old dead end says it correctly. The
+ * other is a fact about this minute, and answering it with "there is no
+ * exchange here" tells the user something false about their chain and offers
+ * them no way to find out otherwise.
+ */
+const routerUnreachable = ref(false);
+
+const routable = computed(() => {
+    const id = routerChainId(props.chain);
+
+    return id !== null && (routerChains.value ?? []).includes(id);
+});
 
 const account = computed(() =>
     props.wallet.accounts.value.find(
@@ -168,13 +179,19 @@ const dex = computed(() =>
  * screen the current network belongs in the strip too, or the picker offers
  * two elsewheres while quoting a trade right here and nothing is marked.
  */
-const tradable = computed(() =>
-    props.wallet.accounts.value.filter(
-        (candidate) =>
-            hasSwap(walletChain(candidate.chain).chainId) ||
-            (candidate.chain === props.chain && routable.value),
-    ),
-);
+const tradable = computed(() => {
+    const routed = routerChains.value ?? [];
+
+    return props.wallet.accounts.value.filter((candidate) => {
+        if (hasSwap(walletChain(candidate.chain).chainId)) {
+            return true;
+        }
+
+        const id = routerChainId(candidate.chain);
+
+        return id !== null && routed.includes(id);
+    });
+});
 
 const coin = computed<SwapAsset>(() => ({
     address: null,
@@ -1051,21 +1068,47 @@ watch(
         }
 
         routerAsked.value = true;
+        routerUnreachable.value = false;
 
         try {
             const config = await fetchCrosschainConfig();
 
+            /*
+             * Filtered to what this wallet can sign, not to what the router
+             * serves. It routes eight kinds of chain; the wallet holds a key it
+             * can put on two of them, and offering a trade it cannot finish is
+             * worse than not offering one.
+             */
             routerChains.value = config.enabled
                 ? config.chains
-                      .filter((row) => row.vm === 'evm')
+                      .filter((row) => row.vm === 'evm' || row.vm === 'svm')
                       .map((row) => row.id)
                 : [];
         } catch {
             routerChains.value = [];
+            routerUnreachable.value = true;
         }
     },
     { immediate: true },
 );
+
+/** Ask again, for the case that was only ever about this minute. */
+const retryRouter = async (): Promise<void> => {
+    routerUnreachable.value = false;
+
+    try {
+        const config = await fetchCrosschainConfig();
+
+        routerChains.value = config.enabled
+            ? config.chains
+                  .filter((row) => row.vm === 'evm' || row.vm === 'svm')
+                  .map((row) => row.id)
+            : [];
+    } catch {
+        routerChains.value = [];
+        routerUnreachable.value = true;
+    }
+};
 
 watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
 </script>
@@ -1125,6 +1168,23 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                 :wallet="wallet"
                 :chain="props.chain"
             />
+
+            <!--
+              Asked, and nobody routes this chain. The only one of the three
+              states that is a fact about the network rather than about us.
+            -->
+            <template v-else-if="!dex && routerUnreachable">
+                <p class="cw-note cw-note-warn">
+                    <span style="flex: 1">{{ t('swapRouterDown') }}</span>
+                    <button
+                        type="button"
+                        class="cw-back"
+                        @click="retryRouter()"
+                    >
+                        {{ t('retry') }}
+                    </button>
+                </p>
+            </template>
 
             <template v-else-if="!dex">
                 <p class="cw-note cw-note-warn">
