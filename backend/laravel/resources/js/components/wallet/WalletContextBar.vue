@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { Moon, Sun, SunMoon } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
-import { useWalletTheme } from '@/composables/useWalletTheme';
 import {
     accountDisplayName,
     accountKindLabel,
@@ -50,32 +48,14 @@ const emit = defineEmits<{
 const { locale, t } = useLocale(walletMessages);
 
 /*
- * Light or dark, answered on the bar that already answers which account and
- * which network. It is chrome and not a setting: a wallet whose theme lives two
- * taps into Security is a wallet nobody discovers has one.
- *
- * The icon names the state the wallet is *in*, not the one the button goes to —
- * a control that shows its own destination reads as a description of the
- * current screen and gets pressed to stay put. The title says both.
+ * The theme used to be a fourth control on this bar, on the argument that a
+ * wallet whose theme lives two taps away is one nobody discovers has one. The
+ * bar lost that argument to arithmetic: on a 393px phone the account chip, the
+ * network chip and Refresh already fill the row, and the theme button wrapped
+ * onto a second one — thirty-four pixels of button costing fifty-four of
+ * height, above the fold, on every screen. It is a setting and it lives in
+ * Preferences now, next to the language.
  */
-const { theme, cycleTheme } = useWalletTheme();
-
-const themeIcon = computed(() => {
-    if (theme.value === 'system') {
-        return SunMoon;
-    }
-
-    return theme.value === 'dark' ? Moon : Sun;
-});
-
-const themeLabel = computed(() => {
-    if (theme.value === 'system') {
-        return t('themeSystem');
-    }
-
-    return theme.value === 'dark' ? t('themeDark') : t('themeLight');
-});
-
 const open = ref<'account' | 'network' | null>(null);
 
 const toggle = (panel: 'account' | 'network'): void => {
@@ -258,16 +238,6 @@ const use = async (id: string): Promise<void> => {
                 @click="emit('refresh')"
             >
                 {{ t('refresh') }}
-            </button>
-
-            <button
-                type="button"
-                class="cw-context-theme"
-                :title="themeLabel"
-                :aria-label="themeLabel"
-                @click="cycleTheme()"
-            >
-                <component :is="themeIcon" :size="15" aria-hidden="true" />
             </button>
         </div>
 

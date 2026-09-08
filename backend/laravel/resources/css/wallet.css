@@ -397,24 +397,23 @@ html[data-native-shell='desktop']
 }
 
 /*
- * On the site the wallet is an app inside a page, and the two disagree about
- * who scrolls.
+ * The wallet is an application and takes a frame, not a page — a browser tab
+ * included, which is where this was learned the hard way.
  *
  * A page scrolls as one document, so a shell that simply grew with its content
  * took the tab bar with it: the seven destinations sat at the bottom of the
  * *document*, and reaching them from a long portfolio meant scrolling past
  * everything first — the one control that exists so you never have to. The
- * native shells never had this, because `h-dvh` there gives the frame a
- * definite height and the wallet's own body does the scrolling.
+ * shells never had this, because `h-dvh` there gives the frame a definite
+ * height and the wallet's own body does the scrolling.
  *
- * So the browser gets the same frame. `Web3Layout` makes the wallet route
- * `h-dvh` and drops the footer; the height then arrives down the tree and this
- * rule only has to pass it on. Subtracting a header height here instead would
- * write that number in two files and be wrong in whichever one changed second —
- * and `dvh` is the layout's business anyway, since it is a mobile browser's
- * toolbars that make the viewport a moving target.
+ * `WalletFrameLayout` now gives every container that same `h-dvh`; the height
+ * arrives down the tree and this rule only has to pass it on. Nothing here
+ * subtracts a header, because there is no longer a header over the wallet in
+ * any container — a number like that would have been written in two files and
+ * wrong in whichever one changed second.
  */
-.cw-page {
+.cw-frame {
     min-height: 0;
     flex: 1;
 }
@@ -422,12 +421,12 @@ html[data-native-shell='desktop']
 /*
  * The ground goes edge to edge and the content is what is measured.
  *
- * Capping the page itself put a 1400px light panel on a black desk once the
- * wallet could be light — a seam under the site header that read as a rendering
- * fault rather than a margin. The surface now fills the window and each row
- * inside it keeps the measure.
+ * Capping the frame itself put a 1400px light panel on a black desk once the
+ * wallet could be light — a seam that read as a rendering fault rather than as
+ * a margin. The surface fills the window and each row inside it keeps the
+ * measure, on a wide desktop window as much as in a browser.
  */
-.cw-page > * {
+.cw-frame > * {
     width: 100%;
     max-width: 1400px;
     margin-inline: auto;
@@ -435,11 +434,11 @@ html[data-native-shell='desktop']
 
 /*
  * The site reserves a scrollbar gutter on `html` so a centred header does not
- * jump between a short page and a long one. This page never scrolls, so the
- * gutter is 15px of dead column — invisible while everything was dark, and a
- * black stripe down the side of a light wallet.
+ * jump between a short page and a long one. The wallet never scrolls as a
+ * document, so the gutter is 15px of dead column — invisible while everything
+ * was dark, and a black stripe down the side of a light wallet.
  */
-html:has(.cw-page) {
+html:has(.cw-frame) {
     scrollbar-gutter: auto;
 }
 
@@ -448,11 +447,11 @@ html:has(.cw-page) {
  * absorbs what is left. Without this the masthead and an error note shrink
  * first, because `flex: 0 1 auto` lets them.
  */
-.cw-page > :not(.cw-shell) {
+.cw-frame > :not(.cw-shell) {
     flex: none;
 }
 
-.cw-page .cw-shell {
+.cw-frame .cw-shell {
     flex: 1;
     min-height: 0;
 }

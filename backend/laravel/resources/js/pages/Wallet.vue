@@ -6,7 +6,6 @@ import {
     ExternalLink,
     Images,
     Landmark,
-    Languages,
     Lock,
     MessageCircle,
     Newspaper,
@@ -118,7 +117,7 @@ const props = defineProps<{
     };
 }>();
 
-const { nextTag, toggleLocale, t } = useLocale(walletMessages);
+const { t } = useLocale(walletMessages);
 
 // Only Solana takes an override: the server picks that endpoint, while every
 // other chain carries its own public default in the registry.
@@ -1004,17 +1003,30 @@ watch(
 <template>
     <Head :title="t('wallet')" />
 
+    <!--
+      `flex flex-col` is load-bearing and not decoration: `.cw-frame` hands the
+      shell `flex: 1; min-height: 0`, which does nothing at all unless this
+      element is the flex container. Dropped once, and the rail and the screen
+      body grew to their content and took the document with them — a 1585px
+      shell inside a 900px frame, scrolling as a page again.
+    -->
     <div
-        class="cw"
+        class="cw cw-frame flex flex-col"
         :data-cw-theme="scheme"
-        :class="
-            native
-                ? 'flex min-h-0 flex-1 flex-col p-3 sm:p-4'
-                : 'cw-page flex flex-col p-4 sm:p-6'
-        "
+        :class="native ? 'p-3 sm:p-4' : 'p-3 sm:p-5'"
     >
-        <!-- Masthead -->
-        <header class="cw-masthead">
+        <!--
+          The masthead, and only where a window needs one.
+
+          In the desktop shell it is the title bar of a frameless window — the
+          drag region, the app's name and the one link back to the rest of
+          Cyberia, none of which a browser tab is missing. In a browser it was
+          a second heading over a screen that already says what it is, beside a
+          language button nobody changes twice, on top of a site header that is
+          now gone as well. Language and theme moved to Preferences, where a
+          setting belongs.
+        -->
+        <header v-if="native" class="cw-masthead">
             <div style="display: flex; align-items: center; gap: 12px">
                 <span
                     style="
@@ -1046,21 +1058,13 @@ watch(
             </div>
             <span class="cw-masthead-rule" />
             <span class="cw-label cw-masthead-tag">{{ t('subtitle') }}</span>
-            <button type="button" class="cw-ghost" @click="toggleLocale">
-                <Languages :size="14" aria-hidden="true" />
-                {{ nextTag }}
-            </button>
             <!--
               The app is the wallet, not only the wallet: without this the rest
               of Cyberia — bridge, swap, DAO — would be unreachable from inside
-              the shell, which the site header handles in a browser.
+              the shell. In a browser the same link is on the Preferences
+              screen, since a tab still has its own history.
             -->
-            <a
-                v-if="native"
-                href="/"
-                class="cw-ghost"
-                style="text-decoration: none"
-            >
+            <a href="/" class="cw-ghost" style="text-decoration: none">
                 <ExternalLink :size="14" aria-hidden="true" />
                 {{ t('openSite') }}
             </a>

@@ -9,8 +9,8 @@ import { initializePwa } from '@/composables/usePwaInstall';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import ConsoleLayout from '@/layouts/ConsoleLayout.vue';
-import NativeShellLayout from '@/layouts/NativeShellLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
+import WalletFrameLayout from '@/layouts/WalletFrameLayout.vue';
 import Web3Layout from '@/layouts/Web3Layout.vue';
 import {
     configureAnalytics,
@@ -38,11 +38,13 @@ createInertiaApp({
               : appName,
     layout: (name) => {
         switch (true) {
-            // The wallet is the home screen of the desktop and mobile shells
-            // and the whole of the Telegram Mini App, so there it drops the
-            // site chrome and owns the frame.
+            // The wallet is an application and gets a frame rather than a
+            // page — in a browser tab exactly as in the desktop and mobile
+            // shells and the Telegram Mini App. It owns the viewport, carries
+            // its own top bar and its own tab bar, and a site header above all
+            // of that was a second navigation for something else.
             case name === 'Wallet':
-                return isNativeShell() ? NativeShellLayout : Web3Layout;
+                return WalletFrameLayout;
             case name === 'Analytics':
             case name === 'Changelog':
             case name === 'Cyber':

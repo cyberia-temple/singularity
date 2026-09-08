@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Bell, Power, Volume2 } from 'lucide-vue-next';
+import { Bell, ExternalLink, Power, Volume2 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useLocale } from '@/composables/useLocale';
+import { LOCALE_LABELS, useLocale } from '@/composables/useLocale';
+import { WALLET_THEMES, useWalletTheme } from '@/composables/useWalletTheme';
 import {
     hasNativeTray,
     nativeShell,
@@ -22,7 +23,20 @@ import { walletMessages } from '@/lib/walletMessages';
 
 defineEmits<{ back: [] }>();
 
-const { t } = useLocale(walletMessages);
+const { t, locale, available, setLocale } = useLocale(walletMessages);
+
+/*
+ * Appearance, which used to be two controls bolted to other people's chrome:
+ * the theme sat on the context bar and the language on the wallet's masthead,
+ * beside the site header's own language button. Both are settings somebody
+ * chooses once, so both are here, and both are drawn as the *whole* choice
+ * rather than as a cycle — a button that only shows the next value makes you
+ * press it twice to find out what the third one was.
+ */
+const { theme } = useWalletTheme();
+
+const themeLabel = (option: (typeof WALLET_THEMES)[number]): string =>
+    t(`theme${option.charAt(0).toUpperCase()}${option.slice(1)}Short`);
 const preferences = ref(readWalletPreferences());
 const permission = ref(walletNotificationPermission());
 const startup = ref(nativeStartup());
@@ -115,6 +129,66 @@ onBeforeUnmount(unsubscribe);
             <p class="cw-prose" style="margin-top: 8px">
                 {{ t('preferencesBody') }}
             </p>
+        </div>
+
+        <div class="cw-label" style="margin-bottom: 9px">
+            {{ t('preferencesAppearance') }}
+        </div>
+
+        <div class="cw-card" style="padding: 16px; margin-bottom: 18px">
+            <div class="cw-label" style="margin-bottom: 9px">
+                {{ t('preferencesTheme') }}
+            </div>
+            <div class="cw-seg">
+                <button
+                    v-for="option in WALLET_THEMES"
+                    :key="option"
+                    type="button"
+                    class="cw-seg-item"
+                    :aria-pressed="theme === option"
+                    @click="theme = option"
+                >
+                    {{ themeLabel(option) }}
+                    <span
+                        class="cw-seg-bar"
+                        :style="{
+                            background:
+                                theme === option
+                                    ? 'var(--cw-accent)'
+                                    : 'transparent',
+                        }"
+                    />
+                </button>
+            </div>
+
+            <div class="cw-label" style="margin: 18px 0 9px">
+                {{ t('preferencesLanguage') }}
+            </div>
+            <div class="cw-seg">
+                <button
+                    v-for="option in available"
+                    :key="option"
+                    type="button"
+                    class="cw-seg-item"
+                    :aria-pressed="locale === option"
+                    @click="setLocale(option)"
+                >
+                    {{ LOCALE_LABELS[option] }}
+                    <span
+                        class="cw-seg-bar"
+                        :style="{
+                            background:
+                                locale === option
+                                    ? 'var(--cw-accent)'
+                                    : 'transparent',
+                        }"
+                    />
+                </button>
+            </div>
+        </div>
+
+        <div class="cw-label" style="margin-bottom: 9px">
+            {{ t('preferencesAlerts') }}
         </div>
 
         <div class="cw-card" style="padding: 0">
@@ -242,5 +316,19 @@ onBeforeUnmount(unsubscribe);
         >
             {{ t('preferencesTest') }}
         </button>
+
+        <!--
+          The rest of Cyberia. The wallet has no site header over it in any
+          container now, and the shells' masthead carries this link; a browser
+          tab has its own history but not everybody arrived through it.
+        -->
+        <a
+            href="/"
+            class="cw-btn cw-btn-secondary"
+            style="height: 48px; margin-top: 8px; text-decoration: none"
+        >
+            <ExternalLink :size="15" aria-hidden="true" />
+            {{ t('openSite') }}
+        </a>
     </div>
 </template>
