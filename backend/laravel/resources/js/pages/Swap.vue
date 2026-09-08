@@ -38,6 +38,13 @@ import {
 import type { AprSnapshot } from '@/lib/dexApr';
 import { aprByPair, formatApr } from '@/lib/dexApr';
 import { formatNum, formatPrice } from '@/lib/dexFormat';
+import type { V3Route } from '@/lib/dexV3';
+import {
+    v3BestRoute,
+    v3BestRouteExactOut,
+    v3RouteFeePct,
+    v3Swap,
+} from '@/lib/dexV3';
 import { ensureEvmChain } from '@/lib/evmChains';
 import { getSelectedEvmProvider } from '@/lib/evmProvider';
 import {
@@ -671,8 +678,7 @@ const symbolOf = (addr: string): string => {
 
     // Routes are built from resolved addresses, so the wrapped native shows up
     // even where it is not a pickable token (aeWETH on Robinhood).
-    return addr.toLowerCase() ===
-        activeChain.value.wrappedNative.toLowerCase()
+    return addr.toLowerCase() === activeChain.value.wrappedNative.toLowerCase()
         ? activeChain.value.nativeSymbol
         : shortAddr(addr);
 };
@@ -776,6 +782,13 @@ type Quote = {
     // Pool price move this trade causes, in % (LP fee excluded); null when
     // the spot-rate probe failed.
     impactPct: number | null;
+    // Which set of pools this quote came from. Both are real liquidity on the
+    // same chain, so the page asks both and takes the better answer rather
+    // than sending every trade to the older venue out of habit.
+    venue: 'v2' | 'v3';
+    // Present only on a v3 quote: the exact pools and tiers the swap is signed
+    // against, so nothing is re-derived between the quote and the signature.
+    v3Route?: V3Route;
 };
 const quote = ref<Quote | null>(null);
 const quoting = ref(false);
@@ -853,12 +866,47 @@ const lpFee = computed(() => {
         return 0n;
     }
 
+    // v3 pools each charge their own rate — and this fork's rate is a setting,
+    // so it is read off the pool rather than off the tier that addresses it.
+    if (quote.value.venue === 'v3' && quote.value.v3Route) {
+        const kept = quote.value.v3Route.pools.reduce(
+            (rate, pool) => (rate * BigInt(1_000_000 - pool.fee)) / 1_000_000n,
+            quote.value.amountIn,
+        );
+
+        return quote.value.amountIn - kept;
+    }
+
     const hops = BigInt(quote.value.path.length - 1);
 
     return (
         (quote.value.amountIn * (1000n ** hops - 997n ** hops)) / 1000n ** hops
     );
 });
+
+/** What that fee is, said as a rate rather than as an amount. */
+const feeNote = computed(() => {
+    if (quote.value?.venue === 'v3' && quote.value.v3Route) {
+        const pct = v3RouteFeePct(quote.value.v3Route.pools);
+
+        return `${Number(pct.toFixed(4))}% on this route`;
+    }
+
+    return '0.3% per hop';
+});
+
+/**
+ * Which pools this quote came from.
+ *
+ * Both venues hold real liquidity on the same chain and the page trades
+ * whichever pays better, so it says which one won — a trade that went through
+ * a different market than the chart below it is otherwise unaccountable.
+ */
+const venueLabel = computed(() =>
+    quote.value?.venue === 'v3'
+        ? 'Cyberia V3 (concentrated)'
+        : 'Ritual DEX (v2)',
+);
 
 const routeSymbols = computed(() =>
     quote.value ? quote.value.path.map((a) => symbolOf(a)) : [],
@@ -1053,6 +1101,50 @@ const priceImpactPct = async (q: {
     }
 };
 
+/**
+ * The same probe as `priceImpactPct`, asked of the v3 quoter.
+ *
+ * A tenth of a basis point of the input pays the marginal rate, and the ratio
+ * of the two rates is the move this trade causes. Concentrated liquidity makes
+ * that number matter more than it does on a constant-product pool: inside a
+ * tick range the price barely moves, and one tick further it moves a lot.
+ */
+const v3ImpactPct = async (q: {
+    amountIn: bigint;
+    amountOut: bigint;
+    v3Route?: V3Route;
+}): Promise<number | null> => {
+    const cfg = activeChain.value.v3;
+    const probeIn = q.amountIn / 10000n;
+
+    if (!cfg || !q.v3Route || probeIn === 0n) {
+        return probeIn === 0n ? 0 : null;
+    }
+
+    try {
+        const probe = await v3BestRoute(
+            readProvider,
+            cfg,
+            q.v3Route.tokens[0],
+            q.v3Route.tokens[q.v3Route.tokens.length - 1],
+            probeIn,
+            activeChain.value.hubs,
+        );
+
+        if (!probe || probe.amountOut === 0n) {
+            return null;
+        }
+
+        const execRate = Number(q.amountOut) / Number(q.amountIn);
+        const spotRate = Number(probe.amountOut) / Number(probeIn);
+        const impact = (1 - execRate / spotRate) * 100;
+
+        return impact > 0 ? impact : 0;
+    } catch {
+        return null;
+    }
+};
+
 let quoteSeq = 0;
 
 const refreshQuote = async (): Promise<void> => {
@@ -1119,6 +1211,31 @@ const refreshQuote = async (): Promise<void> => {
             }),
         );
 
+        // The concentrated-liquidity pools, asked the same question at the same
+        // time. A chain with no v3 stack answers null and nothing changes.
+        const v3 = activeChain.value.v3;
+        const v3Route = v3
+            ? await (
+                  exactIn
+                      ? v3BestRoute(
+                            readProvider,
+                            v3,
+                            from,
+                            to,
+                            driving,
+                            activeChain.value.hubs,
+                        )
+                      : v3BestRouteExactOut(
+                            readProvider,
+                            v3,
+                            from,
+                            to,
+                            driving,
+                            activeChain.value.hubs,
+                        )
+              ).catch(() => null)
+            : null;
+
         if (seq !== quoteSeq) {
             return;
         }
@@ -1137,8 +1254,28 @@ const refreshQuote = async (): Promise<void> => {
                     ? r.amountOut > best.amountOut
                     : r.amountIn < best.amountIn)
             ) {
-                best = r;
+                best = { ...r, venue: 'v2' as const };
             }
+        }
+
+        // v3 wins only by paying better — a tie stays with v2, whose route the
+        // chart and the pool page already understand.
+        if (
+            v3Route &&
+            v3Route.amountIn > 0n &&
+            v3Route.amountOut > 0n &&
+            (!best ||
+                (exactIn
+                    ? v3Route.amountOut > best.amountOut
+                    : v3Route.amountIn < best.amountIn))
+        ) {
+            best = {
+                path: v3Route.tokens,
+                amountIn: v3Route.amountIn,
+                amountOut: v3Route.amountOut,
+                venue: 'v3' as const,
+                v3Route,
+            };
         }
 
         if (!best) {
@@ -1153,7 +1290,13 @@ const refreshQuote = async (): Promise<void> => {
             return;
         }
 
-        const impactPct = await priceImpactPct(best);
+        // The probe goes through whichever venue won: pricing a v3 route with
+        // the v2 router would compare two different markets and call the gap
+        // price impact.
+        const impactPct =
+            best.venue === 'v3'
+                ? await v3ImpactPct(best)
+                : await priceImpactPct(best);
 
         if (seq !== quoteSeq) {
             return;
@@ -1223,11 +1366,9 @@ const loadBalance = async (token: string): Promise<bigint | null> => {
     try {
         return token === NATIVE
             ? await readProvider.getBalance(me)
-            : ((await new Contract(
-                  token,
-                  ERC20_ABI,
-                  readProvider,
-              ).balanceOf(me)) as bigint);
+            : ((await new Contract(token, ERC20_ABI, readProvider).balanceOf(
+                  me,
+              )) as bigint);
     } catch {
         // A node that did not answer has told us nothing about the balance.
         return null;
@@ -1353,20 +1494,20 @@ const approveIfNeeded = async (
     signer: Awaited<ReturnType<BrowserProvider['getSigner']>>,
     token: string,
     amount: bigint,
+    // Each venue pulls the tokens with its own router, so an allowance granted
+    // to one is worth nothing to the other.
+    spender: string = activeChain.value.router,
 ): Promise<void> => {
     const me = await signer.getAddress();
     const c = new Contract(token, ERC20_ABI, signer);
-    const allowance = (await c.allowance(
-        me,
-        activeChain.value.router,
-    )) as bigint;
+    const allowance = (await c.allowance(me, spender)) as bigint;
 
     if (allowance >= amount) {
         return;
     }
 
     status.value = `Approving ${symbolOf(token)}…`;
-    const tx = await c.approve(activeChain.value.router, MaxUint256);
+    const tx = await c.approve(spender, MaxUint256);
     await tx.wait();
 };
 
@@ -1450,7 +1591,34 @@ const doSwap = async (): Promise<void> => {
 
         let tx;
 
-        if (tokenIn.value === NATIVE) {
+        if (q.venue === 'v3' && q.v3Route) {
+            const cfg = activeChain.value.v3;
+
+            if (!cfg) {
+                throw new Error('No v3 stack on this chain');
+            }
+
+            if (tokenIn.value !== NATIVE) {
+                await approveIfNeeded(
+                    signer,
+                    tokenIn.value,
+                    exactIn ? q.amountIn : maxIn,
+                    cfg.router,
+                );
+            }
+
+            status.value = 'Confirm the swap in your wallet…';
+            tx = await v3Swap(signer, cfg, {
+                route: q.v3Route,
+                recipient: to,
+                amountOutMinimum: exactIn ? minOut : q.amountOut,
+                amountInMaximum: exactIn ? undefined : maxIn,
+                exactIn,
+                nativeIn: tokenIn.value === NATIVE,
+                nativeOut: tokenOut.value === NATIVE,
+                deadline: deadline(),
+            });
+        } else if (tokenIn.value === NATIVE) {
             status.value = 'Confirm the swap in your wallet…';
             tx = exactIn
                 ? await router.swapExactETHForTokens(
@@ -1840,8 +2008,8 @@ onBeforeUnmount(() => {
                             Select two tokens to view their market chart.
                         </span>
                         <span v-else-if="!marketRoute">
-                            No route between these tokens yet — add liquidity
-                            to open this market.
+                            No route between these tokens yet — add liquidity to
+                            open this market.
                         </span>
                         <span v-else>
                             No on-chain history for this market yet.
@@ -2076,8 +2244,9 @@ onBeforeUnmount(() => {
                         <span class="font-mono">{{
                             fmt(lpFee, decIn, 8)
                         }}</span>
-                        {{ symbolOf(tokenIn) }} (0.3% per hop)
+                        {{ symbolOf(tokenIn) }} ({{ feeNote }})
                     </p>
+                    <p>Venue: {{ venueLabel }}</p>
                     <p v-if="mode === 'in'">
                         Min received:
                         <span class="font-mono">{{
