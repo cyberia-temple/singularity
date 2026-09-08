@@ -169,15 +169,32 @@ Two rules make the cheap routes safe:
   receipt rather than the setting. A routing decision nobody can see is how
   you end up paying Opus rates for an RSS summary.
 
-Change routes live, from any surface:
+Change routes live, from any surface — including the phone, which is where
+the operator is when a route turns out to be wrong:
 
 ```bash
-/tasks                                   # the table, in the TUI or the REPL
+/tasks                                   # the table, in the TUI, Telegram or the REPL
 /tasks digest openrouter:openrouter/free # point one kind somewhere
 /tasks digest default                    # back to what the environment says
+/model                                   # who answers you now, and who else could
+/model claude                            # switch the live chat provider
+/model free                              # the pool behind openrouter/free, listed
+/model free 7                            # pin the conversation to one of them
+/model free auto                         # back to the router
 curl -s localhost:7777/tasks             # the daemon's table
 curl -sX POST localhost:7777/tasks -d '{"task":"digest","route":"cyberia"}'
 ```
+
+`/model free` exists because **`openrouter/free` is not a model**: it is a
+router over whatever is free and up at that second, so "which model answered
+me" has no fixed answer and the character of the replies changes between two
+questions asked a minute apart. The list is read from OpenRouter's own
+catalogue (`parseFreeModels`, pinned in `tasks-smoke.ts`) and never written
+down here — the pool changes week to week. Free is a **price**, so an entry
+counts when prompt and completion are both zero, and the music and image
+models the pool also prices at zero are dropped: they cannot answer a turn.
+Picking one points the `chat` kind at `openrouter:<id>` like any other route,
+which is why it persists and why `/tasks` shows it.
 
 Lain can do it herself too (`set_task_route`, `task_routes`), and an
 operator's choice is persisted in `data/task-routes.json`, so it survives the
@@ -305,9 +322,19 @@ The split is by **what needs a person and what needs an uptime**:
 | | desk | always-on host |
 |---|---|---|
 | answers Telegram, runs the forge, holds the wallet, TUI | yes | no |
-| writes and delivers the day's post | no | yes |
+| writes and delivers the day's post | yes | no |
 | `LAINOS_TELEGRAM_POLL` | `1` (default) | `0` |
-| `LAINOS_PRESS` | `0` | `1` |
+| `LAINOS_PRESS` | `1` | `0` |
+
+**The room follows the writer, not the uptime** (2026-09-07). It ran on the
+always-on host for two weeks and wrote nothing there: a subscription CLI has no
+headless login, `codex login` on that host was never finished, and every slot
+was answered with the same `401 Missing bearer` — so an instance that could not
+miss a schedule missed every post in it, and added a failure message a day on
+top. A sleeping desk costs the days it sleeps; a writer with no credential
+costs all of them. So the calendar lives where the writer is actually signed
+in, and moving it back is two `.env` lines plus a copy of `data/press.json` —
+the room's memory of which days are already done.
 
 Only one process may call `getUpdates` for a bot token — a second poller makes
 Telegram hand each update to whichever asked first, so messages go missing at
@@ -315,9 +342,10 @@ random. `LAINOS_TELEGRAM_POLL=0` makes an instance **send-only**: it delivers
 posts and alerts and never reads, so it cannot compete. Sending has never
 needed the poller.
 
-`LAINOS_PRESS=0` on the desk is the other half of the same rule — two rooms
-working the same calendar would write the same day twice, and `data/` is
-per-instance, so neither would know.
+`LAINOS_PRESS=0` on the host that does not own the calendar is the other half
+of the same rule — two rooms working the same calendar would write the same day
+twice, and `data/` is per-instance, so neither would know. The idle side still
+answers «напиши пост» on demand: only the *schedule* is single-owner.
 
 The post hour and the plan's day boundary are **host-local**, and a server is
 rarely in the operator's timezone — so the unit pins `TZ` rather than inheriting
@@ -340,11 +368,12 @@ ln -sfn "$PWD/deploy/lainos-press.service" /etc/systemd/system/lainos-press.serv
 systemctl daemon-reload && systemctl enable --now lainos-press
 ```
 
-The writer needs its own credential on that host, and a subscription CLI has
-no headless login — `codex login --device-auth` prints a code to enter in any
-browser, which is the one step that cannot be scripted from here. Copy the
-`data/press.json` of the instance that was writing before, or the new one
-rewrites every day still inside the backlog window.
+Before handing the calendar to that host, **sign its writer in and prove it**:
+a subscription CLI has no headless login (`codex login --device-auth` prints a
+code to enter in any browser, the one step that cannot be scripted from here),
+and an unsigned writer fails silently apart from one message a day nobody acts
+on. Copy the `data/press.json` of the instance that was writing before, or the
+new one rewrites every day still inside the backlog window.
 
 The material is the repo's own commit log, so the clone has to keep up with
 master: a `git pull --ff-only` from cron every 20 minutes
@@ -645,8 +674,23 @@ and secret values loaded from the environment.
   is indistinguishable from a day with nothing in it, which is the state this
   room exists to end.
 
-  Neither guard makes a desktop always-on, which is what a daily post actually
-  needs: see **Two instances** below.
+  What it says is **read, not forwarded** (`writerRefusal`, pure and clocked,
+  pinned in `press-smoke.ts`). A CLI that refuses explains itself in prose
+  meant for a terminal — a stack trace, a cf-ray, a usage window — and pasting
+  that into Telegram is how the operator got two identical walls of
+  `401 Unauthorized … cf-ray …` on consecutive mornings and still had to read
+  the log to learn the host had never been signed in. Two facts survive the
+  read: which kind of "no" it is (out of credits *for now*, versus not allowed
+  to ask at all), and **when it reopens** if the refusal named an hour — "try
+  again at 11:33 AM" is a subscription CLI telling us exactly how long the flat
+  half-hour retry will keep failing, so that hour becomes the wait
+  (`retryAt` on the day's record). A writer that throws now records its failure
+  at all, which it did not: only the "came back too short" branch wrote one, so
+  a CLI exiting non-zero was asked again every quarter of an hour.
+
+  Neither guard makes a desktop always-on — but an always-on host with no
+  signed-in writer is worse, which is the trade the room is on the desk for:
+  see **Two instances** below.
 
   Writing is `WRITE`-kind work, so `LAINOS_TASK_WRITE` decides which model
   holds the public voice. Posts persist in `data/press.json` with the model

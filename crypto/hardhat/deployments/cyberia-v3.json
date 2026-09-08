@@ -1,38 +1,31 @@
 {
+  "supersedes": {
+    "POOL_INIT_CODE_HASH": "0x251f3613d122be961cc7c764fdb88d1f6d9237cbc2bcadbf0bc5450e87eecf37",
+    "PancakeV3Factory": "0x79F4C9f4E1dbA86F173c06D2491eB31123f38637",
+    "NonfungiblePositionManager": "0x71107ddc2f92E57B1746E0D75c2250E70Fdb75a7",
+    "LaunchLocker": "0x1e75d289A01ED780A2fd1622A1559132aA68423E",
+    "archivedAs": "deployments/archive/cyberia-v3-2026-09-07T13-50-55-451Z.json"
+  },
   "chainId": 49406,
   "chainName": "Cyberia",
   "rpc": "https://rpc.cyberia.church",
   "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
-  "PancakeV3PoolDeployer": "0x15a35fFBbd47b7D80874a1553C851AC569d5009e",
   "WCYBER": "0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9",
-  "POOL_INIT_CODE_HASH": "0x251f3613d122be961cc7c764fdb88d1f6d9237cbc2bcadbf0bc5450e87eecf37",
-  "PancakeV3Factory": "0x79F4C9f4E1dbA86F173c06D2491eB31123f38637",
-  "SwapRouter": "0xD0136b588A94a0F74803B7b19B1FB400eaeBEd2F",
-  "NonfungibleTokenPositionDescriptor": "0x94ca5E4b0Ab1f91E47278eEe6089DF1F1cE12662",
+  "POOL_INIT_CODE_HASH": "0x552a3c12f1630ab391584c8e037aad90f40e97650684de28cdc32815cac7e158",
+  "PancakeV3PoolDeployer": "0x216Caa611CE6F300c6b23f1D00Aa6055F77dE773",
+  "PancakeV3Factory": "0xB6abF60A04fC1ac64Bf225787B7064A94165b496",
+  "SwapRouter": "0xa9f2A35F8dbA643e199Da0FeEbDF7e1c72ee773e",
+  "NonfungibleTokenPositionDescriptor": "0xb7beA09BB3C23a2fA5BBa50EE8F648F6148E4C6d",
   "positionBaseURI": "https://cyberia.church/api/v3/positions/",
-  "NonfungiblePositionManager": "0x71107ddc2f92E57B1746E0D75c2250E70Fdb75a7",
-  "QuoterV2": "0x129cf09369A5994C82E96eE36726455959220781",
-  "TickLens": "0xdcdaaB240de5985CB9F4A0Ae9eFe1e8aC30df6B7",
-  "factoryOwner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
-  "MAX_POOL_FEE": 100000,
-  "feeTiers": {
-    "100": 1,
-    "500": 10,
-    "2500": 50,
-    "10000": 200
-  },
-  "timestamp": "2026-09-02T03:33:47.241Z",
-  "smokePool": {
-    "pool": "0x332ba4BBEb1D96a399b8e5459c286b122dB8aB11",
-    "token0": "0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9",
-    "token1": "0xD199e6ae74B992F017f8940B26Fa18A7dD30eE86",
-    "feeTier": 2500,
-    "timestamp": "2026-09-01T23:56:51.676Z"
-  },
-  "LaunchLocker": "0x1e75d289A01ED780A2fd1622A1559132aA68423E",
+  "NonfungiblePositionManager": "0x50A0B7Fd739fE3afC27fF5c8259Ae1c76B569139",
+  "QuoterV2": "0xD583dDAf0f9B1bb227832f9c4948519C697DCF99",
+  "TickLens": "0x7984b22c5726fC623FFA49AaC94a18AFFf96fa47",
+  "LaunchLocker": "0x679958816454079ef2b31d5ED8DD243ffa9D7689",
   "launchCreatorBps": 7000,
   "treasury": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
-  "FeeSplitter": "0xBfE94f7D05ad3AE81a766Cb7C492ae0803b691B9",
+  "LaunchpadV3": "0x6970481a167D8D44527091d0E319e50aD3F79Ee3",
+  "minLiquidity": "10000000000000000000",
+  "FeeSplitter": "0x361b763a718a361C17FE39d4bc1d2EbE05572da6",
   "feeSplitterShares": [
     {
       "recipient": "0xA2134C165737Eff0775b163b73377E394004E7b2",
@@ -40,11 +33,14 @@
       "what": "gas station tank"
     }
   ],
-  "lockerSmoke": {
-    "tokenId": "2",
-    "creator": "0x000000000000000000000000000000000000c0Fe",
-    "pool": "0x332ba4BBEb1D96a399b8e5459c286b122dB8aB11",
-    "note": "tiny WCYBER/ASH position, locked permanently as a live proof",
-    "timestamp": "2026-09-02T03:36:27.177Z"
-  }
+  "factoryOwner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "MAX_POOL_FEE": 110000,
+  "feeTiers": {
+    "100": 1,
+    "500": 10,
+    "2500": 50,
+    "10000": 200,
+    "110000": 200
+  },
+  "timestamp": "2026-09-07T13:52:11.085Z"
 }

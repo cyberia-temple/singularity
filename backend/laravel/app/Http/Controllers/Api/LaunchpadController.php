@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LaunchpadToken;
 use App\Services\IpfsService;
 use App\Services\LaunchpadSiteService;
+use App\Support\Handles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -58,6 +59,11 @@ class LaunchpadController extends Controller
             'name' => ['nullable', 'string', 'max:100'],
             'symbol' => ['nullable', 'string', 'max:32'],
             'description' => ['nullable', 'string', 'max:2000'],
+            // Taken as typed — a handle, an @handle or a pasted profile URL —
+            // and collapsed to the bare handle on the way in.
+            'x' => ['nullable', 'string', 'max:200'],
+            'telegram' => ['nullable', 'string', 'max:200'],
+            'website' => ['nullable', 'string', 'max:255', 'url'],
             'image' => ['nullable', 'image', 'max:2048'],
             'html' => ['nullable', 'file', 'mimes:html,htm,txt', 'max:2048'],
             'site_subdomain' => [
@@ -136,6 +142,17 @@ class LaunchpadController extends Controller
             'name' => $data['name'] ?? ($existing->name ?? null),
             'symbol' => $data['symbol'] ?? ($existing->symbol ?? null),
             'description' => $data['description'] ?? ($existing->description ?? null),
+            // An empty string is "remove this link" — the field was sent and
+            // left blank; an absent field keeps what the row already has.
+            'x_handle' => $request->has('x')
+                ? Handles::x($data['x'] ?? null)
+                : ($existing->x_handle ?? null),
+            'telegram_handle' => $request->has('telegram')
+                ? Handles::telegram($data['telegram'] ?? null)
+                : ($existing->telegram_handle ?? null),
+            'website_url' => $request->has('website')
+                ? (trim((string) ($data['website'] ?? '')) ?: null)
+                : ($existing->website_url ?? null),
             'image_path' => $existing->image_path ?? null,
             'html_path' => $existing->html_path ?? null,
             'site_subdomain' => $siteSubdomain,
@@ -250,6 +267,14 @@ class LaunchpadController extends Controller
             'name' => $t->name,
             'symbol' => $t->symbol,
             'description' => $t->description,
+            // Both halves travel: the handle is what a page prints, the URL is
+            // what it links to, and a value that cannot be a link (a numeric
+            // Telegram id) comes back with a null URL rather than a dead one.
+            'x_handle' => $t->x_handle,
+            'x_url' => Handles::xUrl($t->x_handle),
+            'telegram_handle' => $t->telegram_handle,
+            'telegram_url' => Handles::telegramUrl($t->telegram_handle),
+            'website_url' => $t->website_url,
             'image_url' => $t->image_path ? Storage::disk('public')->url($t->image_path) : null,
             'site_subdomain' => $t->site_subdomain,
             'site_url' => $this->siteUrl($t),

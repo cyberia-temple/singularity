@@ -4,8 +4,8 @@ import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import StatusPill from '@/components/wallet/StatusPill.vue';
 import TxList from '@/components/wallet/TxList.vue';
 import { useLocale } from '@/composables/useLocale';
-import { arenaMessages } from '@/lib/arenaMessages';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { arenaMessages } from '@/lib/arenaMessages';
 import { canOpenProxySettings, openProxySettings } from '@/lib/native';
 import { WALLET_FAMILY_GROUPS, formatUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTxStatus } from '@/lib/wallet';
@@ -49,6 +49,7 @@ const emit = defineEmits<{
     crosschain: [];
     addNetwork: [];
     tokens: [];
+    markets: [];
     analytics: [];
     accounts: [];
     security: [];
@@ -423,6 +424,40 @@ const recent = computed(() =>
                 {{ t('swapTitle') }}
             </button>
         </div>
+
+        <!--
+          Prices over time, which this screen otherwise never shows: every
+          number above is a reading taken now. A full row and not a fourth tile
+          because it is the only place in the wallet that answers "what has this
+          been doing", and because the two kinds of chart behind it — an
+          exchange's book, and this chain's own pools — are worth naming.
+        -->
+        <button
+            type="button"
+            class="cw-card cw-card-button"
+            style="margin-bottom: 10px; padding: 14px 16px"
+            @click="emit('markets')"
+        >
+            <div class="cw-row">
+                <span
+                    style="
+                        font: 500 12px/1 var(--cw-sans);
+                        color: var(--cw-text);
+                    "
+                    >{{ t('markets') }}</span
+                >
+                <span class="cw-label" style="color: var(--cw-faint)">→</span>
+            </div>
+            <div
+                style="
+                    margin-top: 8px;
+                    font: 400 10px/1.5 var(--cw-mono);
+                    color: var(--cw-dim);
+                "
+            >
+                {{ t('tileMarketsHint') }}
+            </div>
+        </button>
 
         <!--
           The station, when there is one to speak of. It sits above the

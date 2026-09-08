@@ -296,7 +296,12 @@ contract PancakeV3Pool is IPancakeV3Pool {
             observationIndex: 0,
             observationCardinality: cardinality,
             observationCardinalityNext: cardinalityNext,
-            feeProtocol: 209718400, // default value for all pools, 3200:3200, store 2 uint32 inside
+            // Cyberia: upstream is born at 3200:3200 -- 32% of every pool's fee taken for the
+            // protocol until an owner remembers to zero it. Here a pool is born taking nothing,
+            // because the launch pools this chain creates promise their creator a named share of
+            // the fee and a silent 32% cut would make that promise false on the very first swap.
+            // `setFeeProtocol` still turns it on per pool, and every change emits an event.
+            feeProtocol: 0,
             unlocked: true
         });
 

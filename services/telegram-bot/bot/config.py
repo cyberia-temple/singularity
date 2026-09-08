@@ -413,6 +413,27 @@ AI_MAX_QUESTION_CHARS = max(
     100, int(os.environ.get("AI_MAX_QUESTION_CHARS", "4000"))
 )
 
+# Which model answers is the user's choice, not a constant. `openrouter/free`
+# — the default when the OpenRouter key is the one in use — is a *router* over
+# whatever free models are up, so the pool is read from the provider's own
+# catalogue and offered in /model (see bot/ai_models.py). Empty means "derive
+# it from AI_API_URL", which is right for every OpenAI-compatible provider.
+AI_MODELS_URL = (os.environ.get("AI_MODELS_URL", "") or "").strip()
+# The pool moves slowly; a catalogue read per /model press would not.
+AI_MODELS_CACHE_SECONDS = max(60, int(os.environ.get("AI_MODELS_CACHE_SECONDS", "1800")))
+AI_MODELS_PAGE_SIZE = max(3, min(10, int(os.environ.get("AI_MODELS_PAGE_SIZE", "8"))))
+# Off leaves one model for everyone (AI_MODEL) and hides /model entirely.
+AI_MODEL_CHOICE = (
+    os.environ.get("AI_MODEL_CHOICE", "1").strip().lower() in {"1", "true", "yes", "on"}
+)
+# A host where the provider is blocked sends both the catalogue and the answers
+# through one proxy. Unset means direct, which is what prod does today.
+AI_PROXY_URL = (
+    os.environ.get("AI_PROXY_URL")
+    or os.environ.get("OPENROUTER_PROXY")
+    or ""
+).strip()
+
 # Contract addresses surfaced by "ca". CYBER.sol is the community pump.fun token
 # (also gates the whales chat); its EVM counterpart is the bridged CYBER.sol on
 # Cyberia (matches PRICE_RELAY_TOKENS). Blank values are simply omitted.

@@ -5,6 +5,7 @@ import logging
 from telegram import BotCommand, MenuButtonWebApp, WebAppInfo
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     ChatMemberHandler,
     CommandHandler,
     MessageHandler,
@@ -26,7 +27,7 @@ from bot.config import (
     MARKET_SNAPSHOT_SECONDS,
     WHALE_CHAT_ID, WHALE_MIN_CYBER_SOL, WHALE_POLL_SECONDS, WHALE_RECHECK_SECONDS,
     NFT_FROM_POSTS, NFT_FROM_POSTS_DRYRUN, CYBERIA_NFT_ADDRESS, IPFS_API_URL,
-    AI_ENABLED, AI_API_KEY, AI_MODEL,
+    AI_ENABLED, AI_API_KEY, AI_MODEL, AI_MODEL_CHOICE,
     WALLET_MINI_APP_URL, WALLET_MINI_APP_MENU,
 )
 from bot.db import ensure_schema
@@ -45,6 +46,7 @@ from bot.handlers import (
     _QUICK_REPLY_RE,
 )
 from bot.ai import ask_command, ai_message_handler
+from bot.ai_models import CALLBACK_PREFIX as AI_MODEL_CALLBACK, model_callback, model_command
 from bot.announcers import (
     bridge_announcer_loop, swap_announcer_loop, liquidity_announcer_loop,
     lending_announcer_loop, cybersol_swap_announcer_loop, staking_announcer_loop,
@@ -75,6 +77,11 @@ async def post_init(application: Application):
             BotCommand("ca", "Show the CYBER contract address"),
             BotCommand("stats", "On-chain activity digest (default 24h)"),
             BotCommand("ask", "Ask the Cyberia AI assistant"),
+            *(
+                [BotCommand("model", "Choose which free AI model answers you")]
+                if AI_ENABLED and AI_MODEL_CHOICE
+                else []
+            ),
             BotCommand("whale", "Verify CYBER.sol to join the whales chat"),
             BotCommand("create_token", "(admins) Create a chat reward token"),
             BotCommand("set_rewards_interval", "(admins) Change rewards interval"),
@@ -201,7 +208,11 @@ async def post_init(application: Application):
     if not AI_ENABLED:
         logger.info("AI assistant disabled: AI_ENABLED off")
     elif AI_API_KEY:
-        logger.info("AI assistant enabled: model=%s", AI_MODEL)
+        logger.info(
+            "AI assistant enabled: model=%s, per-user choice %s",
+            AI_MODEL,
+            "on (/model)" if AI_MODEL_CHOICE else "off",
+        )
     else:
         logger.info("AI assistant disabled: AI_API_KEY not set")
 
@@ -252,6 +263,13 @@ def run_dispatcher():
     application.add_handler(CommandHandler("stats", stats_command))
     if AI_ENABLED:
         application.add_handler(CommandHandler("ask", ask_command))
+    # Which model answers is a per-user preference, so the picker is a command
+    # and a keyboard rather than an env var only the operator can reach.
+    if AI_ENABLED and AI_MODEL_CHOICE:
+        application.add_handler(CommandHandler("model", model_command))
+        application.add_handler(
+            CallbackQueryHandler(model_callback, pattern=rf"^{AI_MODEL_CALLBACK}\|")
+        )
     application.add_handler(CommandHandler("set_channel_wallet", set_channel_wallet_command))
     application.add_handler(CommandHandler("channel_wallet", channel_wallet_command))
 

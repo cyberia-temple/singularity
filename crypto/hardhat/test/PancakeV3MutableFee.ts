@@ -208,7 +208,8 @@ describe("PancakeV3 mutable swap fee", async function () {
   it("only the factory owner may set the fee, and never above MAX_FEE", async function () {
     const { factory, pool } = await deployStack();
 
-    assert.equal(await factory.read.MAX_POOL_FEE(), 100000);
+    // 11% is the launchpad's ceiling: 10% to the creator plus 1% to the protocol.
+    assert.equal(await factory.read.MAX_POOL_FEE(), 110000);
 
     await assert.rejects(
       factory.write.setPoolFee([pool.address, 500], { account: trader.account }),
@@ -217,11 +218,11 @@ describe("PancakeV3 mutable swap fee", async function () {
     // the pool answers to the factory and to nobody else, owner included
     await assert.rejects(pool.write.setFee([500], { account: trader.account }));
     await assert.rejects(pool.write.setFee([500], { account: deployer.account }));
-    await assert.rejects(factory.write.setPoolFee([pool.address, 100001]), /fee too high/);
+    await assert.rejects(factory.write.setPoolFee([pool.address, 110001]), /fee too high/);
 
     // the ceiling itself is allowed
-    await factory.write.setPoolFee([pool.address, 100000]);
-    assert.equal(await pool.read.fee(), 100000);
+    await factory.write.setPoolFee([pool.address, 110000]);
+    assert.equal(await pool.read.fee(), 110000);
   });
 
   it("PancakeV3PoolDeployer still fits under EIP-170", async function () {

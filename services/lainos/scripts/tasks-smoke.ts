@@ -21,6 +21,7 @@ import { answerStamp, SwitchableModelProvider } from "../src/models/routing.js";
 import { servedBy } from "../src/models/openrouter.js";
 import { resolveEnvTaskRoutes } from "../src/models/index.js";
 import { TaskKind, classifyTask, formatTaskRoute, parseTaskRoute } from "../src/models/tasks.js";
+import { parseFreeModels } from "../src/models/openrouter.js";
 import {
   ModelTier,
   type Action,
@@ -308,6 +309,27 @@ check(
 );
 
 await rm(tmp, { recursive: true, force: true });
+
+// ------------------------------------------------------- the free pool
+
+// `openrouter/free` is a router, and "which free model" is only answerable if
+// something lists the pool. Free is a price, not a name — and the pool prices
+// music and image models at zero too, which cannot answer a turn.
+const pool = parseFreeModels({
+  data: [
+    { id: "z/last:free", name: "Z: Last (free)", pricing: { prompt: "0", completion: "0" }, context_length: 8192 },
+    { id: "a/first:free", name: "A: First (free)", pricing: { prompt: "0.0", completion: "0" } },
+    { id: "google/lyria:free", name: "Lyria", pricing: { prompt: "0", completion: "0" }, architecture: { output_modalities: ["text", "audio"] } },
+    { id: "paid/model", name: "Paid", pricing: { prompt: "0.000001", completion: "0.000002" } },
+    { id: "z/last:free", name: "duplicate", pricing: { prompt: "0", completion: "0" } },
+    { id: "unpriced/model", name: "No prices published" },
+  ],
+});
+check("free is a price, not a name  ", pool.map((m) => m.id).join() === "a/first:free,z/last:free");
+check("a music model is not a writer", !pool.some((m) => m.id.includes("lyria")));
+check("the (free) suffix is dropped ", pool[0].name === "A: First");
+check("context survives when given  ", pool[1].context === 8192 && pool[0].context === undefined);
+check("an empty catalogue is empty  ", parseFreeModels({}).length === 0 && parseFreeModels(null).length === 0);
 
 // ------------------------------------------------------------------ report
 

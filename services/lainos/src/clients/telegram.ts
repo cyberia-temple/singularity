@@ -4,7 +4,15 @@ import { fetch as undiciFetch, ProxyAgent, type Dispatcher } from "undici";
 import { runCyberiaStudyNow } from "../cyberia-study.js";
 import { createLogger } from "../logger.js";
 import { buildRecap } from "../memory/recap.js";
-import { answerStamp, SwitchableModelProvider } from "../models/routing.js";
+import { fetchFreeModels, type FreeModel } from "../models/openrouter.js";
+import {
+  answerStamp,
+  chatProviderLabel,
+  resolveChatProviderKind,
+  CHAT_PROVIDER_CHOICES,
+  SwitchableModelProvider,
+} from "../models/routing.js";
+import { TASKS, TaskKind, isTaskKind } from "../models/tasks.js";
 import { formatForgeJobs, type ForgeService } from "../plugins/forge/index.js";
 import type { ScoutService } from "../plugins/scout/index.js";
 import type { IAgentRuntime } from "../types.js";
@@ -92,7 +100,8 @@ const HELP_TEXT = [
   "  · /study — run the Cyberia research sweep now",
   "  · /jobs — show forge job history",
   "  · /recap — summarise this conversation so far",
-  "  · /tasks — which model answers which kind of work",
+  "  · /tasks — which model answers which kind of work (/tasks <kind> <provider[:model]> re-routes one)",
+  "  · /model — who answers you now, and switch (/model free — the free pool)",
   "",
   "try: \"watch 0x… and warn me below 5 CYBER\"",
 ].join("\n");
@@ -108,6 +117,9 @@ export class TelegramClient {
   private readonly polling: boolean;
 
   private running = false;
+  /** The free pool as OpenRouter last described it, and when. */
+  private freePoolCache?: FreeModel[];
+  private freePoolAt = 0;
   private offset = 0;
   private me?: TgUser;
   private knownChats = new Set<number>();
@@ -333,19 +345,11 @@ export class TelegramClient {
       return;
     }
     if (cmd === "/tasks") {
-      const model = this.runtime.model;
-      await this.sendChunked(
-        chatId,
-        model instanceof SwitchableModelProvider
-          ? model
-              .taskRoutes()
-              .map(
-                (r) =>
-                  `${r.emoji} ${r.task} → ${r.provider}${r.model ? ` · ${r.model}` : ""} (${r.source})`,
-              )
-              .join("\n")
-          : "the model provider is fixed for this run.",
-      );
+      await this.handleTasks(chatId, content.split(/\s+/).slice(1));
+      return;
+    }
+    if (cmd === "/model") {
+      await this.handleModel(chatId, content.split(/\s+/).slice(1));
       return;
     }
     if (cmd === "/jobs") {
@@ -383,6 +387,213 @@ export class TelegramClient {
     } finally {
       typing();
     }
+  }
+
+  // --------------------------------------------------------- model routing
+
+  /**
+   * `/tasks` — read the routing table, and change one row of it.
+   *
+   * Reading it from the phone was already possible; changing it meant the
+   * desk (`npm run tasks`), which is exactly where the operator is not when a
+   * route turns out to be wrong. Same grammar as the CLI: `/tasks digest
+   * openrouter:openrouter/free`, and `-` returns a kind to the environment.
+   */
+  private async handleTasks(chatId: number, args: string[]): Promise<void> {
+    const model = this.runtime.model;
+    if (!(model instanceof SwitchableModelProvider)) {
+      await this.sendChunked(chatId, "the model provider is fixed for this run.");
+      return;
+    }
+    if (args.length === 0) {
+      const rows = model
+        .taskRoutes()
+        .map(
+          (r) =>
+            `${r.emoji} ${r.task} → ${r.provider}${r.model ? ` · ${r.model}` : ""} (${r.source})` +
+            (r.error ? ` ⚠ ${r.error}` : ""),
+        )
+        .join("\n");
+      await this.sendChunked(
+        chatId,
+        `${rows}\n\nre-route: /tasks <kind> <provider[:model]> · вернуть в env: /tasks <kind> -`,
+      );
+      return;
+    }
+    const kind = args[0].toLowerCase();
+    if (!isTaskKind(kind)) {
+      await this.sendChunked(
+        chatId,
+        `не знаю такой вид работы: "${args[0]}" — есть: ${Object.keys(TASKS).join(" · ")}`,
+      );
+      return;
+    }
+    const raw = args.slice(1).join(" ").trim();
+    if (!raw) {
+      const state = model.taskRouteState(kind as TaskKind);
+      await this.sendChunked(
+        chatId,
+        `${state.emoji} ${state.task} → ${state.provider}${state.model ? ` · ${state.model}` : ""} (${state.source})`,
+      );
+      return;
+    }
+    const result = model.setTaskRoute(
+      kind as TaskKind,
+      ["-", "env", "auto", "сброс"].includes(raw.toLowerCase()) ? null : raw,
+    );
+    if (typeof result === "string") {
+      await this.sendChunked(chatId, result);
+      return;
+    }
+    const warn = TASKS[kind as TaskKind].critical
+      ? "\n⚠ этот вид работы трогает мир (деньги, код) — модель должна быть та, которой ты доверяешь."
+      : "";
+    await this.sendChunked(
+      chatId,
+      `готово: ${result.emoji} ${result.task} → ${result.provider}` +
+        `${result.model ? ` · ${result.model}` : ""} (${result.source})${warn}`,
+    );
+  }
+
+  /**
+   * `/model` — who is answering, and switch to somebody else.
+   *
+   * `/model free` is the part that needed writing: `openrouter/free` is a
+   * *router*, so "которой моделью ты отвечаешь" has no fixed answer until one
+   * of the pool is pinned. The list is read from OpenRouter's own catalogue,
+   * never from a list in this file, and picking one points the CHAT kind at it
+   * — the rest of the routing table is `/tasks`.
+   */
+  private async handleModel(chatId: number, args: string[]): Promise<void> {
+    const model = this.runtime.model;
+    if (!(model instanceof SwitchableModelProvider)) {
+      await this.sendChunked(chatId, "the model provider is fixed for this run.");
+      return;
+    }
+    if (args[0]?.toLowerCase() === "free") {
+      await this.handleFreePool(chatId, model, args.slice(1));
+      return;
+    }
+    if (args.length === 0) {
+      const state = model.state();
+      const choices = CHAT_PROVIDER_CHOICES.map((c) => `  · ${c.name} — ${c.desc}`).join("\n");
+      const chat = model.taskRouteState(TaskKind.CHAT);
+      const pinned =
+        chat.source === "operator"
+          ? `\nразговор закреплён за ${chat.provider}${chat.model ? ` · ${chat.model}` : ""} (/model free auto — снять)`
+          : "";
+      await this.sendChunked(
+        chatId,
+        `сейчас отвечает ${chatProviderLabel(state.kind)} · ${state.model}` +
+          (state.overridden ? ` (env по умолчанию: ${state.envKind})` : "") +
+          `${pinned}\n\nпереключить: /model <кем>\n${choices}\n\n` +
+          "бесплатный пул: /model free · вся таблица работ: /tasks",
+      );
+      return;
+    }
+    const kind = resolveChatProviderKind(args[0]);
+    if (!kind) {
+      await this.sendChunked(
+        chatId,
+        `не знаю такого: "${args[0]}" — есть: ${CHAT_PROVIDER_CHOICES.map((c) => c.name).join(" · ")}`,
+      );
+      return;
+    }
+    const result = model.switchTo(kind);
+    if (typeof result === "string") {
+      await this.sendChunked(chatId, result);
+      return;
+    }
+    await this.sendChunked(
+      chatId,
+      `готово: отвечаю через ${chatProviderLabel(result.kind)} · ${result.model}` +
+        (result.overridden ? " (сохранено — демон подхватит после рестарта)" : " (обратно к env)"),
+    );
+  }
+
+  /** `/model free [n|id|auto]` — the pool behind `openrouter/free`. */
+  private async handleFreePool(
+    chatId: number,
+    model: SwitchableModelProvider,
+    args: string[],
+  ): Promise<void> {
+    const choice = args[0]?.trim();
+    if (choice && ["auto", "-", "сброс", "router"].includes(choice.toLowerCase())) {
+      const result = model.setTaskRoute(TaskKind.CHAT, null);
+      await this.sendChunked(
+        chatId,
+        typeof result === "string"
+          ? result
+          : `готово: разговор снова идёт через ${result.provider}${result.model ? ` · ${result.model}` : ""} (${result.source})`,
+      );
+      return;
+    }
+
+    let pool: FreeModel[];
+    try {
+      pool = await this.freePool();
+    } catch (err) {
+      // The catalogue is one HTTP call to the provider we already talk to; a
+      // failure here is worth saying plainly rather than answering with an
+      // empty list, which reads as "there is nothing free".
+      await this.sendChunked(chatId, `не смогла прочитать список моделей: ${(err as Error).message}`);
+      return;
+    }
+    if (pool.length === 0) {
+      await this.sendChunked(chatId, "провайдер сейчас не отдаёт ни одной бесплатной модели.");
+      return;
+    }
+
+    if (!choice) {
+      const rows = pool
+        .map((m, i) => {
+          const ctx = m.context ? ` · ${Math.round(m.context / 1000)}k` : "";
+          return `${String(i + 1).padStart(2)}. ${m.name}${ctx}\n    ${m.id}`;
+        })
+        .join("\n");
+      await this.sendChunked(
+        chatId,
+        `бесплатных моделей сейчас: ${pool.length}\n\n${rows}\n\n` +
+          "закрепить: /model free <номер|id> · вернуть роутер: /model free auto\n" +
+          "это закрепляет только разговор; остальные виды работ — /tasks",
+      );
+      return;
+    }
+
+    const index = Number(choice);
+    const picked = Number.isInteger(index)
+      ? pool[index - 1]
+      : pool.find((m) => m.id.toLowerCase() === choice.toLowerCase()) ??
+        pool.find((m) => m.id.toLowerCase().includes(choice.toLowerCase()));
+    if (!picked) {
+      await this.sendChunked(chatId, `не нашла такую в пуле: "${choice}" — открой /model free.`);
+      return;
+    }
+    const result = model.setTaskRoute(TaskKind.CHAT, `openrouter:${picked.id}`);
+    await this.sendChunked(
+      chatId,
+      typeof result === "string"
+        ? result
+        : `готово: разговор идёт через ${picked.name} · ${picked.id}\n` +
+            "бесплатные модели часто заняты — если замолчу, /model free auto вернёт роутер.",
+    );
+  }
+
+  /** The free pool, re-read at most every half hour. */
+  private async freePool(): Promise<FreeModel[]> {
+    const fresh = Date.now() - this.freePoolAt < 1_800_000;
+    if (fresh && this.freePoolCache) return this.freePoolCache;
+    const pool = await fetchFreeModels({
+      apiKey: this.runtime.getSetting("OPENROUTER_API_KEY"),
+      baseUrl: this.runtime.getSetting("OPENROUTER_BASE_URL"),
+      proxy:
+        this.runtime.getSetting("LAINOS_MODEL_PROXY") ??
+        this.runtime.getSetting("HTTPS_PROXY") ??
+        this.proxyUrl,
+    });
+    this.freePoolCache = pool;
+    this.freePoolAt = Date.now();
+    return pool;
   }
 
   // ------------------------------------------------------------- helpers

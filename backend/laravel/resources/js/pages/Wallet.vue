@@ -22,6 +22,7 @@ import WalletAnalytics from '@/components/wallet/WalletAnalytics.vue';
 import WalletArena from '@/components/wallet/WalletArena.vue';
 import WalletBridge from '@/components/wallet/WalletBridge.vue';
 import WalletBrowse from '@/components/wallet/WalletBrowse.vue';
+import WalletChart from '@/components/wallet/WalletChart.vue';
 import WalletChat from '@/components/wallet/WalletChat.vue';
 import WalletContextBar from '@/components/wallet/WalletContextBar.vue';
 import WalletCrossSwap from '@/components/wallet/WalletCrossSwap.vue';
@@ -34,6 +35,7 @@ import WalletIpfs from '@/components/wallet/WalletIpfs.vue';
 import WalletLain from '@/components/wallet/WalletLain.vue';
 import WalletLaunchpad from '@/components/wallet/WalletLaunchpad.vue';
 import WalletLocked from '@/components/wallet/WalletLocked.vue';
+import WalletMarkets from '@/components/wallet/WalletMarkets.vue';
 import WalletNetworkDetail from '@/components/wallet/WalletNetworkDetail.vue';
 import WalletNetworks from '@/components/wallet/WalletNetworks.vue';
 import WalletNft from '@/components/wallet/WalletNft.vue';
@@ -56,6 +58,7 @@ import WalletTrackerPublish from '@/components/wallet/WalletTrackerPublish.vue';
 import { useLocale } from '@/composables/useLocale';
 import { useMultiWallet } from '@/composables/useMultiWallet';
 import { useWalletAuth } from '@/composables/useWalletAuth';
+import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { arenaMessages } from '@/lib/arenaMessages';
 import { isNativeShell, nativeShell } from '@/lib/native';
@@ -68,6 +71,7 @@ import {
 import { formatUnits, unreadChatCount, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
 import type { BridgeConfig } from '@/lib/wallet/bridge';
+import type { Market } from '@/lib/wallet/markets';
 import { announceWalletEvent } from '@/lib/wallet/notifications';
 import type { PlayerTrack } from '@/lib/wallet/player';
 import { canStream, torrentBridge } from '@/lib/wallet/torrent';
@@ -136,12 +140,21 @@ const authenticated = computed(() => !!page.props.auth?.user);
 /** Inside the desktop or mobile app the wallet owns the whole window. */
 const native = isNativeShell();
 
+/*
+ * Light or dark. The attribute goes on the same element the tokens are defined
+ * on, so a screen never renders half-swapped: one element changes and every
+ * colour under it is already the other palette.
+ */
+const { scheme } = useWalletTheme();
+
 const desktop = useMediaQuery('(min-width: 1024px)');
 
 type Section =
     | 'portfolio'
     | 'tokens'
     | 'token'
+    | 'markets'
+    | 'chart'
     | 'analytics'
     | 'chat'
     | 'accounts'
@@ -215,6 +228,7 @@ const bodyOverlay = computed(() =>
 const SECTIONS: { id: Section; label: () => string }[] = [
     { id: 'portfolio', label: () => t('navPortfolio') },
     { id: 'tokens', label: () => t('tokens') },
+    { id: 'markets', label: () => t('markets') },
     { id: 'analytics', label: () => t('navAnalytics') },
     { id: 'chat', label: () => t('chatTitle') },
     { id: 'network', label: () => t('navActivity') },
@@ -273,6 +287,8 @@ const TAB_OF: Record<Section, Section> = {
     portfolio: 'portfolio',
     tokens: 'portfolio',
     token: 'portfolio',
+    markets: 'portfolio',
+    chart: 'portfolio',
     analytics: 'portfolio',
     chat: 'chat',
     accounts: 'portfolio',
@@ -355,6 +371,7 @@ const openProfile = (address: string | null): void => {
  */
 const PARENTS: Partial<Record<Section, Section>> = {
     token: 'tokens',
+    chart: 'markets',
     networks: 'portfolio',
     importAccount: 'accounts',
     gas: 'portfolio',
@@ -381,6 +398,19 @@ const sendToken = ref<WalletTokenBalance | null>(null);
 /** The contract the token screen is about, and where it was opened from. */
 const tokenContract = ref<string | null>(null);
 const tokenOrigin = ref<Section>('tokens');
+
+/**
+ * The market the chart screen is drawing. Held here rather than looked up by id
+ * on the screen itself, because half of these rows are tokens this browser
+ * discovered a moment ago — an id is not something the chart can resolve on its
+ * own after a reload.
+ */
+const chartMarket = ref<Market | null>(null);
+
+const openChart = (market: Market): void => {
+    chartMarket.value = market;
+    section.value = 'chart';
+};
 
 const openSend = (token?: WalletTokenBalance): void => {
     sendToken.value = token ?? null;
@@ -958,23 +988,15 @@ watch(
 
     <div
         class="cw"
+        :data-cw-theme="scheme"
         :class="
             native
                 ? 'flex min-h-0 flex-1 flex-col p-3 sm:p-4'
-                : 'mx-auto max-w-[1400px] p-4 sm:p-6'
+                : 'cw-page flex flex-col p-4 sm:p-6'
         "
     >
         <!-- Masthead -->
-        <header
-            class="cw-masthead"
-            style="
-                display: flex;
-                align-items: flex-end;
-                gap: 20px;
-                flex-wrap: wrap;
-                margin-bottom: 24px;
-            "
-        >
+        <header class="cw-masthead">
             <div style="display: flex; align-items: center; gap: 12px">
                 <span
                     style="
@@ -1004,18 +1026,8 @@ watch(
                     >{{ t('wallet') }}</span
                 >
             </div>
-            <span
-                style="
-                    flex: 1;
-                    min-width: 40px;
-                    height: 1px;
-                    background: linear-gradient(
-                        90deg,
-                        var(--cw-border-soft),
-                        transparent
-                    );
-                "
-            />
+            <span class="cw-masthead-rule" />
+            <span class="cw-label cw-masthead-tag">{{ t('subtitle') }}</span>
             <button type="button" class="cw-ghost" @click="toggleLocale">
                 <Languages :size="14" aria-hidden="true" />
                 {{ nextTag }}
@@ -1302,6 +1314,7 @@ watch(
                             @receive="overlay = 'receive'"
                             @add-network="openSection('networks')"
                             @tokens="openSection('tokens')"
+                            @markets="openSection('markets')"
                             @analytics="openSection('analytics')"
                             @accounts="openSection('accounts')"
                             @security="openSection('security')"
@@ -1352,6 +1365,35 @@ watch(
                         @back="openSection('portfolio')"
                         @open="openToken"
                         @send="sendChainToken"
+                    />
+
+                    <!--
+                      Price history, and the two honest ways to get one: an
+                      exchange's book where a book exists, and this chain's own
+                      pools where it does not.
+                    -->
+                    <WalletMarkets
+                        v-else-if="section === 'markets'"
+                        :wallet="wallet"
+                        :prices="prices"
+                        :token-prices="tokenPrices"
+                        @back="openSection('portfolio')"
+                        @open="openChart"
+                    />
+
+                    <WalletChart
+                        v-else-if="section === 'chart' && chartMarket"
+                        :market="chartMarket"
+                        :scheme="scheme"
+                        :price="
+                            chartMarket.address
+                                ? (tokenPrices[chartMarket.chain]?.[
+                                      chartMarket.address.toLowerCase()
+                                  ] ?? null)
+                                : (prices[chartMarket.chain] ?? null)
+                        "
+                        @back="openSection('markets')"
+                        @swap="openSwap()"
                     />
 
                     <WalletToken
@@ -1669,11 +1711,12 @@ watch(
             <div class="cw-scan" aria-hidden="true"></div>
         </div>
 
-        <p
-            v-if="!native"
-            class="cw-prose"
-            style="margin-top: 16px; max-width: 80ch"
-        >
+        <!--
+          What the wallet is, for somebody who has not made one yet. Under a
+          portfolio it is a paragraph explaining the thing you are already
+          holding, and on a phone it was the last 150px of the frame.
+        -->
+        <p v-if="!native && stage !== 'app'" class="cw-intro cw-prose">
             {{ t('intro') }}
         </p>
     </div>

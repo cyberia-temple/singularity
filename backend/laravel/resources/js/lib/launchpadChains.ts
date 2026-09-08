@@ -23,6 +23,17 @@ export type LaunchpadChain = {
     chain: EvmChain;
     /** LaunchpadNative address; null until one is deployed on this chain. */
     launchpad: string | null;
+    /**
+     * LaunchpadV3, where one is deployed.
+     *
+     * The difference is not a version number: a v3 launch lets its creator set
+     * the trading fee (up to 10%, plus the protocol's 1%) and share any part of
+     * it with holders, and its liquidity is a locked position that keeps
+     * earning rather than a burned LP token that cannot. A chain with only the
+     * v2 launchpad offers neither, so the controls for them are not drawn
+     * there — they are not a setting that happens to be missing.
+     */
+    launchpadV3?: string | null;
     factory: string;
     /** Wrapped native token the launch pairs against. */
     wrappedNative: string;
@@ -51,6 +62,12 @@ const evmChain = (chainId: number): EvmChain =>
 const deployedAt = (chainId: number, fallback: string | null): string | null =>
     env[`VITE_LAUNCHPAD_${chainId}`] ?? fallback;
 
+/** The same, for the v3 launchpad, which is a different contract on the same chain. */
+const deployedV3At = (
+    chainId: number,
+    fallback: string | null,
+): string | null => env[`VITE_LAUNCHPAD_V3_${chainId}`] ?? fallback;
+
 export const LAUNCHPAD_CHAINS: readonly LaunchpadChain[] = [
     {
         // deployments/cyberia-launchpad-native.json
@@ -58,6 +75,11 @@ export const LAUNCHPAD_CHAINS: readonly LaunchpadChain[] = [
         launchpad: deployedAt(
             CYBERIA_CHAIN_ID,
             '0x8034E6C09E0cEA00B5D692ADfD1A136fab339165',
+        ),
+        // deployments/cyberia-v3.json, redeployed 2026-09-07
+        launchpadV3: deployedV3At(
+            CYBERIA_CHAIN_ID,
+            '0x6970481a167D8D44527091d0E319e50aD3F79Ee3',
         ),
         factory: '0xB0aC30907c04b61F1482e62eA66eF4562a690917',
         wrappedNative: '0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9',

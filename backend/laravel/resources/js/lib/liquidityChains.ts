@@ -3,6 +3,8 @@ import {
     USDC_ADDRESS,
     USDT_ADDRESS,
 } from '@/lib/cyberiaTokens';
+import type { V3Config } from '@/lib/dexV3';
+import { V3_FEE_TIERS } from '@/lib/dexV3';
 import {
     CYBERIA_CHAIN,
     CYBERIA_CHAIN_ID,
@@ -42,10 +44,33 @@ export type LiquidityChainConfig = {
      */
     hubs: string[];
     /**
+     * The dollar this chain's prices are quoted in.
+     *
+     * Separate from `hubs` because the two answer different questions: a hub is
+     * anything a route may pass *through*, and on Cyberia the first of those is
+     * WCYBER itself. Taking `hubs[0]` as the quote asset therefore priced the
+     * coin against itself — the market chart came back "no pool connects this
+     * to the dollar" for the one token the chain is built around.
+     *
+     * Absent on a chain with no stablecoin, and a screen that needs one says so
+     * rather than picking a hub and hoping.
+     */
+    dollar?: string;
+    /**
      * Cyberia gets its pool list + APR from the server indexer; satellites are
      * client-only (pairs discovered on-chain, no APR snapshot).
      */
     serverPools: boolean;
+    /**
+     * The concentrated-liquidity stack, where one is deployed.
+     *
+     * v3 sits *beside* v2 rather than replacing it: both hold real liquidity,
+     * so a screen quotes both and takes the better answer. A chain without this
+     * field simply has one venue, and every v3 path is skipped rather than
+     * guessed at — deriving a pool address from a factory that never deployed
+     * one produces a plausible address with nothing at it.
+     */
+    v3?: V3Config;
 };
 
 const ROBINHOOD_CHAIN = EVM_CHAINS.find((c) => c.chainId === 4663)!;
@@ -67,7 +92,22 @@ export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
             USDC_ADDRESS,
             USDT_ADDRESS,
         ],
+        dollar: USDC_ADDRESS,
         serverPools: true,
+        // crypto/hardhat/deployments/cyberia-v3.json, redeployed 2026-09-07.
+        // `initCodeHash` must equal POOL_INIT_CODE_HASH in PoolAddress.sol: it
+        // is what every pool address here is derived from, and a stale one
+        // addresses contracts that are not there without erroring.
+        v3: {
+            poolDeployer: '0x216Caa611CE6F300c6b23f1D00Aa6055F77dE773',
+            factory: '0xB6abF60A04fC1ac64Bf225787B7064A94165b496',
+            quoter: '0xD583dDAf0f9B1bb227832f9c4948519C697DCF99',
+            router: '0xa9f2A35F8dbA643e199Da0FeEbDF7e1c72ee773e',
+            positionManager: '0x50A0B7Fd739fE3afC27fF5c8259Ae1c76B569139',
+            initCodeHash:
+                '0x552a3c12f1630ab391584c8e037aad90f40e97650684de28cdc32815cac7e158',
+            tiers: V3_FEE_TIERS,
+        },
     },
     {
         chainId: 4663,

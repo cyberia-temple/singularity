@@ -75,6 +75,39 @@
     --cw-bad: #ff5c68;
     --cw-bad-soft: #ff9aa2;
 
+    /*
+     * Surfaces and washes that used to be written as literals further down this
+     * file. Every one of them had to become a token for the same reason: a
+     * theme is a palette swap, and a colour spelled out at its use site is a
+     * colour the light theme cannot reach.
+     */
+    --cw-panel: #08090b;
+    --cw-sunken: #0c0e11;
+    --cw-elevated: #101418;
+    --cw-well: #12161a;
+    --cw-input-bg: #080a0c;
+    --cw-line-strong: #1b2126;
+    --cw-pending-soft: #d9c08a;
+
+    /* The atmosphere: grid, raster and the travelling scan line. */
+    --cw-grid: rgba(255, 255, 255, 0.018);
+    --cw-raster-ink: rgba(255, 255, 255, 0.05);
+    --cw-scan-ink: rgba(47, 233, 224, 0.035);
+
+    /* State edges and washes, kept apart from the flat state colours above. */
+    --cw-bad-line: rgba(255, 92, 104, 0.3);
+    --cw-bad-line-strong: rgba(255, 92, 104, 0.45);
+    --cw-bad-tint: rgba(255, 92, 104, 0.06);
+    --cw-bad-tint-strong: rgba(255, 92, 104, 0.14);
+    --cw-pending-line: rgba(232, 180, 74, 0.28);
+    --cw-pending-line-strong: rgba(232, 180, 74, 0.4);
+    --cw-pending-tint: rgba(232, 180, 74, 0.05);
+    --cw-meta-line: rgba(139, 123, 247, 0.35);
+
+    /* What a sheet and a modal lay over the screen they interrupt. */
+    --cw-veil: rgba(4, 5, 6, 0.72);
+    --cw-veil-strong: rgba(4, 5, 6, 0.82);
+
     /* Space Grotesk has no Cyrillic; Manrope catches Russian copy. */
     --cw-sans: 'Space Grotesk', Manrope, ui-sans-serif, system-ui, sans-serif;
     --cw-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
@@ -82,6 +115,114 @@
     color: var(--cw-text);
     font-family: var(--cw-sans);
     -webkit-font-smoothing: antialiased;
+
+    /*
+     * The surface paints its own ground rather than borrowing the page's. On
+     * dark this changes nothing — the site is dark too — which is exactly why
+     * it was missing: the masthead, the language switch and the note under the
+     * shell all sat on the site's background and stayed there when the wallet
+     * went light, so the theme reached the shell and stopped at its border.
+     */
+    background: var(--cw-canvas);
+}
+
+/*
+ * The light theme.
+ *
+ * The wallet was built dark-only on the argument that its visual language —
+ * hairlines on near-black, one cyan accent, a scan line — only reads that way.
+ * Half of that was true and the wrong half was load-bearing: the *structure* is
+ * what reads (hairline, mono, one accent, colour spent only on state), and the
+ * structure survives inversion. What does not survive is a literal, which is
+ * why every colour above is a token and this block is the whole theme.
+ *
+ * It is a swap and never a filter. A cyan that glows on #050607 is invisible on
+ * paper, so the accent, the network hues and every state colour are re-picked
+ * for a light ground rather than dimmed — the amber warning in particular, at
+ * #e8b44a, reads as decoration on white and as a warning at #8f6407.
+ *
+ * `color-scheme` moves with the tokens: it is what repaints the scrollbars and
+ * the native controls the wallet does not draw itself.
+ */
+.cw[data-cw-theme='light'] {
+    --cw-canvas: #e9e8e2;
+    --cw-app: #fbfaf7;
+    --cw-surface: #ffffff;
+    --cw-raised: #e7f5f3;
+    --cw-hairline: #e1e0d9;
+    --cw-line: #e4e3dd;
+    --cw-border: #c2c1b7;
+    --cw-border-soft: #cfcec5;
+    --cw-border-hover: #93928a;
+    --cw-fainter: #a8a79d;
+    --cw-faint: #8b9299;
+    --cw-dim: #7a8188;
+    --cw-muted: #5c636a;
+    --cw-body: #2c3238;
+    --cw-text: #14181d;
+    --cw-bright: #05070a;
+
+    --cw-accent: #0b9b93;
+    --cw-accent-hover: #0fb5ac;
+    --cw-accent-ink: #f0fffd;
+    --cw-meta: #5a46d6;
+
+    /*
+     * Network hues, re-picked rather than reused. These are brand colours, and
+     * a brand colour is a hue and not a lightness: Solana stays violet and BNB
+     * stays yellow, but at a lightness that has contrast against white instead
+     * of against black. They still keep clear of the amber/green/red family
+     * that transaction status owns.
+     */
+    --cw-net-cyberia: #0b9b93;
+    --cw-net-robinhood: #b0129a;
+    --cw-net-bnb: #8a6a00;
+    --cw-net-base: #1d5fd1;
+    --cw-net-solana: #5a46d6;
+    --cw-net-monero: #3b4148;
+    --cw-net-bitcoin: #3e6288;
+    --cw-net-litecoin: #54697f;
+    --cw-net-custom: #5a46d6;
+
+    --cw-net-cat-1: #1f63a8;
+    --cw-net-cat-2: #4450c0;
+    --cw-net-cat-3: #6e3eb8;
+    --cw-net-cat-4: #93399f;
+    --cw-net-cat-5: #1f7290;
+    --cw-net-cat-6: #4a6484;
+    --cw-net-cat-7: #3a48a8;
+    --cw-net-cat-8: #3f7191;
+
+    --cw-ok: #12925f;
+    --cw-pending: #8f6407;
+    --cw-bad: #ce2331;
+    --cw-bad-soft: #a61a26;
+
+    --cw-panel: #f3f2ed;
+    --cw-sunken: #f6f5f1;
+    --cw-elevated: #efeee9;
+    --cw-well: #ecebe5;
+    --cw-input-bg: #ffffff;
+    --cw-line-strong: #dbdad2;
+    --cw-pending-soft: #836728;
+
+    --cw-grid: rgba(0, 0, 0, 0.036);
+    --cw-raster-ink: rgba(0, 0, 0, 0.1);
+    --cw-scan-ink: rgba(11, 155, 147, 0.06);
+
+    --cw-bad-line: rgba(206, 35, 49, 0.3);
+    --cw-bad-line-strong: rgba(206, 35, 49, 0.45);
+    --cw-bad-tint: rgba(206, 35, 49, 0.102);
+    --cw-bad-tint-strong: rgba(206, 35, 49, 0.17);
+    --cw-pending-line: rgba(143, 100, 7, 0.28);
+    --cw-pending-line-strong: rgba(143, 100, 7, 0.4);
+    --cw-pending-tint: rgba(143, 100, 7, 0.085);
+    --cw-meta-line: rgba(90, 70, 214, 0.3);
+
+    --cw-veil: rgba(40, 42, 38, 0.72);
+    --cw-veil-strong: rgba(40, 42, 38, 0.82);
+
+    color-scheme: light;
 }
 
 .cw *,
@@ -197,6 +338,47 @@
  * The desktop shell has no title bar at all. Its wallet masthead is the one
  * quiet drag surface; actual controls opt out so clicks remain clicks.
  */
+/*
+ * The strip that says which product this is.
+ *
+ * It was three wrapped rows on a phone — a wordmark, a rule, a seven-item
+ * tagline and a language button — which is a third of a 900px frame spent on
+ * saying "wallet" to somebody looking at their own money. The wordmark and the
+ * two controls stay at every width; the rule and the tagline are the parts that
+ * were only ever there to fill a wide desktop line, so they leave with the
+ * width that justified them.
+ */
+.cw-masthead {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.cw-masthead-rule {
+    flex: 1;
+    min-width: 24px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--cw-border-soft), transparent);
+}
+
+.cw-masthead-tag {
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .cw-masthead-tag {
+        display: none;
+    }
+}
+
+/* Onboarding copy, and it keeps a paragraph's measure rather than the frame's. */
+.cw-intro {
+    margin-top: 16px;
+    max-width: 80ch;
+}
+
 html[data-native-shell='desktop'] .cw-masthead {
     -webkit-app-region: drag;
 }
@@ -205,6 +387,67 @@ html[data-native-shell='desktop']
     .cw-masthead
     :is(a, button, input, select, textarea) {
     -webkit-app-region: no-drag;
+}
+
+/*
+ * On the site the wallet is an app inside a page, and the two disagree about
+ * who scrolls.
+ *
+ * A page scrolls as one document, so a shell that simply grew with its content
+ * took the tab bar with it: the seven destinations sat at the bottom of the
+ * *document*, and reaching them from a long portfolio meant scrolling past
+ * everything first — the one control that exists so you never have to. The
+ * native shells never had this, because `h-dvh` there gives the frame a
+ * definite height and the wallet's own body does the scrolling.
+ *
+ * So the browser gets the same frame. `Web3Layout` makes the wallet route
+ * `h-dvh` and drops the footer; the height then arrives down the tree and this
+ * rule only has to pass it on. Subtracting a header height here instead would
+ * write that number in two files and be wrong in whichever one changed second —
+ * and `dvh` is the layout's business anyway, since it is a mobile browser's
+ * toolbars that make the viewport a moving target.
+ */
+.cw-page {
+    min-height: 0;
+    flex: 1;
+}
+
+/*
+ * The ground goes edge to edge and the content is what is measured.
+ *
+ * Capping the page itself put a 1400px light panel on a black desk once the
+ * wallet could be light — a seam under the site header that read as a rendering
+ * fault rather than a margin. The surface now fills the window and each row
+ * inside it keeps the measure.
+ */
+.cw-page > * {
+    width: 100%;
+    max-width: 1400px;
+    margin-inline: auto;
+}
+
+/*
+ * The site reserves a scrollbar gutter on `html` so a centred header does not
+ * jump between a short page and a long one. This page never scrolls, so the
+ * gutter is 15px of dead column — invisible while everything was dark, and a
+ * black stripe down the side of a light wallet.
+ */
+html:has(.cw-page) {
+    scrollbar-gutter: auto;
+}
+
+/*
+ * Everything above the shell is chrome and keeps its height; only the shell
+ * absorbs what is left. Without this the masthead and an error note shrink
+ * first, because `flex: 0 1 auto` lets them.
+ */
+.cw-page > :not(.cw-shell) {
+    flex: none;
+}
+
+.cw-page .cw-shell {
+    flex: 1;
+    min-height: 0;
 }
 
 .cw-shell {
@@ -216,8 +459,8 @@ html[data-native-shell='desktop']
     border-radius: 8px;
     background: var(--cw-app);
     background-image:
-        linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+        linear-gradient(var(--cw-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--cw-grid) 1px, transparent 1px);
     background-size: 32px 32px;
 }
 
@@ -245,7 +488,7 @@ html[data-native-shell='desktop']
 .cw-raster {
     background-image: repeating-linear-gradient(
         180deg,
-        rgba(255, 255, 255, 0.05) 0 1px,
+        var(--cw-raster-ink) 0 1px,
         transparent 1px 3px
     );
     opacity: 0.5;
@@ -257,7 +500,7 @@ html[data-native-shell='desktop']
     background: linear-gradient(
         180deg,
         transparent,
-        rgba(47, 233, 224, 0.035),
+        var(--cw-scan-ink),
         transparent
     );
     animation: cw-scan 7s linear infinite;
@@ -279,7 +522,7 @@ html[data-native-shell='desktop']
     flex-direction: column;
     padding: 22px 0;
     border-right: 1px solid var(--cw-line);
-    background: #08090b;
+    background: var(--cw-panel);
     /*
      * Ten destinations plus the network legend and the vault footer is more
      * than a short window holds. The rail scrolls rather than pushing the lock
@@ -416,7 +659,7 @@ html[data-native-shell='desktop']
 .cw-panel {
     padding: 10px 14px 14px;
     border-top: 1px solid var(--cw-line);
-    background: #08090b;
+    background: var(--cw-panel);
 }
 
 /*
@@ -509,9 +752,35 @@ html[data-native-shell='desktop']
     display: flex;
     flex: 1 0 auto;
     flex-direction: column;
+    /*
+     * `safe` and not plain `center`: a step taller than the frame would
+     * otherwise overflow both ways, and the half that goes off the top of a
+     * scroll container cannot be scrolled back to. `safe center` centres while
+     * it fits and falls back to the top when it does not — which is the whole
+     * behaviour wanted, since the frame is now a window and can be any height.
+     */
+    justify-content: safe center;
     width: 100%;
     max-width: 440px;
     margin: 0 auto;
+}
+
+/*
+ * A step is its own height, and the frame's surplus goes around it.
+ *
+ * `.cw-screen` grows on purpose so a bottom-anchored action sits at the bottom
+ * — right on the 640px phone these screens were drawn for, and wrong the moment
+ * the wallet got a real window. Stretched over a 1000px desktop frame,
+ * `space-between` turned the welcome's 100px of breathing room into 300px of
+ * nothing between a headline and its button, and every other step became a form
+ * pinned to the top of a mostly empty screen.
+ *
+ * So inside the one-decision column the step keeps its natural height and the
+ * column centres it. Nothing is clipped when it does not fit: the body above
+ * still scrolls, and a step taller than the frame simply reaches both edges.
+ */
+.cw-column > .cw-screen {
+    flex: 0 0 auto;
 }
 
 .cw-aside {
@@ -522,7 +791,7 @@ html[data-native-shell='desktop']
     overflow-y: auto;
     padding: 24px;
     border-left: 1px solid var(--cw-line);
-    background: #08090b;
+    background: var(--cw-panel);
 }
 
 /*
@@ -536,7 +805,7 @@ html[data-native-shell='desktop']
     flex: none;
     height: 66px;
     border-top: 1px solid var(--cw-line);
-    background: #08090b;
+    background: var(--cw-panel);
 }
 
 @media (min-width: 1024px) {
@@ -550,6 +819,158 @@ html[data-native-shell='desktop']
     .cw-tabs {
         display: none;
     }
+}
+
+/* -------------------------------------------------------------- chart --- */
+
+/*
+ * The candle frame. A hairline box with the read-out on a shelf above the
+ * canvas, because the alternative — floating it over the top-left corner — hid
+ * the first candles of every market that opens high, which on this chain is
+ * most of them.
+ */
+.cw-chart {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--cw-hairline);
+    background: var(--cw-surface);
+}
+
+.cw-chart-host {
+    width: 100%;
+    height: 262px;
+}
+
+.cw-chart-ohlc {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--cw-line);
+    font: 400 10px/1.5 var(--cw-mono);
+    color: var(--cw-dim);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+.cw-chart-ohlc b {
+    font-weight: 500;
+}
+
+.cw-chart-when {
+    color: var(--cw-faint);
+}
+
+.cw-chart-pct {
+    font-weight: 500;
+}
+
+/*
+ * Green and down-red are the chart's own pair and not the wallet's ok/bad
+ * family: on this surface red means "this failed", and a red candle means the
+ * hour closed lower.
+ */
+.cw-chart-up b,
+.cw-chart-up .cw-chart-pct {
+    color: #26a69a;
+}
+
+.cw-chart-down b,
+.cw-chart-down .cw-chart-pct {
+    color: #ef5350;
+}
+
+.cw[data-cw-theme='light'] .cw-chart-up b,
+.cw[data-cw-theme='light'] .cw-chart-up .cw-chart-pct {
+    color: #0f8f7e;
+}
+
+.cw[data-cw-theme='light'] .cw-chart-down b,
+.cw[data-cw-theme='light'] .cw-chart-down .cw-chart-pct {
+    color: #d13c3c;
+}
+
+/*
+ * TradingView's own chart, in an iframe on their origin. The height is fixed
+ * rather than aspect-ratio'd: their widget lays out its toolbars for the box it
+ * is given, and below ~320px it starts dropping them silently.
+ */
+.cw-chart-frame {
+    display: block;
+    width: 100%;
+    height: 380px;
+    border: 1px solid var(--cw-hairline);
+    background: var(--cw-surface);
+}
+
+/* One timeframe. A row of these is the only control on the chart. */
+.cw-tf {
+    min-width: 40px;
+    height: 30px;
+    border: 1px solid var(--cw-hairline);
+    background: var(--cw-surface);
+    font: 400 10px/1 var(--cw-mono);
+    letter-spacing: 0.06em;
+    color: var(--cw-dim);
+    cursor: pointer;
+}
+
+.cw-tf:hover {
+    border-color: var(--cw-border);
+    color: var(--cw-text);
+}
+
+.cw-tf[aria-pressed='true'] {
+    border-color: var(--cw-accent);
+    color: var(--cw-accent);
+}
+
+/* A market row: two chips for the pair, the name, and the price on the right. */
+.cw-market {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 13px;
+    border: 1px solid var(--cw-hairline);
+    border-left: 2px solid var(--cw-hairline);
+    background: var(--cw-surface);
+    cursor: pointer;
+    text-align: left;
+}
+
+.cw-market:hover {
+    border-color: var(--cw-border);
+    border-left-color: var(--cw-accent);
+}
+
+.cw-market-body {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cw-market-name {
+    font: 500 13px/1.3 var(--cw-sans);
+    color: var(--cw-text);
+}
+
+/* Which network the row is on, said quietly beside the pair. */
+.cw-market-on {
+    font: 400 10px/1 var(--cw-mono);
+    color: var(--cw-faint);
+}
+
+.cw-market-side {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
 }
 
 /* --------------------------------------------------------------- typo --- */
@@ -635,22 +1056,22 @@ html[data-native-shell='desktop']
 
 .cw-btn-secondary:hover:not(:disabled) {
     border-color: var(--cw-border-hover);
-    background: #0c0e11;
+    background: var(--cw-sunken);
 }
 
 .cw-btn-danger {
-    border-color: rgba(255, 92, 104, 0.45);
-    background: rgba(255, 92, 104, 0.06);
+    border-color: var(--cw-bad-line-strong);
+    background: var(--cw-bad-tint);
     color: var(--cw-bad-soft);
     font-weight: 500;
 }
 
 .cw-btn-danger:hover:not(:disabled) {
-    background: rgba(255, 92, 104, 0.14);
+    background: var(--cw-bad-tint-strong);
 }
 
 .cw-btn:disabled {
-    border-color: #1b2126;
+    border-color: var(--cw-line-strong);
     background: var(--cw-surface);
     color: var(--cw-fainter);
     cursor: not-allowed;
@@ -704,6 +1125,32 @@ html[data-native-shell='desktop']
 .cw-icon-btn:hover {
     border-color: var(--cw-border-hover);
     color: var(--cw-text);
+}
+
+/*
+ * The light/dark switch on the context bar. Square and quiet on purpose: it
+ * sits beside the account and the network, which are the two things on this bar
+ * anyone came to read, and a third control competing with them would make the
+ * bar a toolbar. 34px rather than the 44px of `.cw-icon-btn` because the bar is
+ * 46px tall and an icon button the height of its own bar reads as a tab.
+ */
+.cw-context-theme {
+    display: flex;
+    height: 34px;
+    width: 34px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--cw-border-soft);
+    border-radius: 3px;
+    background: none;
+    color: var(--cw-muted);
+    cursor: pointer;
+}
+
+.cw-context-theme:hover {
+    border-color: var(--cw-accent);
+    color: var(--cw-accent);
 }
 
 .cw-back {
@@ -780,7 +1227,7 @@ html[data-native-shell='desktop']
 
 .cw-card-button:hover {
     border-color: var(--cw-border);
-    background: #0c0e12;
+    background: var(--cw-sunken);
 }
 
 /*
@@ -790,7 +1237,7 @@ html[data-native-shell='desktop']
  */
 .cw-card-custom {
     border-style: dashed;
-    border-color: rgba(139, 123, 247, 0.35);
+    border-color: var(--cw-meta-line);
 }
 
 /* Group heading inside the network list: a label and a rule to the margin. */
@@ -805,7 +1252,7 @@ html[data-native-shell='desktop']
     content: '';
     flex: 1;
     height: 1px;
-    background: #101418;
+    background: var(--cw-elevated);
 }
 
 /* The "add network" affordance, in the portfolio and in the network pickers. */
@@ -839,14 +1286,14 @@ html[data-native-shell='desktop']
 }
 
 .cw-note-warn {
-    border-color: rgba(232, 180, 74, 0.28);
-    background: rgba(232, 180, 74, 0.05);
-    color: #d9c08a;
+    border-color: var(--cw-pending-line);
+    background: var(--cw-pending-tint);
+    color: var(--cw-pending-soft);
 }
 
 .cw-note-bad {
-    border-color: rgba(255, 92, 104, 0.3);
-    background: rgba(255, 92, 104, 0.06);
+    border-color: var(--cw-bad-line);
+    background: var(--cw-bad-tint);
     color: var(--cw-bad-soft);
 }
 
@@ -1051,7 +1498,7 @@ html[data-native-shell='desktop']
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    background: rgba(4, 5, 6, 0.72);
+    background: var(--cw-veil);
 }
 
 .cw-sheet-panel {
@@ -1071,7 +1518,7 @@ html[data-native-shell='desktop']
     align-items: center;
     justify-content: center;
     padding: 22px;
-    background: rgba(4, 5, 6, 0.82);
+    background: var(--cw-veil-strong);
 }
 
 .cw-kv {
@@ -1161,7 +1608,7 @@ html[data-native-shell='desktop']
  */
 .cw-bar {
     height: 6px;
-    background: #101418;
+    background: var(--cw-elevated);
 }
 
 .cw-bar-fill {
@@ -1196,7 +1643,7 @@ html[data-native-shell='desktop']
     display: inline-flex;
     align-items: center;
     padding: 3px 5px;
-    border: 1px solid rgba(232, 180, 74, 0.4);
+    border: 1px solid var(--cw-pending-line-strong);
     font: 400 8px/1 var(--cw-mono);
     letter-spacing: 0.14em;
     color: var(--cw-pending);

@@ -23,6 +23,7 @@ from bot.config import (
     WALLET_MINI_APP_URL, ARENA_MINI_APP_URL,
     CYBER_SOL_DECIMALS,
     AI_ENABLED,
+    AI_MODEL_CHOICE,
 )
 from bot.db import engine
 from bot.utils import (
@@ -128,6 +129,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     if AI_ENABLED:
         lines.append("/ask <question> - ask the Cyberia AI assistant")
+        if AI_MODEL_CHOICE:
+            lines.append("/model - choose which free model answers you")
     lines.append("/website - project website")
 
     # Only nudge wallet-less users to register, and keep it at the very end.
@@ -145,6 +148,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ai_lines = (
         "/ask <question> - ask the Cyberia AI assistant\n" if AI_ENABLED else ""
+    ) + (
+        "/model - choose which free model answers you (the default is a router "
+        "over the whole free pool)\n"
+        if AI_ENABLED and AI_MODEL_CHOICE
+        else ""
     )
     ai_hint = (
         "In private chat you can also send the AI assistant a question as plain "
@@ -2017,8 +2025,15 @@ async def whale_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = f"{WHALE_VERIFY_URL}?t={token}"
     await update.message.reply_text(
         f"To join the whales chat you must hold at least {WHALE_MIN_CYBER_SOL:,} CYBER.sol.\n\n"
-        f"Open this link, connect Phantom and sign (valid {WHALE_LINK_TTL_MINUTES} min):\n{url}\n\n"
-        "Once verified I'll DM you a one-time invite."
+        f"Connect Phantom and sign — valid {WHALE_LINK_TTL_MINUTES} min:\n{url}\n\n"
+        "On a phone the page will offer \"Open in Phantom\" — take it. Neither "
+        "Telegram's browser nor Chrome/Safari has a wallet inside it, so signing "
+        "only works in Phantom's own browser.\n\n"
+        "Once verified I'll DM you a one-time invite.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🐳 Verify CYBER.sol", url=url)],
+        ]),
+        disable_web_page_preview=True,
     )
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")

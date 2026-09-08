@@ -23,12 +23,19 @@ contract PancakeV3Factory is IPancakeV3Factory {
 
     address public lmPoolDeployer;
 
-    /// @notice The highest swap fee `setPoolFee` may ever set, in hundredths of a bip (10%).
-    /// @dev Not a governance limit -- 10% is far above any fee a pool here would charge. It bounds
-    /// what a stolen owner key can do: without it, a compromised owner could set a pool's fee to
-    /// 100% and take the entire input of every swap that followed. The pool accepts `setFee` from
-    /// this factory and from nobody else, so this is the only way in.
-    uint24 public constant MAX_POOL_FEE = 100000;
+    /// @notice The highest swap fee any pool here may charge, in hundredths of a bip (11%).
+    /// @dev This is the product rule, in the contract: a launch creator may take up to 10% and the
+    /// protocol takes 1%, so 11% is the most a Cyberia pool can ever cost to trade through. It is
+    /// also what bounds a stolen owner key -- without it a compromised owner could set a pool's fee
+    /// to 100% and take the entire input of every swap that followed. The pool accepts `setFee`
+    /// from this factory and from nobody else, so this is the only way in.
+    uint24 public constant MAX_POOL_FEE = 110000;
+
+    /// @notice Who called `createPool` for a pool, until they have used their one fee adjustment
+    /// @dev Cleared by `setPoolFeeByCreator`, so a non-zero entry *is* the unspent right.
+    mapping(address => address) public poolCreator;
+
+    event PoolFeeSetByCreator(address indexed pool, address indexed creator, uint24 oldFee, uint24 newFee);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -80,6 +87,9 @@ contract PancakeV3Factory is IPancakeV3Factory {
         }
         require(getPool[token0][token1][fee] == address(0));
         pool = IPancakeV3PoolDeployer(poolDeployer).deploy(address(this), token0, token1, fee, tickSpacing);
+        // Cyberia: whoever creates a pool may set its real fee once, downward, before it means
+        // anything. See `setPoolFeeByCreator`.
+        poolCreator[pool] = msg.sender;
         getPool[token0][token1][fee] = pool;
         // populate mapping in the reverse direction, deliberate choice to avoid the cost of comparing addresses
         getPool[token1][token0][fee] = pool;
@@ -139,6 +149,25 @@ contract PancakeV3Factory is IPancakeV3Factory {
     function setPoolFee(address pool, uint24 fee) external override onlyOwner {
         require(fee <= MAX_POOL_FEE, "fee too high");
         IPancakeV3Pool(pool).setFee(fee);
+    }
+
+    /// @inheritdoc IPancakeV3Factory
+    /// @dev The tier a pool is created in is a *whitelist*, and a launchpad that lets a creator
+    /// name their own fee needs a number that is not on it. So a pool is created in the highest
+    /// tier the product allows and its real fee is set once, downward, by the address that created
+    /// it -- before there is any liquidity in it, in the same transaction that made it.
+    ///
+    /// Bounded three ways, which is what makes it safe to hand out: only the creator, only once
+    /// (the right is deleted as it is used), and never upward, so no pool can end up charging more
+    /// than the tier its address was derived from. The owner's `setPoolFee` is unchanged and is
+    /// still the only way a fee moves after that.
+    function setPoolFeeByCreator(address pool, uint24 fee) external override {
+        require(poolCreator[pool] == msg.sender, "not the pool creator");
+        uint24 current = IPancakeV3Pool(pool).fee();
+        require(fee > 0 && fee <= current, "fee out of range");
+        delete poolCreator[pool];
+        IPancakeV3Pool(pool).setFee(fee);
+        emit PoolFeeSetByCreator(pool, msg.sender, current, fee);
     }
 
     function setFeeProtocol(address pool, uint32 feeProtocol0, uint32 feeProtocol1) external override onlyOwner {
