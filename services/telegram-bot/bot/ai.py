@@ -21,9 +21,12 @@ from bot.config import (
     AI_MAX_OUTPUT_TOKENS,
     AI_MAX_QUESTION_CHARS,
     AI_MODEL,
+    AI_MODEL_CHOICE,
+    AI_PROXY_URL,
     AI_TIMEOUT_SECONDS,
     AI_USER_COOLDOWN_SECONDS,
 )
+from bot.ai_models import model_for, served_note
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,25 @@ _request_slots = asyncio.Semaphore(AI_MAX_CONCURRENT_REQUESTS)
 
 
 class AIServiceError(RuntimeError):
-    """A provider failure that is safe to handle without exposing its body."""
+    """A provider failure that is safe to handle without exposing its body.
+
+    `model_specific` separates the two failures that read identically from the
+    outside and need opposite answers: the provider is down (wait), or the one
+    model this user pinned is gone, unknown or out of free capacity (pick
+    another — the rest of the pool is fine). Free models are rate-limited by
+    design, so the second is the common one.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        model_specific: bool = False,
+        status: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.model_specific = model_specific
+        self.status = status
 
 
 def _history_for(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> list[dict[str, str]]:
@@ -108,9 +129,23 @@ def _split_telegram_text(text: str, limit: int = 4000) -> list[str]:
     return chunks
 
 
-async def _request_answer(question: str, history: list[dict[str, str]]) -> str:
+# Statuses that mean "this model, not this provider": an id the provider does
+# not serve (400/404), and a free model with no capacity left for us right now
+# (402/429). Everything else is the provider itself having a bad day.
+_MODEL_STATUSES = {400, 402, 404, 429}
+
+
+async def _request_answer(
+    question: str, history: list[dict[str, str]], model: str
+) -> tuple[str, str]:
+    """Ask one model. Returns (answer, the model that actually answered).
+
+    The second half is not decoration: a router id like `openrouter/free` is
+    answered by a different model per request, and the body says which. Echoing
+    back the id we sent would be a lie by omission.
+    """
     payload: dict[str, Any] = {
-        "model": AI_MODEL,
+        "model": model,
         "messages": [
             {"role": "system", "content": _SYSTEM_PROMPT},
             *history,
@@ -124,16 +159,31 @@ async def _request_answer(question: str, history: list[dict[str, str]]) -> str:
         "Content-Type": "application/json",
     }
 
+    client_args: dict[str, Any] = {"timeout": AI_TIMEOUT_SECONDS}
+    if AI_PROXY_URL:
+        client_args["proxy"] = AI_PROXY_URL
+
     try:
         async with _request_slots:
-            async with httpx.AsyncClient(timeout=AI_TIMEOUT_SECONDS) as client:
+            async with httpx.AsyncClient(**client_args) as client:
                 response = await client.post(AI_API_URL, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
         answer = data["choices"][0]["message"]["content"]
+        served = str(data.get("served_by") or data.get("model") or "").strip()
         if not isinstance(answer, str) or not answer.strip():
-            raise AIServiceError("provider returned an empty answer")
-        return answer.strip()
+            # A reasoning model that spent its whole budget thinking returns
+            # exactly this, and it is the pool's most common bad answer — so it
+            # counts against the model, not against the provider.
+            raise AIServiceError("provider returned an empty answer", model_specific=True)
+        return answer.strip(), served
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        raise AIServiceError(
+            f"provider answered {status}",
+            model_specific=status in _MODEL_STATUSES,
+            status=status,
+        ) from exc
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
         raise AIServiceError("AI provider request failed") from exc
 
@@ -170,20 +220,53 @@ async def _answer(update: Update, context: ContextTypes.DEFAULT_TYPE, question: 
         return
     context.user_data["ai_last_request"] = now
 
+    user = update.effective_user
+    pinned = model_for(user.id) if (AI_MODEL_CHOICE and user is not None) else AI_MODEL
     history = list(_history_for(context, chat.id))
+    note = ""
     try:
         await context.bot.send_chat_action(chat_id=chat.id, action=ChatAction.TYPING)
-        answer = await _request_answer(question, history)
+        answer, served = await _request_answer(question, history, pinned)
     except AIServiceError as exc:
-        logger.warning("AI request failed: %s", exc)
-        await message.reply_text(
-            "AI-помощник сейчас недоступен. Попробуйте ещё раз немного позже."
-        )
-        return
+        # A pinned free model that is busy or gone must not cost the answer:
+        # the pool it was picked out of is still there. Falling back silently
+        # would be worse than not falling back — the user pinned that model on
+        # purpose — so the reply says which model actually spoke.
+        if exc.model_specific and pinned != AI_MODEL and AI_MODEL:
+            logger.info("pinned model %s unavailable (%s) — falling back", pinned, exc)
+            try:
+                answer, served = await _request_answer(question, history, AI_MODEL)
+            except AIServiceError as fallback_exc:
+                logger.warning("AI request failed: %s", fallback_exc)
+                await message.reply_text(
+                    "AI-помощник сейчас недоступен. Попробуйте ещё раз немного позже."
+                )
+                return
+            note = (
+                f"⚠ {pinned} сейчас не отвечает — ответила {served or AI_MODEL}. "
+                "Другую модель можно выбрать в /model.\n\n"
+            )
+        else:
+            logger.warning("AI request failed: %s", exc)
+            hint = (
+                "AI-помощник сейчас недоступен. Попробуйте ещё раз немного позже."
+                if not exc.model_specific
+                else f"Модель {pinned} сейчас не отвечает. Выберите другую: /model"
+            )
+            await message.reply_text(hint)
+            return
 
+    if served:
+        context.user_data["ai_served"] = served
     _remember(context, chat.id, question, answer)
-    for chunk in _split_telegram_text(answer):
-        await message.reply_text(chunk, disable_web_page_preview=True)
+    chunks = _split_telegram_text(note + answer)
+    footer = served_note(pinned, served) if AI_MODEL_CHOICE else ""
+    for index, chunk in enumerate(chunks):
+        last = index == len(chunks) - 1
+        await message.reply_text(
+            chunk + (footer if last and footer else ""),
+            disable_web_page_preview=True,
+        )
 
 
 async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

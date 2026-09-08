@@ -21,6 +21,7 @@ bot/
   chain.py       web3 client, log decoders, on-chain USD price walker
   handlers.py    Telegram command/message handlers
   ai.py          Cyberia AI prompt, provider client, and message handlers
+  ai_models.py   the free-model pool and the per-user /model picker
   cyberia_knowledge.md  operator-approved facts supplied to the model
   pumpfun.py     pump.fun buy detection (Solana RPC + market feed) and the post
   announcers.py  background loops (bridge/swap/liquidity/lending/convert/
@@ -173,6 +174,45 @@ in private chats; in groups the bot responds only when mentioned or replied to,
 so it does not consume every conversation. Short per-chat history is held in
 Telegram application memory and is not written to the database. Edit
 `bot/cyberia_knowledge.md` to update operator-approved project facts.
+
+#### Which model answers: `/model`
+
+`openrouter/free` — the default when the OpenRouter key is the one in use — is
+not a model. It is a **router** over whatever free models are up at that
+second, so the answer's character changes between two questions asked a minute
+apart: one of them is a reasoning model that spends its whole budget thinking
+and returns nothing, the next is a 2.6B model that is instant and shallow. The
+person asking is the only one who knows which trade-off they want, so `/model`
+hands them the pool (`bot/ai_models.py`).
+
+The pool is **read from the provider**, never listed in code: `GET
+{base}/models`, derived from `AI_API_URL`, which every OpenAI-compatible
+provider serves. Free is a *price* — an entry qualifies when the catalogue
+prices both prompt and completion at zero — and a provider that publishes no
+prices at all (Cyberia's own gateway is holder-gated, not billed per token) is
+offered whole, because "nothing here is priced" is not "nothing here is free".
+Music and image models are priced at zero too and are dropped: a model belongs
+in this menu only when text is the whole of what it emits.
+
+* `/model` — the keyboard, paged, with the current choice ticked.
+* `/model <id or part of a name>` — pick without the keyboard.
+* `/model auto` — back to the router.
+
+A choice is **per user** and survives a restart (`bot_kv`, key
+`ai_model:<user id>`); an unset user gets `AI_MODEL`. When a pinned free model
+is out of capacity or gone (free models are rate-limited by design — 400/402/
+404/429, and an empty reply counts too) the answer still arrives through the
+router, and says so instead of pretending the pinned model wrote it. On the
+router the reply carries one line naming who actually answered, because the id
+we send is not the id that replies.
+
+`AI_MODEL_CHOICE=0` removes `/model` and leaves one model for everyone.
+`AI_MODELS_CACHE_SECONDS` (default 1800) is how long a catalogue is reused,
+`AI_MODELS_PAGE_SIZE` (default 8) how many rows a page holds, `AI_MODELS_URL`
+overrides the derived catalogue endpoint, and `AI_PROXY_URL` sends both the
+catalogue and the answers through a proxy on a host where the provider is
+blocked. `tests/test_ai_models.py` pins the reading of the catalogue and the
+size of what a button carries.
 
 ## Production runbook
 

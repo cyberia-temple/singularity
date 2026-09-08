@@ -83,6 +83,14 @@ export interface PostRecord {
   skipped?: boolean;
   /** Unix ms of the last failed attempt, so a broken writer backs off. */
   failedAt?: number;
+  /**
+   * Unix ms before which there is no point asking again. A flat half-hour is
+   * the right wait for a writer that hiccupped and the wrong one for a writer
+   * that said, in words, when it will answer again ("try again at 11:33 AM" —
+   * a subscription CLI's usage window). When the refusal names an hour, that
+   * hour is the wait.
+   */
+  retryAt?: number;
 }
 
 export interface PressEvent {
@@ -457,7 +465,9 @@ export class PressService implements Service {
         const slot = this.pending(day)[0];
         if (slot) {
           const prev = this.posts[slot.date];
-          if (prev?.failedAt && now.getTime() - prev.failedAt < RETRY_AFTER_MS) return null;
+          const notBefore =
+            prev?.retryAt ?? (prev?.failedAt ? prev.failedAt + RETRY_AFTER_MS : 0);
+          if (notBefore && now.getTime() < notBefore) return null;
           let record: PostRecord;
           try {
             record = await this.write(slot);
@@ -465,7 +475,7 @@ export class PressService implements Service {
             // The writer is unreachable or gave back nothing. Saying so costs
             // one message a day; saying nothing looks exactly like a day with
             // no work in it, which is the failure this room was built to end.
-            await this.announceFailure(day, slot, err);
+            await this.announceFailure(day, slot, err, now);
             return null;
           }
           await this.deliver(slot, record, { at: now.getTime() });
@@ -495,18 +505,49 @@ export class PressService implements Service {
   }
 
   /**
-   * Say once a day that the post could not be written. `RETRY_AFTER_MS` still
-   * governs the retry — this only makes the wait audible.
+   * Say once a day that the post could not be written, in words, and write
+   * down when it is worth asking again.
+   *
+   * The wait is recorded even when the message is suppressed as a repeat:
+   * saying it twice is noise, but retrying against a window that has not
+   * reopened is the loop that produced two identical 401 walls on consecutive
+   * mornings.
    */
-  private async announceFailure(day: string, slot: PostSlot, err: unknown): Promise<void> {
+  private async announceFailure(
+    day: string,
+    slot: PostSlot,
+    err: unknown,
+    at: Date = new Date(),
+  ): Promise<void> {
     log.warn(`could not write the post for ${slot.date}`, err);
-    if (this.lastFailureDay === day) return;
-    this.lastFailureDay = day;
+    // The sweep's clock, not the wall clock: the reopening hour is read out of
+    // the refusal against the same `now` the schedule is driven by, so a
+    // window can be tested without waiting for one.
+    const now = at.getTime();
+    const { reason, retryAt } = writerRefusal(err, at);
+    // A writer that throws (a CLI exiting non-zero) never reached the branch
+    // in `write()` that records a failure, so the day had no record at all and
+    // nothing to back off from — every tick asked again. Write it here.
+    const record = this.posts[slot.date] ?? {
+      date: slot.date,
+      pillar: slot.pillar,
+      text: "",
+      revision: 0,
+      writtenAt: 0,
+    };
+    record.failedAt = now;
+    record.retryAt = retryAt;
+    this.posts[slot.date] = record;
+    const first = this.lastFailureDay !== day;
+    if (first) this.lastFailureDay = day;
     await this.persist();
-    const reason = err instanceof Error ? err.message : String(err);
+    if (!first) return;
+    const again = retryAt
+      ? `попробую после ${formatClock(new Date(retryAt))}`
+      : "повторю через полчаса";
     const header =
       `\u26A0 не смогла написать пост на ${slot.date.slice(8)}.${slot.date.slice(5, 7)} ` +
-      `(${slot.pillar}).\n${reason}\nповторю через полчаса — или скажи «напиши пост», ` +
+      `(${slot.pillar}).\n${reason}\n${again} — или скажи «напиши пост», ` +
       `и я попробую сейчас.`;
     const chatId = await this.chatId();
     for (const fn of this.subscribers) {
@@ -793,6 +834,83 @@ export function headerFor(kind: PressEvent["kind"], slot: PostSlot, record: Post
     `по плану к нему: ${slot.asset}\n` +
     `следующим сообщением — текст, копируется целиком.`
   );
+}
+
+/**
+ * What a refusal from the writer actually said, and when to ask again.
+ *
+ * A writer is a CLI, and a CLI that will not answer says why in prose meant
+ * for a terminal: a stack trace, a 401 with a cf-ray, a usage window with the
+ * hour it reopens. Forwarding that verbatim into Telegram is how the operator
+ * got two identical walls of `unexpected status 401 Unauthorized … cf-ray …`
+ * on two consecutive mornings and still had to read the log to learn that
+ * codex on that host had never been signed in.
+ *
+ * Two facts are worth extracting and nothing else is:
+ *
+ *  - **which kind of no it is** — out of credentials for now (it will answer
+ *    later), or not allowed to ask at all (it will never answer here, and the
+ *    operator has to do something);
+ *  - **when it reopens**, when the refusal names an hour. A subscription CLI
+ *    that says "try again at 11:33 AM" has told us exactly how long the flat
+ *    half-hour retry will keep failing.
+ *
+ * Pure, and takes its clock, so every branch is testable without waiting.
+ */
+export function writerRefusal(
+  raw: unknown,
+  now: Date = new Date(),
+): { reason: string; retryAt?: number } {
+  const text = (raw instanceof Error ? raw.message : String(raw ?? "")).trim();
+  if (!text) return { reason: "писатель не ответил" };
+
+  // A stack trace says nothing an operator can act on.
+  const body = text
+    .split("\n")
+    .filter((line) => !/^\s*at\s/.test(line))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const retryAt = parseRetryHour(body, now);
+  if (/usage limit|rate.?limit|quota|too many requests|\b429\b/i.test(body)) {
+    const when = retryAt ? ` до ${formatClock(new Date(retryAt))}` : "";
+    return { reason: `писатель упёрся в лимит${when}`, retryAt };
+  }
+  if (/\b401\b|unauthorized|missing bearer|not logged in|no credentials|please run .*login/i.test(body)) {
+    // Nothing here reopens on its own: this host has no session at all.
+    return { reason: "писатель не авторизован на этой машине" };
+  }
+  const short = body.length > 200 ? `${body.slice(0, 199)}…` : body;
+  return { reason: short, retryAt };
+}
+
+/** "try again at 11:33 AM" / "resets at 15:04" → the next such moment. */
+function parseRetryHour(text: string, now: Date): number | undefined {
+  const relative = text.match(/try again in (\d{1,3}) (second|minute|hour)s?/i);
+  if (relative) {
+    const amount = Number(relative[1]);
+    const unit = relative[2].toLowerCase();
+    const ms = unit === "second" ? 1_000 : unit === "minute" ? 60_000 : 3_600_000;
+    return now.getTime() + amount * ms;
+  }
+  const match = text.match(/(?:try again|resets?|available again|retry) at (\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return undefined;
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const meridiem = match[3]?.toUpperCase();
+  if (meridiem === "PM" && hour < 12) hour += 12;
+  if (meridiem === "AM" && hour === 12) hour = 0;
+  if (hour > 23 || minute > 59) return undefined;
+  const at = new Date(now);
+  at.setHours(hour, minute, 0, 0);
+  // A window that already passed today is tomorrow's, not the past.
+  if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1);
+  return at.getTime();
+}
+
+function formatClock(at: Date): string {
+  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
 }
 
 // ------------------------------------------------------------------ helpers

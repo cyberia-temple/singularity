@@ -168,6 +168,77 @@ function possibleTagTail(s: string): string {
   return THINK_TAGS.some((t) => t.startsWith(frag)) ? s.slice(lt) : "";
 }
 
+/** One row of the free pool, as the catalogue describes it. */
+export interface FreeModel {
+  id: string;
+  /** Vendor-qualified name, e.g. "DeepSeek: R1". */
+  name: string;
+  context?: number;
+}
+
+/**
+ * What `openrouter/free` is actually routing over.
+ *
+ * The router is one slug and the pool behind it is not: it changes week to
+ * week, and "which free model" is a question the operator can only answer if
+ * something lists them. Free is a **price** and not a name — an entry counts
+ * when the catalogue prices prompt *and* completion at zero — and a model
+ * whose output is not only text (the pool prices music and image models at
+ * zero too) is dropped, because it cannot answer a turn.
+ *
+ * Pure, so the smoke test pins the reading without a network.
+ */
+export function parseFreeModels(body: unknown): FreeModel[] {
+  const rows = Array.isArray((body as { data?: unknown })?.data)
+    ? ((body as { data: unknown[] }).data)
+    : [];
+  const out: FreeModel[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const entry = row as Record<string, unknown>;
+    const id = String(entry.id ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    const pricing = entry.pricing as Record<string, unknown> | undefined;
+    if (!pricing) continue;
+    const prompt = Number(pricing.prompt);
+    const completion = Number(pricing.completion);
+    if (!Number.isFinite(prompt) || !Number.isFinite(completion)) continue;
+    if (prompt !== 0 || completion !== 0) continue;
+    const architecture = entry.architecture as Record<string, unknown> | undefined;
+    const outputs = architecture?.output_modalities;
+    if (Array.isArray(outputs) && outputs.length && outputs.some((m) => m !== "text")) continue;
+    seen.add(id);
+    const context = Number(
+      entry.context_length ?? (entry.top_provider as Record<string, unknown> | undefined)?.context_length,
+    );
+    out.push({
+      id,
+      name: String(entry.name ?? id).replace(/\s*\(free\)$/i, "").trim() || id,
+      context: Number.isFinite(context) && context > 0 ? context : undefined,
+    });
+  }
+  return out.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+}
+
+/** Ask OpenRouter what is free right now. Throws with a readable reason. */
+export async function fetchFreeModels(opts: {
+  apiKey?: string;
+  baseUrl?: string;
+  proxy?: string;
+}): Promise<FreeModel[]> {
+  const base = (opts.baseUrl ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
+  const dispatcher = opts.proxy ? new ProxyAgent(opts.proxy) : undefined;
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (opts.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`;
+  const res = await undiciFetch(`${base}/models`, {
+    headers,
+    ...(dispatcher ? { dispatcher } : {}),
+  });
+  if (!res.ok) throw new Error(`openrouter answered ${res.status} for its own catalogue`);
+  return parseFreeModels(await res.json());
+}
+
 /**
  * OpenRouter backend (OpenAI-compatible). One API key, many models. Tool calls
  * are translated to/from the OpenAI function-calling shape so the rest of

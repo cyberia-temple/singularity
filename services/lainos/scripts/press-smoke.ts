@@ -23,6 +23,7 @@ import {
   headerFor,
   parseGitLog,
   resolveDay,
+  writerRefusal,
   writerBrief,
   writerSystemPrompt,
   type PressEvent,
@@ -204,7 +205,7 @@ let calls = 0;
 async function pressRoom(
   slots: ContentPlan["slots"],
   overrides: Record<string, string> = {},
-  opts: { writerFails?: boolean } = {},
+  opts: { writerFails?: boolean; writerError?: string } = {},
 ): Promise<{ press: PressService; delivered: PressEvent[]; dir: string; writes: () => number }> {
   const dir = await mkdtemp(join(tmpdir(), "lainos-press-"));
   dirs.push(dir);
@@ -237,7 +238,7 @@ async function pressRoom(
       modelFor: () => "mock",
       async generate(_req: ModelRequest): Promise<ModelResponse> {
         calls += 1;
-        if (opts.writerFails) throw new Error("codex timed out after 240s");
+        if (opts.writerFails) throw new Error(opts.writerError ?? "codex timed out after 240s");
         return {
           text:
             "```\n" +
@@ -354,6 +355,72 @@ check(
   mute.delivered.filter((e) => e.kind === "failed").length === 2,
 );
 await mute.press.stop();
+
+// A refusal is read, not forwarded. The operator got two identical walls of
+// `401 Unauthorized … cf-ray …` on consecutive mornings and still had to open
+// the log to learn that codex on that host had never been signed in.
+const at0440 = new Date("2026-09-07T04:40:00");
+const limited = writerRefusal(
+  new Error(
+    "codex exited 1: You've hit your usage limit. Upgrade to Pro or try again at 11:33 AM.\n" +
+      "    at ChildProcess.<anonymous> (/home/lain/lainos/src/models/codex.ts:183:25)",
+  ),
+  at0440,
+);
+check(
+  "a usage window is read       ",
+  limited.reason.includes("лимит") &&
+    limited.retryAt === new Date("2026-09-07T11:33:00").getTime(),
+);
+check("a stack trace never travels  ", !limited.reason.includes("ChildProcess"));
+check(
+  "a host with no login says so ",
+  (() => {
+    const r = writerRefusal(
+      new Error(
+        "codex exited 1: ERROR: unexpected status 401 Unauthorized: Missing bearer or " +
+          "basic authentication in header, url: https://api.openai.com/v1/responses, cf-ray: a363c1c",
+      ),
+      at0440,
+    );
+    return r.reason.includes("не авторизован") && r.retryAt === undefined;
+  })(),
+);
+check(
+  "a window already past is tomorrow's",
+  writerRefusal(new Error("rate limit — try again at 09:00"), new Date("2026-09-07T12:00:00"))
+    .retryAt === new Date("2026-09-08T09:00:00").getTime(),
+);
+check(
+  "a relative window counts too ",
+  writerRefusal(new Error("429: try again in 15 minutes"), at0440).retryAt ===
+    at0440.getTime() + 900_000,
+);
+check(
+  "an unreadable refusal is quoted",
+  (() => {
+    const r = writerRefusal(new Error("something exploded"), at0440);
+    return r.reason === "something exploded" && r.retryAt === undefined;
+  })(),
+);
+
+// …and the hour it named is honoured: asking a rate-limited writer every
+// quarter of an hour is how a stated window becomes a wall of failures.
+const limited2 = await pressRoom(window, {}, {
+  writerFails: true,
+  writerError: "codex exited 1: You've hit your usage limit. try again at 15:00.",
+});
+await limited2.press.tick(new Date("2026-08-25T12:00:00"));
+const triedOnce = limited2.writes();
+check(
+  "a stated window reaches the operator",
+  limited2.delivered.some((e) => e.kind === "failed" && e.header.includes("15:00")),
+);
+await limited2.press.tick(new Date("2026-08-25T14:00:00"));
+check("no retry inside a stated window", limited2.writes() === triedOnce);
+await limited2.press.tick(new Date("2026-08-25T15:30:00"));
+check("the window reopens the writer", limited2.writes() > triedOnce);
+await limited2.press.stop();
 
 // The calendar runs out; that is news, said once, not silence.
 const over = await pressRoom(window);

@@ -23,6 +23,7 @@ from bot.config import (
     WALLET_MINI_APP_URL,
     CYBER_SOL_DECIMALS,
     AI_ENABLED,
+    AI_MODEL_CHOICE,
 )
 from bot.db import engine
 from bot.utils import (
@@ -128,6 +129,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     if AI_ENABLED:
         lines.append("/ask <question> - ask the Cyberia AI assistant")
+        if AI_MODEL_CHOICE:
+            lines.append("/model - choose which free model answers you")
     lines.append("/website - project website")
 
     # Only nudge wallet-less users to register, and keep it at the very end.
@@ -145,6 +148,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ai_lines = (
         "/ask <question> - ask the Cyberia AI assistant\n" if AI_ENABLED else ""
+    ) + (
+        "/model - choose which free model answers you (the default is a router "
+        "over the whole free pool)\n"
+        if AI_ENABLED and AI_MODEL_CHOICE
+        else ""
     )
     ai_hint = (
         "In private chat you can also send the AI assistant a question as plain "
