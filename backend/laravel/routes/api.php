@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\WalletAuthController;
 use App\Http\Controllers\Api\WalletCrosschainController;
 use App\Http\Controllers\Api\WalletGasController;
 use App\Http\Controllers\Api\WalletIpfsController;
+use App\Http\Controllers\Api\WalletMoneroSwapController;
 use App\Http\Controllers\Api\WalletPushController;
 use App\Http\Middleware\AuthenticateAiApiKey;
 use App\Http\Middleware\X402Paywall;
@@ -63,6 +64,10 @@ Route::prefix('wallet')->group(function () {
     Route::get('crosschain/tokens', [WalletCrosschainController::class, 'tokens'])->middleware('throttle:60,1');
     Route::post('crosschain/quote', [WalletCrosschainController::class, 'quote'])->middleware('throttle:30,1');
     Route::get('crosschain/status', [WalletCrosschainController::class, 'status'])->middleware('throttle:60,1');
+    // Monero is quoted apart from the cross-chain router because no router
+    // reaches it: two routes, ours and a partner's, compared on the screen.
+    Route::get('monero/swap', [WalletMoneroSwapController::class, 'index'])->middleware('throttle:60,1');
+    Route::get('monero/swap/quote', [WalletMoneroSwapController::class, 'quote'])->middleware('throttle:30,1');
 });
 
 /*
