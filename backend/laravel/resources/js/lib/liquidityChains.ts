@@ -44,6 +44,19 @@ export type LiquidityChainConfig = {
      */
     hubs: string[];
     /**
+     * The dollar this chain's prices are quoted in.
+     *
+     * Separate from `hubs` because the two answer different questions: a hub is
+     * anything a route may pass *through*, and on Cyberia the first of those is
+     * WCYBER itself. Taking `hubs[0]` as the quote asset therefore priced the
+     * coin against itself — the market chart came back "no pool connects this
+     * to the dollar" for the one token the chain is built around.
+     *
+     * Absent on a chain with no stablecoin, and a screen that needs one says so
+     * rather than picking a hub and hoping.
+     */
+    dollar?: string;
+    /**
      * Cyberia gets its pool list + APR from the server indexer; satellites are
      * client-only (pairs discovered on-chain, no APR snapshot).
      */
@@ -79,6 +92,7 @@ export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
             USDC_ADDRESS,
             USDT_ADDRESS,
         ],
+        dollar: USDC_ADDRESS,
         serverPools: true,
         // crypto/hardhat/deployments/cyberia-v3.json, redeployed 2026-09-07.
         // `initCodeHash` must equal POOL_INIT_CODE_HASH in PoolAddress.sol: it

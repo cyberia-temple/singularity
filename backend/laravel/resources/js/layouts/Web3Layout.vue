@@ -16,6 +16,13 @@ import SiteHeader from '@/components/web3/SiteHeader.vue';
  * height is handed down the tree (`h-dvh` → `main` → the wallet) rather than
  * subtracted from a header height written twice.
  *
+ * The install prompt goes with it, for a sharper reason than tidiness: it is
+ * `fixed bottom-4` at `z-100`, and the thing now permanently at the bottom of
+ * this route is the wallet's own tab bar. A card offering to install the app,
+ * laid over the seven destinations of the app, swallowed taps meant for them —
+ * a fixed overlay was harmless only while the page scrolled out from under it.
+ * The wallet is the app anyway, and it links to /download itself.
+ *
  * The footer's links are not lost: the wallet's own masthead goes to the site,
  * and the header above it is still the site's.
  */
@@ -34,6 +41,6 @@ const app = computed(() => page.component === 'Wallet');
             <slot />
         </main>
         <SiteFooter v-if="!app" />
-        <PwaInstallPrompt />
+        <PwaInstallPrompt v-if="!app" />
     </div>
 </template>
