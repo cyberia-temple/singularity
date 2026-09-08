@@ -56,7 +56,9 @@ class MoneroSwapService
         $chain = config('bridge.chains.monero', []);
         $inbound = config('bridge.routes.xmr_to_evm', []);
         $outbound = config('bridge.routes.evm_to_xmr', []);
-        $wrapper = config('bridge.assets.XMR.chains.cyberia', []);
+        // `bridge.tokens`, not `bridge.assets`: there is no assets key, and
+        // reading one returns null quietly rather than failing.
+        $wrapper = config('bridge.tokens.XMR.chains.cyberia', []);
 
         $chainOn = (bool) ($chain['enabled'] ?? false);
         $depositSet = filled($chain['deposit_address'] ?? null);

@@ -31,7 +31,12 @@ it('lists both routes, and says why one cannot run', function () {
     expect($routes['cyberia']['available'])->toBeFalse();
     expect($routes['cyberia']['reason'])->toBe('monero_chain_disabled');
     // Still described in full: the wrapper exists, the terms are real, and the
-    // route is switched off rather than absent.
+    // route is switched off rather than absent. The address is asserted
+    // literally because a wrong config key answers null just as calmly as a
+    // missing wrapper would — which is exactly how this shipped once.
+    expect($routes['cyberia']['wrapper']['address'])
+        ->toBe(config('bridge.tokens.XMR.chains.cyberia.address'))
+        ->not->toBeNull();
     expect($routes['cyberia']['wrapper']['decimals'])->toBe(12);
     expect($routes['partner']['available'])->toBeTrue();
 });
