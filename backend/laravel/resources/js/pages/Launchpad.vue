@@ -51,6 +51,25 @@ const LAUNCHPAD_ABI = [
     'event TokenLaunched(address indexed token, address indexed creator, address pair, string name, string symbol, uint256 tokenSupply, uint256 cyberLiquidity, uint256 lpBurned)',
 ];
 
+/**
+ * The v3 launchpad: a launch whose creator names the trading fee.
+ *
+ * `launch` takes two arguments the v2 one has no vocabulary for — the fee, in
+ * hundredths of a bip, and how much of that fee goes to holders — and answers
+ * with a *pool* rather than a pair. `quote` is the same arithmetic the contract
+ * itself uses, exposed so this screen can print the promise instead of
+ * restating it in JavaScript that could drift from it.
+ */
+const LAUNCHPAD_V3_ABI = [
+    'function minLiquidity() view returns (uint256)',
+    'function MAX_CREATOR_FEE() view returns (uint24)',
+    'function PROTOCOL_FEE() view returns (uint24)',
+    'function quote(uint24 creatorFee, uint16 holdersShareBps) view returns (uint24 poolFee, uint16 creatorBps, uint16 holdersBps, uint16 treasuryBps)',
+    'function launch(string,string,uint256,uint24,uint16) payable returns (address,address,uint256)',
+    'event TokenLaunched(address indexed token, address indexed creator, address pool, string name, string symbol, uint256 tokenSupply, uint256 cyberLiquidity)',
+    'event LaunchTerms(address indexed token, uint256 positionId, uint24 poolFee, uint16 creatorBps, uint16 holdersBps, uint16 treasuryBps)',
+];
+
 const PAIR_ABI = [
     'event Sync(uint112 reserve0, uint112 reserve1)',
     'event Swap(address indexed sender,uint256 amount0In,uint256 amount1In,uint256 amount0Out,uint256 amount1Out,address indexed to)',
@@ -91,6 +110,11 @@ type LaunchedToken = {
     txHash?: string;
     // Enriched off-chain.
     description?: string | null;
+    xHandle?: string | null;
+    xUrl?: string | null;
+    telegramHandle?: string | null;
+    telegramUrl?: string | null;
+    websiteUrl?: string | null;
     imageUrl?: string | null;
     siteSubdomain?: string | null;
     siteUrl?: string | null;
@@ -109,6 +133,11 @@ type LaunchpadMetadata = {
     name: string | null;
     symbol: string | null;
     description: string | null;
+    x_handle: string | null;
+    x_url: string | null;
+    telegram_handle: string | null;
+    telegram_url: string | null;
+    website_url: string | null;
     image_url: string | null;
     site_subdomain: string | null;
     site_url: string | null;
@@ -147,7 +176,23 @@ const historyLoaded = ref<Record<string, boolean>>({});
 const name = ref('');
 const symbol = ref('');
 const description = ref('');
+// Where the project talks. Taken as typed — `@name`, a bare name or a pasted
+// profile URL — and collapsed to a bare handle by the server.
+const xHandle = ref('');
+const telegramHandle = ref('');
+const websiteUrl = ref('');
 const siteSubdomain = ref('');
+/**
+ * What a trade through this launch will cost, in percent, and how much of it
+ * the creator hands to holders.
+ *
+ * Only meaningful where a v3 launchpad exists. The defaults are deliberate: a
+ * 1% creator fee is a real fee that does not scare a market, and none of it is
+ * shared until somebody decides to share it — a default that quietly gives
+ * away a creator's income is a default that gets discovered afterwards.
+ */
+const creatorFeePct = ref('1');
+const holdersSharePct = ref('0');
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | null>(null);
 const htmlFile = ref<File | null>(null);
@@ -356,6 +401,93 @@ const targetPending = (target: LaunchTarget): boolean =>
 const selectedTargets = computed(() =>
     launchTargets.value.filter((target) => target.selected),
 );
+
+/** Whichever launchpad the chosen chains run. v3 anywhere means v3 terms. */
+const v3Targets = computed(() =>
+    selectedTargets.value.filter((t) => launchpadChain(t.chainId)?.launchpadV3),
+);
+const usesV3 = computed(() => v3Targets.value.length > 0);
+
+/** The creator's fee in hundredths of a bip, which is what the contract takes. */
+const creatorFeeUnits = computed(() => {
+    const pct = Number(creatorFeePct.value);
+
+    return Number.isFinite(pct) && pct >= 0
+        ? Math.round(Math.min(pct, 10) * 10_000)
+        : 0;
+});
+
+/** The holders' share of that fee, in basis points. */
+const holdersShareBps = computed(() => {
+    const pct = Number(holdersSharePct.value);
+
+    return Number.isFinite(pct) && pct >= 0
+        ? Math.round(Math.min(pct, 100) * 100)
+        : 0;
+});
+
+const feeInputInvalid = computed(() => {
+    const fee = Number(creatorFeePct.value);
+    const share = Number(holdersSharePct.value);
+
+    return (
+        !Number.isFinite(fee) ||
+        fee < 0 ||
+        fee > 10 ||
+        !Number.isFinite(share) ||
+        share < 0 ||
+        share > 100
+    );
+});
+
+/**
+ * The split, as the contract itself computes it.
+ *
+ * Read from `quote()` rather than reproduced here: the same arithmetic written
+ * twice is the same arithmetic until one of them changes. Null while it is
+ * being read, or when the chain did not answer — the screen says so instead of
+ * showing numbers it made up.
+ */
+const launchTerms = ref<{
+    poolFee: number;
+    creatorBps: number;
+    holdersBps: number;
+    treasuryBps: number;
+} | null>(null);
+
+const refreshLaunchTerms = async (): Promise<void> => {
+    const registry = v3Targets.value
+        .map((t) => launchpadChain(t.chainId))
+        .find((c) => c?.launchpadV3);
+
+    if (!registry?.launchpadV3 || feeInputInvalid.value) {
+        launchTerms.value = null;
+
+        return;
+    }
+
+    try {
+        const provider = new JsonRpcProvider(launchpadReadRpcUrl(registry));
+        const pad = new Contract(
+            registry.launchpadV3,
+            LAUNCHPAD_V3_ABI,
+            provider,
+        );
+        const [poolFee, creatorBps, holdersBps, treasuryBps] = await pad.quote(
+            creatorFeeUnits.value,
+            holdersShareBps.value,
+        );
+
+        launchTerms.value = {
+            poolFee: Number(poolFee),
+            creatorBps: Number(creatorBps),
+            holdersBps: Number(holdersBps),
+            treasuryBps: Number(treasuryBps),
+        };
+    } catch {
+        launchTerms.value = null;
+    }
+};
 
 const pendingTargets = computed(() =>
     launchTargets.value.filter(targetPending),
@@ -1080,6 +1212,11 @@ const loadRecent = async (): Promise<void> => {
                 cyberLiquidity: d.reserveCyber,
                 quoteSymbol: d.quoteSymbol,
                 description: md?.description ?? null,
+                xHandle: md?.x_handle ?? null,
+                xUrl: md?.x_url ?? null,
+                telegramHandle: md?.telegram_handle ?? null,
+                telegramUrl: md?.telegram_url ?? null,
+                websiteUrl: md?.website_url ?? null,
                 imageUrl: md?.image_url ?? null,
                 siteSubdomain: md?.site_subdomain ?? null,
                 siteUrl: md?.site_url ?? null,
@@ -1161,7 +1298,17 @@ const submitMetadata = async (
     const wantsSite =
         withSite && (htmlFile.value !== null || siteSubdomain.value.trim());
 
-    if (!description.value.trim() && !imageFile.value && !wantsSite) {
+    const hasSocials =
+        xHandle.value.trim() !== '' ||
+        telegramHandle.value.trim() !== '' ||
+        websiteUrl.value.trim() !== '';
+
+    if (
+        !description.value.trim() &&
+        !imageFile.value &&
+        !hasSocials &&
+        !wantsSite
+    ) {
         return;
     }
 
@@ -1185,6 +1332,18 @@ const submitMetadata = async (
 
     if (description.value.trim()) {
         form.append('description', description.value.trim());
+    }
+
+    if (xHandle.value.trim()) {
+        form.append('x', xHandle.value.trim());
+    }
+
+    if (telegramHandle.value.trim()) {
+        form.append('telegram', telegramHandle.value.trim());
+    }
+
+    if (websiteUrl.value.trim()) {
+        form.append('website', websiteUrl.value.trim());
     }
 
     if (imageFile.value) {
@@ -1272,6 +1431,9 @@ const canEdit = (t: LaunchedToken): boolean => {
 // Per-row inline editor state for attaching metadata to already-launched tokens.
 const editingToken = ref<string | null>(null);
 const editDescription = ref('');
+const editXHandle = ref('');
+const editTelegramHandle = ref('');
+const editWebsiteUrl = ref('');
 const editSiteSubdomain = ref('');
 const editImageFile = ref<File | null>(null);
 const editImagePreview = ref<string | null>(null);
@@ -1289,6 +1451,9 @@ const editSiteSubdomainInvalid = computed(() => {
 const openEditor = (t: LaunchedToken): void => {
     editingToken.value = t.token;
     editDescription.value = t.description ?? '';
+    editXHandle.value = t.xHandle ?? '';
+    editTelegramHandle.value = t.telegramHandle ?? '';
+    editWebsiteUrl.value = t.websiteUrl ?? '';
     editSiteSubdomain.value = t.siteSubdomain ?? '';
     editImageFile.value = null;
     editHtmlFile.value = null;
@@ -1305,6 +1470,9 @@ const openEditor = (t: LaunchedToken): void => {
 const closeEditor = (): void => {
     editingToken.value = null;
     editDescription.value = '';
+    editXHandle.value = '';
+    editTelegramHandle.value = '';
+    editWebsiteUrl.value = '';
     editSiteSubdomain.value = '';
     editImageFile.value = null;
     editHtmlFile.value = null;
@@ -1397,6 +1565,11 @@ const saveEditor = async (t: LaunchedToken): Promise<void> => {
         }
 
         form.append('description', editDescription.value.trim());
+        // Always sent, blank included: an emptied field is how a link is taken
+        // down, and an absent field means "leave what is stored alone".
+        form.append('x', editXHandle.value.trim());
+        form.append('telegram', editTelegramHandle.value.trim());
+        form.append('website', editWebsiteUrl.value.trim());
 
         if (editImageFile.value) {
             form.append('image', editImageFile.value);
@@ -1444,17 +1617,35 @@ const launchOnChain = async (target: LaunchTarget): Promise<void> => {
 
     const provider = await ensureEvmNetwork(registry.chain);
     const signer = await provider.getSigner();
-    const launchpad = new Contract(registry.launchpad, LAUNCHPAD_ABI, signer);
-    const iface = new Interface(LAUNCHPAD_ABI);
+
+    // A chain that has the v3 launchpad launches there: it is the only one
+    // that can honour a creator's own fee and a holders' share, and its
+    // liquidity keeps earning instead of being burned into a pair.
+    const v3 = registry.launchpadV3 ?? null;
+    const launchpad = new Contract(
+        v3 ?? registry.launchpad,
+        v3 ? LAUNCHPAD_V3_ABI : LAUNCHPAD_ABI,
+        signer,
+    );
+    const iface = new Interface(v3 ? LAUNCHPAD_V3_ABI : LAUNCHPAD_ABI);
 
     target.stage = 'sending';
     status.value = `${target.label}: confirm launch() in your wallet…`;
-    const tx = await launchpad.launch(
-        name.value.trim(),
-        symbol.value.trim(),
-        parseAmount(target.supply),
-        { value: parseAmount(target.liquidity) },
-    );
+    const tx = v3
+        ? await launchpad.launch(
+              name.value.trim(),
+              symbol.value.trim(),
+              parseAmount(target.supply),
+              creatorFeeUnits.value,
+              holdersShareBps.value,
+              { value: parseAmount(target.liquidity) },
+          )
+        : await launchpad.launch(
+              name.value.trim(),
+              symbol.value.trim(),
+              parseAmount(target.supply),
+              { value: parseAmount(target.liquidity) },
+          );
 
     // From here on a contract may exist on this chain, so the transaction is
     // recorded before we wait for it.
@@ -1489,7 +1680,11 @@ const launchOnChain = async (target: LaunchTarget): Promise<void> => {
 
             if (parsed?.name === 'TokenLaunched') {
                 target.token = parsed.args.token as string;
-                target.pair = parsed.args.pair as string;
+                // v2 burns its LP into a pair, v3 locks a position in a pool.
+                // The row records whichever market the launch actually made.
+                target.pair = (
+                    v3 ? parsed.args.pool : parsed.args.pair
+                ) as string;
                 break;
             }
         } catch {
@@ -1566,6 +1761,9 @@ const handleLaunch = async (): Promise<void> => {
         } else {
             status.value = `Done! Launched on ${launched.length} network${launched.length === 1 ? '' : 's'}, LP burned.`;
             description.value = '';
+            xHandle.value = '';
+            telegramHandle.value = '';
+            websiteUrl.value = '';
             siteSubdomain.value = '';
             imageFile.value = null;
             htmlFile.value = null;
@@ -1646,6 +1844,17 @@ watch(
         });
         void loadOnchain();
     },
+);
+
+// The terms are the contract's answer, so they are re-read whenever one of the
+// two numbers behind them changes — or whenever the chain choice does, since a
+// chain without a v3 launchpad has no terms to state.
+watch(
+    [creatorFeePct, holdersSharePct, usesV3],
+    () => {
+        void refreshLaunchTerms();
+    },
+    { immediate: true },
 );
 
 const handleConnect = async (): Promise<void> => {
@@ -1867,6 +2076,76 @@ onMounted(async () => {
                         ></textarea>
                     </label>
                     <label class="full">
+                        <span>X (optional)</span>
+                        <Input
+                            v-model="xHandle"
+                            maxlength="200"
+                            placeholder="@cyberia_network — or paste the profile link"
+                            autocomplete="off"
+                        />
+                    </label>
+                    <label class="full">
+                        <span>Telegram (optional)</span>
+                        <Input
+                            v-model="telegramHandle"
+                            maxlength="200"
+                            placeholder="@cyberia_network — or paste the t.me link"
+                            autocomplete="off"
+                        />
+                    </label>
+                    <label class="full">
+                        <span>Website (optional)</span>
+                        <Input
+                            v-model="websiteUrl"
+                            maxlength="255"
+                            placeholder="https://…"
+                            autocomplete="off"
+                        />
+                    </label>
+                    <template v-if="usesV3">
+                        <label>
+                            <span>Trading fee (%)</span>
+                            <Input
+                                v-model="creatorFeePct"
+                                inputmode="decimal"
+                                placeholder="1"
+                                autocomplete="off"
+                            />
+                        </label>
+                        <label>
+                            <span>Of that, to holders (%)</span>
+                            <Input
+                                v-model="holdersSharePct"
+                                inputmode="decimal"
+                                placeholder="0"
+                                autocomplete="off"
+                            />
+                        </label>
+                        <p
+                            v-if="feeInputInvalid"
+                            class="full feeNote feeNote--bad"
+                        >
+                            A trading fee is 0–10%, and the holders' share is
+                            0–100% of it.
+                        </p>
+                        <p v-else-if="launchTerms" class="full feeNote">
+                            A trade will cost
+                            <strong>{{ launchTerms.poolFee / 10000 }}%</strong>
+                            — your {{ Number(creatorFeePct) || 0 }}% plus the
+                            protocol's 1%. Of every unit of fees collected:
+                            <strong>{{ launchTerms.creatorBps / 100 }}%</strong>
+                            to you,
+                            <strong>{{ launchTerms.holdersBps / 100 }}%</strong>
+                            to everyone holding the token, and
+                            {{ launchTerms.treasuryBps / 100 }}% to the
+                            protocol. The fee is fixed at launch and the
+                            liquidity is locked forever.
+                        </p>
+                        <p v-else class="full feeNote">
+                            Reading the terms from the contract…
+                        </p>
+                    </template>
+                    <label class="full">
                         <span>Image (optional, ≤ 2 MB)</span>
                         <input
                             type="file"
@@ -2061,7 +2340,9 @@ onMounted(async () => {
                                         Site →
                                     </a>
                                     <a
-                                        v-if="t.ipfsUrl && t.ipfsUrl !== t.siteUrl"
+                                        v-if="
+                                            t.ipfsUrl && t.ipfsUrl !== t.siteUrl
+                                        "
                                         class="ipfsBtn"
                                         :href="t.ipfsUrl"
                                         :title="t.ipfsUri ?? undefined"
@@ -2083,6 +2364,32 @@ onMounted(async () => {
                             <p v-if="t.description" class="tokenDesc">
                                 {{ t.description }}
                             </p>
+                            <div
+                                v-if="t.xUrl || t.telegramUrl || t.websiteUrl"
+                                class="tokenLinks"
+                            >
+                                <a
+                                    v-if="t.xUrl"
+                                    :href="t.xUrl"
+                                    target="_blank"
+                                    rel="noopener noreferrer nofollow"
+                                    >𝕏 {{ t.xHandle }}</a
+                                >
+                                <a
+                                    v-if="t.telegramUrl"
+                                    :href="t.telegramUrl"
+                                    target="_blank"
+                                    rel="noopener noreferrer nofollow"
+                                    >TG {{ t.telegramHandle }}</a
+                                >
+                                <a
+                                    v-if="t.websiteUrl"
+                                    :href="t.websiteUrl"
+                                    target="_blank"
+                                    rel="noopener noreferrer nofollow"
+                                    >WWW</a
+                                >
+                            </div>
                             <div class="tokenStats">
                                 <div>
                                     <span class="statLabel">Price</span>
@@ -2163,6 +2470,33 @@ onMounted(async () => {
                                         maxlength="2000"
                                         class="textarea"
                                     ></textarea>
+                                </label>
+                                <label>
+                                    <span>X</span>
+                                    <Input
+                                        v-model="editXHandle"
+                                        maxlength="200"
+                                        placeholder="@handle or profile link"
+                                        autocomplete="off"
+                                    />
+                                </label>
+                                <label>
+                                    <span>Telegram</span>
+                                    <Input
+                                        v-model="editTelegramHandle"
+                                        maxlength="200"
+                                        placeholder="@handle or t.me link"
+                                        autocomplete="off"
+                                    />
+                                </label>
+                                <label>
+                                    <span>Website</span>
+                                    <Input
+                                        v-model="editWebsiteUrl"
+                                        maxlength="255"
+                                        placeholder="https://…"
+                                        autocomplete="off"
+                                    />
                                 </label>
                                 <label>
                                     <span>Image (≤ 2 MB)</span>
@@ -2433,6 +2767,26 @@ onMounted(async () => {
 }
 .grid label.full {
     grid-column: 1 / -1;
+}
+/* The launch terms, spelled out under the two numbers that set them. */
+.feeNote {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--muted, #1e293b) 40%, transparent);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted-foreground, #94a3b8);
+}
+.feeNote strong {
+    color: var(--foreground, #e5e7eb);
+    font-weight: 600;
+}
+.feeNote--bad {
+    border-color: color-mix(in srgb, #ef4444 50%, var(--border));
+    color: #fca5a5;
 }
 .networks {
     display: flex;
@@ -2763,6 +3117,31 @@ onMounted(async () => {
     display: flex;
     gap: 8px;
 }
+/* Where the project talks. Links a creator typed are external and untrusted,
+   so they carry nofollow alongside noopener. */
+.tokenLinks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.6rem;
+}
+
+.tokenLinks a {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--border, #2a2a2a);
+    border-radius: 0.35rem;
+    color: inherit;
+    opacity: 0.85;
+    text-decoration: none;
+}
+
+.tokenLinks a:hover {
+    opacity: 1;
+}
+
 .tokenDesc {
     margin: 8px 0 0;
     font-size: 13px;
