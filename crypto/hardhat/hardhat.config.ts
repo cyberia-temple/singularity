@@ -112,13 +112,18 @@ export default defineConfig({
     },
   },
   networks: {
+    // Cyberia's own block gas limit, so a transaction that fits on the chain fits in the tests.
+    // A v3 launch deploys a 23 KB pool and a token in one call and lands around 16M gas; EDR's
+    // default cap is 2**24, which would refuse on the test bench something the chain accepts.
     hardhatMainnet: {
       type: "edr-simulated",
       chainType: "l1",
+      blockGasLimit: 30_000_000n,
     },
     hardhatOp: {
       type: "edr-simulated",
       chainType: "op",
+      blockGasLimit: 30_000_000n,
     },
     sepolia: {
       type: "http",

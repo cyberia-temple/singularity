@@ -232,6 +232,11 @@ A PancakeSwap V3 fork, vendored and patched so that **a live pool's swap fee can
 asking its liquidity to migrate to another tier. On a chain with little liquidity, splitting what
 exists across fee tiers is the one operation that cannot be afforded, so the fee became a setting.
 
+That patch is what makes the second half possible: **a launch creator names their own fee** — any
+number up to 10%, plus the protocol's 1% — where v3's tiers are a whitelist of four and would
+otherwise offer them a choice of four. A launch pool is born in an 11% tier and lowered exactly once,
+by the address that created it, before it has traded.
+
 ### Why PancakeSwap V3 and not Uniswap v4 or Algebra
 
 Cyberia's EVM stops at **london** (`services/cyberia-node/genesis.json`; probed live, `PUSH0`,
@@ -248,9 +253,13 @@ until 2027-03-15.
 | `contracts/pancake-v3-core/` | Vendored core. Only the mutable-fee patch diverges from upstream. |
 | `contracts/pancake-v3-periphery/` | Vendored periphery: router, position manager, quoter, lens. |
 | `contracts/pancake-v3-lm-pool/` | Vendored LM pool, for MasterChefV3 farming. |
+| `contracts/cyberia-v3/` | What sits on top of the fork: locker, launchpad, launch token, splitter. |
 | `scripts/deploy-v3.ts` | Deploys the stack, writes `deployments/cyberia-v3.json`. |
 | `scripts/v3-smoke.ts` | Creates a pool, swaps, moves the fee, swaps again — on chain. |
-| `test/PancakeV3MutableFee.ts` | The guard rails for all of the above. |
+| `scripts/v3-launch-smoke.ts` | Launches a token and collects its fees — on chain, or as a dry run. |
+| `test/PancakeV3MutableFee.ts` | The guard rails for the fork's patch. |
+| `test/PancakeV3CreatorFee.ts` | The creator's one-shot: who may use it, and how far down. |
+| `test/LaunchpadV3.ts` `test/LaunchToken.ts` `test/LaunchLocker.ts` | The launch, the dividend, the lock. |
 
 Sources are upstream byte-for-byte apart from import paths (`@pancakeswap/v3-core/contracts/…` →
 relative) and the patch below. OpenZeppelin 3.4.2-solc-0.7 is installed under the aliases
@@ -260,7 +269,20 @@ relative) and the patch below. OpenZeppelin 3.4.2-solc-0.7 is installed under th
 ### The patch
 
 `fee` moves from `immutable` to storage; `PancakeV3Pool.setFee` accepts calls from the factory and
-from nobody else; `PancakeV3Factory.setPoolFee` is `onlyOwner` and enforces `MAX_POOL_FEE` (10%).
+from nobody else; `PancakeV3Factory.setPoolFee` is `onlyOwner` and enforces `MAX_POOL_FEE` (11%).
+Two further patches, both there so a launch creator can name their own fee:
+
+- **`PancakeV3Factory.setPoolFeeByCreator`** — whoever called `createPool` may lower that pool's fee
+  **once**, without being the factory owner. `createPool` records the caller in `poolCreator`, the
+  adjustment deletes the entry, and it may only ever go **down** from the tier the pool was born in.
+  A one-shot that only lowers is what makes an arbitrary fee safe to hand out: the right is spent
+  before the pool has traded, it cannot be used twice, and no key gains a standing power over a pool
+  it does not own;
+- **`PancakeV3Pool.initialize` no longer sets a protocol fee.** Upstream starts every pool at
+  `3200:3200` — 32% of all fees to `collectProtocol`. On a chain where the pitch is *the creator
+  keeps their fee*, a silent 32% cut is the promise broken in the constructor, so a Cyberia pool
+  starts at **0** and `setFeeProtocol` still turns it on per pool, with an event.
+
 Everything else about the pool is untouched:
 
 - **the pool's address does not change** — the fee in the CREATE2 salt stays the pool's identifier,
@@ -272,9 +294,10 @@ Everything else about the pool is untouched:
 - **the swap loop does not read storage** — the fee is cached into `SwapCache` once per swap;
 - **`tickSpacing` stays immutable.** Changing it would invalidate every tick already written.
 
-`MAX_POOL_FEE` is not a governance limit — 10% is far above any real fee. It bounds what a stolen
-owner key can do, since without it a compromised owner could set a pool to 100% and take the whole
-input of every swap that followed.
+`MAX_POOL_FEE` is **11%**, and that number is the product rule written into the contract: a launch
+creator may take up to 10%, the protocol takes 1%, so 11% is the most a Cyberia pool can ever cost
+to trade through. It is also what bounds a stolen owner key — without it a compromised owner could
+set a pool to 100% and take the whole input of every swap that followed.
 
 Read `pool.fee()` for what a pool charges. **Never** read the fee out of a pool key or a swap path:
 that number is the pool's tier, and after a `setPoolFee` it is no longer what the pool charges.
@@ -283,10 +306,11 @@ that number is the pool's tier, and after a `setPoolFee` it is no longer what th
 
 `PancakeV3PoolDeployer` carries the pool's entire creation code as a literal, so the **pool's** size
 is spent against the **deployer's** 24576-byte EIP-170 limit. Upstream ships with roughly 19 bytes
-to spare. After the mutable-fee patch there are **4**:
+to spare. After the mutable-fee patch there are **20** — dropping the protocol-fee default out of
+`initialize` gave back more than the patch had cost:
 
 ```
-PancakeV3PoolDeployer runtime 24572 bytes, 4 to spare
+PancakeV3PoolDeployer runtime 24556 bytes, 20 to spare
 ```
 
 `test/PancakeV3MutableFee.ts` fails the moment that goes negative. The optimizer is not the lever
@@ -311,28 +335,58 @@ node -e 'const {keccak256}=require("ethers");console.log(keccak256(require("./ar
 
 ```shell
 npx hardhat compile
-npx hardhat test nodejs test/PancakeV3MutableFee.ts
-node scripts/deploy-v3.ts     # idempotent: re-running skips what is already on chain
-node scripts/v3-smoke.ts      # optional: real pool, real swap, real fee change
+npx hardhat test nodejs                       # the whole suite, four of them are the v3 stack
+npx tsx scripts/deploy-v3.ts                  # idempotent: re-running skips what is on chain
+npx tsx scripts/v3-smoke.ts                   # optional: real pool, real swap, real fee change
+SMOKE_DRY_RUN=1 npx tsx scripts/v3-launch-smoke.ts   # a launch as an eth_call, spending nothing
+npx tsx scripts/v3-launch-smoke.ts            # a real launch: its CYBER is locked forever
 ```
+
+**A recompiled pool is a new stack, not an upgrade.** Every address the periphery computes comes
+from the pool's init code hash, so a router deployed against the old hash addresses pools the new
+factory will never deploy. `deploy-v3.ts` refuses to mix the two: when the compiled hash differs
+from the one in the record, it moves the record to `deployments/archive/` (the old contracts are
+superseded, not gone — somebody's liquidity may still be in them) and deploys the whole stack again.
+
+To rehearse a redeploy before spending anything, point `CYBERIA_RPC_URL` at a local node, set
+`CYBERIA_CHAIN_ID` to its id and `V3_WCYBER` to a wrapper deployed there; the record then lands in
+`deployments/cyberia-v3-<id>.json` and cannot overwrite what is on Cyberia.
 
 `eth_estimateGas` is unreliable on this node — it fails on deploys and answers 21000 for a value
 transfer to a contract — so every transaction in these scripts carries an explicit gas limit. Note
-that **creating a pool costs about 4.9M gas**, because it deploys a 23 KB contract by CREATE2.
+that **creating a pool costs about 4.9M gas**, because it deploys a 23 KB contract by CREATE2, and
+a **launch costs about 7.9M**, because it deploys a token and a pool and mints a position in one
+transaction. Cyberia's block limit is 30M, so that fits with room; EDR's per-transaction cap in the
+tests is 2^24, which is why `test/LaunchpadV3.ts` passes an explicit `gas` of its own.
 
 ### Measured on Cyberia
 
 | Operation | Gas |
 |---|---|
-| Deploy the whole stack (7 contracts) | 17.26M, 0.027 CYBER |
+| Deploy the whole stack (10 contracts) | 26.4M, 0.0398 CYBER |
 | `createAndInitializePoolIfNecessary` | 4,839,553 |
 | `mint` (full-range position) | 606,636 |
 | `exactInputSingle` | 119,883 – 140,850 |
 | `setPoolFee` | 36,704 |
+| `enableFeeAmount` (the 11% tier) | 68,665 |
+| `LaunchpadV3.launch` | 7.93M (bench) |
+
+The launch figure is from a rehearsal chain running the same bytecode — the number a real launch
+prints goes here once one has been made.
+
+Runtime sizes, against EIP-170's 24576:
+
+| Contract | Bytes |
+|---|---|
+| `PancakeV3PoolDeployer` | 24,556 (20 to spare — see the size ceiling above) |
+| `LaunchpadV3` | 22,649 |
+| `LaunchToken` | 9,953 |
+| `LaunchLocker` | 9,744 |
+| `PancakeV3Factory` | 7,020 |
 
 ### Fees: who sets them, and who is paid
 
-Two contracts sit on top of the fork, in `contracts/cyberia-v3/`.
+Four contracts sit on top of the fork, in `contracts/cyberia-v3/`.
 
 **`LaunchLocker`** — the answer to a launchpad creator earning nothing. A v2 launch burns its LP
 token and the fees that LP would have earned go with it, because in v2 fees compound into reserves a
@@ -348,6 +402,37 @@ asymmetry is deliberate: a creator fee the operator can revoke is not a reason t
 the whole value of the offer is that the contract, not a promise, is what holds it. `setCreator` is
 the creator's own, so a project that changes hands does not need us.
 
+A position arrives with terms in one of two shapes, and anything else is refused rather than
+defaulted — a position locked to nobody would pay its whole stream to the treasury forever with no
+way back, since the NFT can never leave. 32 bytes name a creator and take the default split; 128
+bytes name creator, creator bps, holders bps and a rewards address, and are accepted **only from an
+allowlisted launcher** (`setLauncher`), because those numbers name the treasury's own share.
+
+**`LaunchpadV3`** — a fair launch where the creator names the fee. `launch()` takes a name, a
+symbol, a supply, a creator fee up to **10%** and how much of that fee to share with holders, then
+in one transaction deploys the token, wraps the CYBER sent, creates the pool **in the 11% tier**,
+lowers its fee to `creatorFee + 1%` with the factory's one-shot, mints one full-range position with
+the entire supply against the entire CYBER, and hands that position to the locker with the split
+written in. Nothing is upgradeable and nothing can take the liquidity back out.
+
+The arithmetic is `quote(creatorFee, holdersShareBps)`, and a screen should print its answer rather
+than restate it: the creator's side of the collected stream is `creatorFee / poolFee`, the holders'
+share comes out of **that**, and the remainder is the protocol's — so at the maximum, a trade costs
+11%, the treasury takes 910 bps of what is collected, and 910 bps of 11% is exactly the 1% of volume
+the protocol charges. Rounding falls on the treasury, never on the creator or the holders. Sharing
+with holders costs the protocol nothing, because it comes out of the creator's own half.
+
+**`LaunchToken`** — holder fee sharing, which is the reason a token launched here is not a plain
+ERC20. Trading fees arrive as WCYBER and are credited to every holder pro rata by magnified
+per-share accounting (`MAGNITUDE = 2**128`, a correction per transfer, an `eligibleSupply` that
+excludes the pool, the launchpad and the burn address — a pool paying itself a dividend would be
+paying nobody). Holders `claim()` when they like; nothing is pushed, so a transfer costs the same as
+any ERC20's. Two rules make the pot safe: a distribution books the **whole** amount received even
+when the per-share figure floors, and a claim pays at most the balance actually held — the version
+without the first one reverted on the last claimant for a rounding wei, which is what the test suite
+caught. When the fee to be shared is the token itself rather than CYBER, the locker **burns** it,
+which is the same pro-rata gift to every holder and needs no accounting at all.
+
 **`FeeSplitter`** — where `collectProtocol` proceeds go. A weighted recipient set the owner can
 replace at any time, `distribute` open to anyone so no recipient depends on an operator remembering,
 the rounding remainder given to the last recipient so nothing is stranded, and
@@ -360,22 +445,31 @@ Existing v2 launches (LAIN, MINE) can never be retrofitted — their LP is alrea
 
 ### What is deployed on Cyberia
 
+Redeployed **2026-09-07**: the fee ceiling, the creator's one-shot and the protocol-fee default are
+all in the pool and the factory, so the previous stack could not be upgraded into this one. Its
+record is kept under `deployments/archive/` — those contracts are superseded, not gone, and the old
+factory `0x79F4C9f4E1dbA86F173c06D2491eB31123f38637` still owns whatever was in it.
+
 | Contract | Address |
 |---|---|
-| `PancakeV3PoolDeployer` | `0x15a35fFBbd47b7D80874a1553C851AC569d5009e` |
-| `PancakeV3Factory` | `0x79F4C9f4E1dbA86F173c06D2491eB31123f38637` |
-| `SwapRouter` | `0xD0136b588A94a0F74803B7b19B1FB400eaeBEd2F` |
-| `NonfungiblePositionManager` | `0x71107ddc2f92E57B1746E0D75c2250E70Fdb75a7` |
-| `NonfungibleTokenPositionDescriptor` | `0x94ca5E4b0Ab1f91E47278eEe6089DF1F1cE12662` |
-| `QuoterV2` | `0x129cf09369A5994C82E96eE36726455959220781` |
-| `TickLens` | `0xdcdaaB240de5985CB9F4A0Ae9eFe1e8aC30df6B7` |
-| `LaunchLocker` | `0x1e75d289A01ED780A2fd1622A1559132aA68423E` |
-| `FeeSplitter` | `0xBfE94f7D05ad3AE81a766Cb7C492ae0803b691B9` |
+| `PancakeV3PoolDeployer` | `0x216Caa611CE6F300c6b23f1D00Aa6055F77dE773` |
+| `PancakeV3Factory` | `0xB6abF60A04fC1ac64Bf225787B7064A94165b496` |
+| `SwapRouter` | `0xa9f2A35F8dbA643e199Da0FeEbDF7e1c72ee773e` |
+| `NonfungiblePositionManager` | `0x50A0B7Fd739fE3afC27fF5c8259Ae1c76B569139` |
+| `NonfungibleTokenPositionDescriptor` | `0xb7beA09BB3C23a2fA5BBa50EE8F648F6148E4C6d` |
+| `QuoterV2` | `0xD583dDAf0f9B1bb227832f9c4948519C697DCF99` |
+| `TickLens` | `0x7984b22c5726fC623FFA49AaC94a18AFFf96fa47` |
+| `LaunchLocker` | `0x679958816454079ef2b31d5ED8DD243ffa9D7689` |
+| `LaunchpadV3` | `0x6970481a167D8D44527091d0E319e50aD3F79Ee3` |
+| `FeeSplitter` | `0x361b763a718a361C17FE39d4bc1d2EbE05572da6` |
 
-Live settings: creator share **70%**, `MAX_POOL_FEE` **10%**, splitter paying **100% to the gas
-station tank**, and a **protocol fee of 0** on pools created so far. Taking a share of LP fees while
-there is barely any liquidity would repel the liquidity the chain is trying to attract; the dial is
-built so it can be turned up when there is a reason to, not because there is one now.
+Live settings: creator share **70%** for a plain lock, `MAX_POOL_FEE` **11%**, the launch tier
+**110000 / tick spacing 200**, launch minimum **10 CYBER**, splitter paying **100% to the gas
+station tank**, and a **protocol fee of 0** on the pools themselves — the protocol's 1% of a launch
+comes out of the launch position's own fee stream, not out of `collectProtocol`, which is why no
+pool needs `setFeeProtocol` turned on for the launchpad's promise to hold. Taking a share of LP fees
+while there is barely any liquidity would repel the liquidity the chain is trying to attract; the
+dial is built so it can be turned up when there is a reason to, not because there is one now.
 
 Everything above is owned by a single address (`factory.owner`, `locker.owner`, `splitter.owner`).
 Handing it to a timelock or a governor later is one `setOwner` per contract, with no redeploy and no

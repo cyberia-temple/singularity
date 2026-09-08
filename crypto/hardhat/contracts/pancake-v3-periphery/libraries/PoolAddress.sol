@@ -6,7 +6,7 @@ library PoolAddress {
     /// @dev Cyberia: this is the hash of THIS repo's PancakeV3Pool creation code, not upstream's --
     /// the pool here carries a mutable swap fee. Recompute it after any change to the pool or to its
     /// compiler settings, or every address derived below silently points at a contract that is not there.
-    bytes32 internal constant POOL_INIT_CODE_HASH = 0x251f3613d122be961cc7c764fdb88d1f6d9237cbc2bcadbf0bc5450e87eecf37;
+    bytes32 internal constant POOL_INIT_CODE_HASH = 0x552a3c12f1630ab391584c8e037aad90f40e97650684de28cdc32815cac7e158;
 
     /// @notice The identifying key of the pool
     struct PoolKey {

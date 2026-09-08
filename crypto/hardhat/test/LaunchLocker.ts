@@ -114,9 +114,13 @@ describe("LaunchLocker", async function () {
       (await stack.positions.read.ownerOf([stack.tokenId])).toLowerCase(),
       stack.locker.address.toLowerCase(),
     );
-    const [lockedCreator, bps, locked] = await stack.locker.read.locks([stack.tokenId]);
+    const [lockedCreator, bps, holdersBps, rewardsTo, locked] =
+      await stack.locker.read.locks([stack.tokenId]);
     assert.equal(lockedCreator.toLowerCase(), creator.account.address.toLowerCase());
     assert.equal(bps, CREATOR_BPS);
+    // a plain sender names no holder share and no reward token; both stay empty
+    assert.equal(holdersBps, 0);
+    assert.equal(rewardsTo, "0x0000000000000000000000000000000000000000");
     assert.equal(locked, true);
     assert.equal(await stack.locker.read.lockedCount(), 1n);
   });
@@ -153,7 +157,8 @@ describe("LaunchLocker", async function () {
     await lock(stack);
     await swap(stack, 10_000n * ONE);
 
-    const [c0, c1, t0, t1] = await stack.locker.read.claimable([stack.tokenId]);
+    const [c0, c1, h0, , t0] = await stack.locker.read.claimable([stack.tokenId]);
+    assert.equal(h0, 0n, "nobody promised holders anything on this lock");
     assert.ok(c0 > 0n, "creator should have token0 fees to claim");
     assert.equal(c1, 0n, "a one-way swap earns fees in the input token only");
 
@@ -247,7 +252,7 @@ describe("LaunchLocker", async function () {
     assert.equal(bps, CREATOR_BPS);
 
     await swap(stack, 10_000n * ONE);
-    const [c0, , t0] = await stack.locker.read.claimable([stack.tokenId]);
+    const [c0, , , , t0] = await stack.locker.read.claimable([stack.tokenId]);
     assert.equal(c0, ((c0 + t0) * BigInt(CREATOR_BPS)) / 10_000n);
   });
 

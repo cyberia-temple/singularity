@@ -1,0 +1,50 @@
+{
+  "chainId": 49406,
+  "chainName": "Cyberia",
+  "rpc": "https://rpc.cyberia.church",
+  "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "PancakeV3PoolDeployer": "0x15a35fFBbd47b7D80874a1553C851AC569d5009e",
+  "WCYBER": "0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9",
+  "POOL_INIT_CODE_HASH": "0x251f3613d122be961cc7c764fdb88d1f6d9237cbc2bcadbf0bc5450e87eecf37",
+  "PancakeV3Factory": "0x79F4C9f4E1dbA86F173c06D2491eB31123f38637",
+  "SwapRouter": "0xD0136b588A94a0F74803B7b19B1FB400eaeBEd2F",
+  "NonfungibleTokenPositionDescriptor": "0x94ca5E4b0Ab1f91E47278eEe6089DF1F1cE12662",
+  "positionBaseURI": "https://cyberia.church/api/v3/positions/",
+  "NonfungiblePositionManager": "0x71107ddc2f92E57B1746E0D75c2250E70Fdb75a7",
+  "QuoterV2": "0x129cf09369A5994C82E96eE36726455959220781",
+  "TickLens": "0xdcdaaB240de5985CB9F4A0Ae9eFe1e8aC30df6B7",
+  "factoryOwner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "MAX_POOL_FEE": 100000,
+  "feeTiers": {
+    "100": 1,
+    "500": 10,
+    "2500": 50,
+    "10000": 200
+  },
+  "timestamp": "2026-09-02T03:33:47.241Z",
+  "smokePool": {
+    "pool": "0x332ba4BBEb1D96a399b8e5459c286b122dB8aB11",
+    "token0": "0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9",
+    "token1": "0xD199e6ae74B992F017f8940B26Fa18A7dD30eE86",
+    "feeTier": 2500,
+    "timestamp": "2026-09-01T23:56:51.676Z"
+  },
+  "LaunchLocker": "0x1e75d289A01ED780A2fd1622A1559132aA68423E",
+  "launchCreatorBps": 7000,
+  "treasury": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "FeeSplitter": "0xBfE94f7D05ad3AE81a766Cb7C492ae0803b691B9",
+  "feeSplitterShares": [
+    {
+      "recipient": "0xA2134C165737Eff0775b163b73377E394004E7b2",
+      "weight": 10000,
+      "what": "gas station tank"
+    }
+  ],
+  "lockerSmoke": {
+    "tokenId": "2",
+    "creator": "0x000000000000000000000000000000000000c0Fe",
+    "pool": "0x332ba4BBEb1D96a399b8e5459c286b122dB8aB11",
+    "note": "tiny WCYBER/ASH position, locked permanently as a live proof",
+    "timestamp": "2026-09-02T03:36:27.177Z"
+  }
+}

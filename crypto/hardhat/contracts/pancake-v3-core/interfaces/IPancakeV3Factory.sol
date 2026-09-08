@@ -118,6 +118,14 @@ interface IPancakeV3Factory {
     /// @param fee The new swap fee in hundredths of a bip, at most the pool's MAX_FEE
     function setPoolFee(address pool, uint24 fee) external;
 
+    /// @notice Set the real swap fee of a pool you created yourself, once, downward
+    /// @dev The right exists only between `createPool` and its first use, belongs only to the
+    /// address that created the pool, and can never raise a fee above the tier the pool's address
+    /// was derived from. It is what lets a launch name a fee that is not a tier.
+    /// @param pool The pool this caller created
+    /// @param fee The new swap fee in hundredths of a bip, at most the pool's current fee
+    function setPoolFeeByCreator(address pool, uint24 fee) external;
+
     function setFeeProtocol(address pool, uint32 feeProtocol0, uint32 feeProtocol1) external;
 
     function collectProtocol(
