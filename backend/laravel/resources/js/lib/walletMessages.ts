@@ -372,6 +372,61 @@ export const walletMessages: Messages = {
 
         // The gas station as a place rather than an offer: what it is, and
         // where this address stands with it.
+        /*
+         * Daily: what today pays.
+         *
+         * Two identities meet on that screen and the copy keeps them apart.
+         * Experience belongs to an *account* — the person this site knows, one
+         * ledger shared with the profile page — while the faucet belongs to an
+         * *address*, which is what the wallet holds. A sentence that blurred
+         * them would be promising a score to a key.
+         */
+        dailyTitle: 'Daily',
+        dailyEyebrow: 'Activity pays · no deposit needed',
+        dailyLoading: 'Reading the board…',
+        dailyLevelTag: 'LVL {level}',
+        dailyNoLevel: 'No account',
+        dailyNoAccount: 'Nobody is signed in',
+        dailyXpOf: '{xp} / {next} XP',
+        dailyXpMax: '{xp} XP · top level',
+        dailyRank: 'Position',
+        dailyAnonBody:
+            'Experience belongs to a Cyberia account rather than to an address — one person holds several wallets. Prove this address with its own key and everything below starts counting.',
+        dailySignIn: 'Sign in with this wallet',
+        dailySigningIn: 'Waiting for the signature…',
+        dailyPerkReady: '{title} is yours as soon as you spend it.',
+        dailyPerkXp: '{left} XP more buys {title}.',
+        dailyPerkLevel: '{title} opens at level {level}.',
+        dailyPerkAnon:
+            '{title} costs {cost} XP once there is an account to carry it.',
+        dailyStreakLabel: 'Check-in streak',
+        dailyStreakDays: '{days} days',
+        dailyStreakNone: 'Not started',
+        dailyStreakNext: 'Day {day} pays {xp} XP on top of the visit.',
+        dailyStreakNoMore:
+            'Every milestone is behind you; the run keeps counting.',
+        dailyStreakAnonNote:
+            'A streak is counted per account, so it starts the day this address becomes one.',
+        dailyCheckIn: 'Check in',
+        dailyCheckedIn: 'Checked in today',
+        dailyCheckingIn: 'Checking in…',
+        dailyGranted: '+{xp} XP.',
+        dailyGrantedNone: 'Already counted today — the day pays once.',
+        dailyFaucetLabel: 'No gas? Start here',
+        dailyFaucetBody:
+            'The station hands an address {amount} {symbol} at a time, once every {hours} h, if it already owns something here. No deposit, and you still sign your own transaction afterwards.',
+        dailyFaucetUnknown:
+            'The station is up, but this browser could not read its terms just now.',
+        dailyFaucetOpen: 'Open the gas station',
+        dailyQuests: 'Quests',
+        dailyWeekly: 'This week',
+        dailyResetIn: 'resets in {hours}h {minutes}m',
+        dailyGo: 'Go',
+        dailyBoard: 'Experience board',
+        dailyLedgerNote:
+            'One ledger: everything you do on Cyberia — here, on the site, on chain — pays into the same experience the profile page shows. Nothing on this screen is a second score.',
+        tileDailyHint: 'Streak · quests · what today pays',
+
         gasStation: 'Gas station',
         gasStationBody:
             'A fee can only be paid in the coin the network runs on, so an address holding tokens and no CYBER cannot move them. On Cyberia the station hands such an address enough CYBER to pay for itself — you then sign your own transaction, unchanged.',
@@ -1076,6 +1131,34 @@ export const walletMessages: Messages = {
 
         // Swap and wrap
         swapTitle: 'Swap',
+        /*
+         * The swap composer's own furniture.
+         *
+         * The line under the title is a claim and it is checked: the wallet
+         * signs on every network it holds a key for, and where Cyberia has no
+         * exchange a router carries the trade — so "any asset, any network" is
+         * what this screen actually does rather than a slogan.
+         */
+        swapEyebrow: 'Any asset · any network · one route',
+        swapVenue: '{chain} pools · {hops} hop(s)',
+        swapKindCoin: "{chain}'s own coin",
+        swapKindToken: 'Token on {chain}',
+        swapSummary: 'Fee {fee} · impact {impact}%',
+        swapSummaryFee: 'Fee {fee}',
+        swapInverse: 'Price, inverse',
+        swapAdvanced: 'Route, slippage and the floor',
+        swapAlternatives: 'Routes this one beat',
+        swapWorseBy: 'pays {pct}% less',
+        swapXpNote: 'credited once the swap settles on chain',
+        // Three sentences and not one: what a trade is worth depends on
+        // whether there is an account to credit and whether the day has
+        // already been counted. See the daily board for why they are apart.
+        swapDailyAnon:
+            'A swap pays {xp} XP once this address is an account. See what today pays →',
+        swapDailyOpen:
+            'This trade counts as today’s activity and pays {xp} XP on top.',
+        swapDailyKept:
+            'Today is already counted; the trade still pays {xp} XP.',
         swapTab: 'Swap',
         wrapTab: 'Wrap',
         swapPay: 'You pay',
@@ -1763,6 +1846,53 @@ export const walletMessages: Messages = {
             'Перевод {amount} {symbol} со счёта {chain} на {to} в сети {network}, комиссия сети — до {fee} {gas}.',
 
         // Газовая станция как место, а не как разовое предложение.
+        // Ежедневное: чем оплачивается день. Опыт принадлежит аккаунту,
+        // а кран — адресу; в тексте эти две вещи не смешиваются.
+        dailyTitle: 'Ежедневное',
+        dailyEyebrow: 'Активность оплачивается · депозит не нужен',
+        dailyLoading: 'Читаем доску…',
+        dailyLevelTag: 'УР. {level}',
+        dailyNoLevel: 'Без аккаунта',
+        dailyNoAccount: 'Никто не вошёл',
+        dailyXpOf: '{xp} / {next} XP',
+        dailyXpMax: '{xp} XP · высший уровень',
+        dailyRank: 'Место',
+        dailyAnonBody:
+            'Опыт принадлежит аккаунту Cyberia, а не адресу: у одного человека несколько кошельков. Подтвердите адрес его же ключом — и всё, что ниже, начнёт считаться.',
+        dailySignIn: 'Войти этим кошельком',
+        dailySigningIn: 'Ждём подпись…',
+        dailyPerkReady: '«{title}» открывается, как только потратите опыт.',
+        dailyPerkXp: 'Ещё {left} XP — и «{title}» ваш.',
+        dailyPerkLevel: '«{title}» открывается с {level}-го уровня.',
+        dailyPerkAnon:
+            '«{title}» стоит {cost} XP, когда опыту есть куда копиться.',
+        dailyStreakLabel: 'Серия заходов',
+        dailyStreakDays: '{days} дн.',
+        dailyStreakNone: 'Не начата',
+        dailyStreakNext: 'День {day} даёт {xp} XP сверх обычного захода.',
+        dailyStreakNoMore: 'Все вехи позади; серия продолжает считаться.',
+        dailyStreakAnonNote:
+            'Серия считается по аккаунту и начнётся в тот день, когда этот адрес им станет.',
+        dailyCheckIn: 'Отметиться',
+        dailyCheckedIn: 'Сегодня отмечено',
+        dailyCheckingIn: 'Отмечаемся…',
+        dailyGranted: '+{xp} XP.',
+        dailyGrantedNone: 'Сегодня уже засчитано — день оплачивается один раз.',
+        dailyFaucetLabel: 'Нет газа? Начните отсюда',
+        dailyFaucetBody:
+            'Станция выдаёт адресу {amount} {symbol} раз в {hours} ч, если на нём уже что-то есть. Без депозита, а транзакцию вы потом подписываете сами.',
+        dailyFaucetUnknown:
+            'Станция работает, но браузер сейчас не смог прочитать её условия.',
+        dailyFaucetOpen: 'Открыть газовую станцию',
+        dailyQuests: 'Задания',
+        dailyWeekly: 'За неделю',
+        dailyResetIn: 'сброс через {hours} ч {minutes} мин',
+        dailyGo: 'Вперёд',
+        dailyBoard: 'Доска опыта',
+        dailyLedgerNote:
+            'Один журнал: всё, что вы делаете в Cyberia — здесь, на сайте, в цепи — идёт в тот же опыт, который показывает страница профиля. Ничего на этом экране не является вторым счётом.',
+        tileDailyHint: 'Серия · задания · чем оплачивается день',
+
         gasStation: 'Газовая станция',
         gasStationBody:
             'Комиссию можно заплатить только той монетой, на которой работает сеть, — поэтому адрес с токенами и без CYBER не может сдвинуть эти токены. В Cyberia на это есть ответ: станция выдаёт такому адресу CYBER на его собственную комиссию, а вы подписываете свою транзакцию без изменений.',
@@ -2464,6 +2594,24 @@ export const walletMessages: Messages = {
 
         // Обмен и обёртка
         swapTitle: 'Обмен',
+        // Мебель экрана обмена. Три разные фразы про опыт: есть ли аккаунт,
+        // зачтён ли уже день — это разные состояния, и они не сливаются.
+        swapEyebrow: 'Любой актив · любая сеть · один маршрут',
+        swapVenue: 'Пулы {chain} · переходов: {hops}',
+        swapKindCoin: 'Собственная монета сети {chain}',
+        swapKindToken: 'Токен в сети {chain}',
+        swapSummary: 'Комиссия {fee} · влияние {impact}%',
+        swapSummaryFee: 'Комиссия {fee}',
+        swapInverse: 'Цена, обратная',
+        swapAdvanced: 'Маршрут, проскальзывание и нижняя граница',
+        swapAlternatives: 'Маршруты, которые этот обошёл',
+        swapWorseBy: 'даёт на {pct}% меньше',
+        swapXpNote: 'начисляется, когда обмен пройдёт в цепи',
+        swapDailyAnon:
+            'Обмен даёт {xp} XP, как только этот адрес станет аккаунтом. Чем оплачивается день →',
+        swapDailyOpen:
+            'Эта сделка засчитает сегодняшний день и сверху даст {xp} XP.',
+        swapDailyKept: 'Сегодня уже засчитано; сделка всё равно даёт {xp} XP.',
         swapTab: 'Обмен',
         wrapTab: 'Обёртка',
         swapPay: 'Отдаёте',
@@ -3133,6 +3281,50 @@ export const walletMessages: Messages = {
             '从你的 {chain} 账户向 {network} 上的 {to} 转账 {amount} {symbol}，网络手续费最多 {fee} {gas}。',
 
         // 加油站：一个地方，而不是一次性的提议。
+        // 每日：今天能挣到什么。经验属于账户，水龙头属于地址，文案不混同。
+        dailyTitle: '每日',
+        dailyEyebrow: '活跃即有回报 · 无需入金',
+        dailyLoading: '正在读取榜单…',
+        dailyLevelTag: 'LV {level}',
+        dailyNoLevel: '无账户',
+        dailyNoAccount: '尚未登录',
+        dailyXpOf: '{xp} / {next} XP',
+        dailyXpMax: '{xp} XP · 已满级',
+        dailyRank: '排名',
+        dailyAnonBody:
+            '经验属于 Cyberia 账户，而不属于某个地址——一个人往往持有多个钱包。用这个地址自己的密钥证明它属于你，下面的一切就开始计数。',
+        dailySignIn: '用此钱包登录',
+        dailySigningIn: '等待签名…',
+        dailyPerkReady: '只要花掉经验，{title} 就是你的。',
+        dailyPerkXp: '再有 {left} XP 就能换取 {title}。',
+        dailyPerkLevel: '{title} 在 {level} 级开放。',
+        dailyPerkAnon: '有账户来累积经验之后，{title} 需要 {cost} XP。',
+        dailyStreakLabel: '连续签到',
+        dailyStreakDays: '{days} 天',
+        dailyStreakNone: '尚未开始',
+        dailyStreakNext: '第 {day} 天在当日经验之外再给 {xp} XP。',
+        dailyStreakNoMore: '所有里程碑都已达成，连续天数继续累计。',
+        dailyStreakAnonNote:
+            '连续天数按账户统计，从这个地址成为账户的那天开始。',
+        dailyCheckIn: '签到',
+        dailyCheckedIn: '今日已签到',
+        dailyCheckingIn: '签到中…',
+        dailyGranted: '+{xp} XP。',
+        dailyGrantedNone: '今天已经计过了——每天只算一次。',
+        dailyFaucetLabel: '没有 Gas？从这里开始',
+        dailyFaucetBody:
+            '如果该地址在这里已经持有资产，加油站每 {hours} 小时发放 {amount} {symbol}。无需入金，之后仍由你自己签名。',
+        dailyFaucetUnknown: '加油站在运行，但浏览器此刻读不到它的条件。',
+        dailyFaucetOpen: '打开加油站',
+        dailyQuests: '任务',
+        dailyWeekly: '本周',
+        dailyResetIn: '{hours} 小时 {minutes} 分后重置',
+        dailyGo: '前往',
+        dailyBoard: '经验榜',
+        dailyLedgerNote:
+            '同一本账：你在 Cyberia 所做的一切——这里、站点上、链上——都计入个人主页显示的同一份经验。此屏幕上没有第二套分数。',
+        tileDailyHint: '连续签到 · 任务 · 今天能挣到什么',
+
         gasStation: '加油站',
         gasStationBody:
             '手续费只能用这条链自己的币来付，所以一个只有代币、没有 CYBER 的地址动不了这些代币。在 Cyberia 上，加油站会给这样的地址一笔 CYBER 用来付它自己的手续费 — 然后你照原样签自己的交易。',
@@ -3800,6 +3992,23 @@ export const walletMessages: Messages = {
 
         // Swap and wrap
         swapTitle: '兑换',
+        // 兑换界面的框架文案。关于经验有三句不同的话：有没有账户、今天是否
+        // 已计入，这是不同的状态，不能混为一谈。
+        swapEyebrow: '任意资产 · 任意网络 · 一条路由',
+        swapVenue: '{chain} 池 · {hops} 跳',
+        swapKindCoin: '{chain} 的原生币',
+        swapKindToken: '{chain} 上的代币',
+        swapSummary: '手续费 {fee} · 冲击 {impact}%',
+        swapSummaryFee: '手续费 {fee}',
+        swapInverse: '反向价格',
+        swapAdvanced: '路由、滑点与下限',
+        swapAlternatives: '被它胜过的路由',
+        swapWorseBy: '少给 {pct}%',
+        swapXpNote: '兑换在链上完成后计入',
+        swapDailyAnon:
+            '这个地址成为账户后，一次兑换可得 {xp} XP。看看今天能挣到什么 →',
+        swapDailyOpen: '这笔交易会计入今天的活跃，并额外给 {xp} XP。',
+        swapDailyKept: '今天已经计入；这笔交易仍可得 {xp} XP。',
         swapTab: '兑换',
         wrapTab: '封装',
         swapPay: '你支付',

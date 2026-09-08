@@ -72,6 +72,12 @@ const DEADLINE_SECONDS = 20 * 60;
 const EDGES_TTL_MS = 5 * 60_000;
 
 /**
+ * Runners-up kept on a quote. Three, because the list answers "was there
+ * another way" and not "here is the whole graph".
+ */
+const ALTERNATIVES_SHOWN = 3;
+
+/**
  * Cyberia's node caps a JSON-RPC batch at 20 calls, and reading the pool graph
  * is nothing but small calls — so the provider batches to that, rather than
  * having the node drop half a graph on a busy chain.
@@ -117,6 +123,16 @@ export type SwapQuote = {
     kind: 'native-in' | 'native-out' | 'tokens';
     /** False when the node would not price the swap and the cap was used. */
     estimated: boolean;
+    /**
+     * The routes this trade was chosen *over*, best first, without the winner.
+     *
+     * The search already prices every candidate path, so these cost nothing
+     * extra — they were computed and thrown away. Showing them is the only way
+     * a screen can say "there is a route and this one is better" rather than
+     * asserting a single path as if it were the only one. Capped, because a
+     * chain with many hubs produces a list nobody reads.
+     */
+    alternatives: { path: string[]; amountOut: bigint }[];
 };
 
 /* ------------------------------------------------------------ registry -- */
@@ -278,7 +294,11 @@ export const swapPaths = (
         const fromFirst = adjacency.get(first) ?? new Set<string>();
 
         for (const second of intoEnd) {
-            if (second === start || second === first || !fromFirst.has(second)) {
+            if (
+                second === start ||
+                second === first ||
+                !fromFirst.has(second)
+            ) {
                 continue;
             }
 
@@ -454,6 +474,23 @@ export const quoteSwap = async (request: {
         );
     }
 
+    /**
+     * Everything the winner beat, best first.
+     *
+     * Compared by path rather than by amount: two different paths can pay the
+     * same to the wei, and dropping one of them by amount would drop a real
+     * alternative.
+     */
+    const alternatives = priced
+        .filter(
+            (candidate): candidate is { path: string[]; amountOut: bigint } =>
+                candidate !== null &&
+                candidate.amountOut > 0n &&
+                candidate.path.join('>') !== best.path.join('>'),
+        )
+        .sort((a, b) => (b.amountOut > a.amountOut ? 1 : -1))
+        .slice(0, ALTERNATIVES_SHOWN);
+
     const impact = await (async (): Promise<number | null> => {
         const probeIn = request.amountIn / 10_000n;
 
@@ -594,6 +631,7 @@ export const quoteSwap = async (request: {
         approval,
         kind,
         estimated: estimate !== null,
+        alternatives,
     };
 };
 

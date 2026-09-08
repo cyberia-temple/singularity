@@ -17,6 +17,13 @@ import { analytics, errorCode } from '@/lib/analytics';
 import { KNOWN_TOKENS } from '@/lib/cyberiaTokens';
 import { CYBERIA_CHAIN_ID } from '@/lib/evmChains';
 import {
+    MARKET_RANGES,
+    autoRangeKey,
+    buildCandles,
+    marketRange,
+} from '@/lib/marketCandles';
+import type { MarketCandle, MarketHistory } from '@/lib/marketCandles';
+import {
     SWAP_GAS_CAP,
     WRAP_GAS_CAP,
     forgetPoolEdges,
@@ -40,7 +47,13 @@ import type {
     WrapQuote,
 } from '@/lib/wallet';
 import { fetchCrosschainConfig, routerChainId } from '@/lib/wallet/crosschain';
+import { dailyBoardCached } from '@/lib/wallet/daily';
+import type { DailyBoard } from '@/lib/wallet/daily';
 import { formatUsd, shortAddress, usdValue } from '@/lib/wallet/format';
+import {
+    loadRouteHistory,
+    resolveMarketRoute,
+} from '@/lib/wallet/marketHistory';
 import {
     announceWalletEvent,
     playWalletSound,
@@ -62,9 +75,12 @@ import { walletMessages } from '@/lib/walletMessages';
  * setting; a wrap is one for one, forever, and says exactly that instead of
  * showing three numbers that would all read 100%.
  *
- * There is no chart. The wallet holds point-in-time quotes and nothing else,
- * so a curve here would be invented — the DEX is one link away and has the
- * history to draw one honestly.
+ * There is a chart now, and it is the pair's own: the strip above the form is
+ * this trade's route replayed out of the pools' `Sync` events, base priced in
+ * quote, which is the only history that exists for a market with no book. It is
+ * loaded after the quote and never before it — the route the chart draws has to
+ * be the route the trade would take — and a pair whose pools this browser
+ * cannot read draws nothing rather than a flat line.
  */
 
 const props = defineProps<{
@@ -87,6 +103,10 @@ const emit = defineEmits<{
     back: [];
     pick: [chain: WalletChainId];
     swapped: [];
+    /** The markets list, for the chart this pair's own strip is not. */
+    markets: [];
+    /** The daily board, from the one line of it this screen shows. */
+    daily: [];
 }>();
 
 const { locale, t } = useLocale(walletMessages);
@@ -421,11 +441,14 @@ const options = computed(() => {
 });
 
 /** Symbols along the route, so a three-hop trade is visible as one. */
-const routeSymbols = computed(() => {
-    if (quote.value === null) {
-        return [];
-    }
-
+/**
+ * Contract → ticker, for reading a route as assets.
+ *
+ * The wrapped native keeps its own name rather than borrowing the coin's: the
+ * route really does walk through the wrapper, and a path that said CYBER where
+ * WCYBER is would be describing a pool that does not exist.
+ */
+const knownSymbols = computed(() => {
     const known = new Map<string, string>();
 
     known.set(
@@ -441,10 +464,20 @@ const routeSymbols = computed(() => {
         known.set(token.address.toLowerCase(), token.symbol);
     }
 
-    return quote.value.path.map(
-        (address) => known.get(address.toLowerCase()) ?? shortAddress(address),
-    );
+    return known;
 });
+
+/** One path as tickers. Every route on the screen is read through this. */
+const symbolsOf = (path: readonly string[]): string[] =>
+    path.map(
+        (address) =>
+            knownSymbols.value.get(address.toLowerCase()) ??
+            shortAddress(address),
+    );
+
+const routeSymbols = computed(() =>
+    quote.value === null ? [] : symbolsOf(quote.value.path),
+);
 
 /** Price of one paid unit in the received asset, from the quote itself. */
 const rate = computed(() => {
@@ -1110,6 +1143,363 @@ const retryRouter = async (): Promise<void> => {
     }
 };
 
+/* ------------------------------------------------------- the day's board -- */
+
+/**
+ * What today pays, for the one line of it this screen shows.
+ *
+ * Read from a short-lived cache rather than requested per visit: opening the
+ * composer from a launch row must not wait on a board, and the answer is the
+ * same for the whole page. A failure is `null` and the banner simply does not
+ * draw — a swap screen is never held up by a streak.
+ */
+const daily = ref<DailyBoard | null>(null);
+
+const swapXp = computed<number | null>(() => {
+    const paid = daily.value?.xpPerAction?.swap;
+
+    return typeof paid === 'number' && paid > 0 ? paid : null;
+});
+
+const streakChip = computed<string | null>(() => {
+    const standing = daily.value?.standing ?? null;
+
+    if (daily.value === null) {
+        return null;
+    }
+
+    return standing === null
+        ? t('dailyStreakNone')
+        : t('dailyStreakDays', { days: standing.currentStreak });
+});
+
+/**
+ * The sentence beside it, and it is three different sentences.
+ *
+ * A wallet with no account is told what a swap *would* pay rather than that it
+ * is losing something; an account that has not been counted today is told the
+ * trade counts; one already counted is told the truth, which is that the day
+ * pays once and the XP for the trade is separate.
+ */
+const dailyNote = computed<string | null>(() => {
+    const board = daily.value;
+    const paid = swapXp.value;
+
+    if (board === null || paid === null) {
+        return null;
+    }
+
+    if (!board.signedIn || board.standing === null) {
+        return t('swapDailyAnon', { xp: paid });
+    }
+
+    return board.standing.activeToday
+        ? t('swapDailyKept', { xp: paid })
+        : t('swapDailyOpen', { xp: paid });
+});
+
+/* -------------------------------------------------------------- history -- */
+
+/**
+ * The pair's own price history, replayed from the route's pools.
+ *
+ * Keyed on the *quote's* path rather than on the two picked assets: the path is
+ * what the trade actually walks, native already mapped to its wrapper, so the
+ * strip and the trade can never be drawn from two different routes. A pair the
+ * pool graph does not connect has no history and the card does not appear.
+ */
+const history = ref<MarketHistory | null>(null);
+const historyLoading = ref(false);
+const rangeKey = ref<string>('7D');
+/** Set the moment the reader picks a range, so the loader stops overruling it. */
+const rangePinned = ref(false);
+const adv = ref(false);
+
+const nowSec = (): number => Math.floor(Date.now() / 1_000);
+
+let historyRun = 0;
+let historyAbort: AbortController | null = null;
+
+const pairKey = computed<string | null>(() => {
+    const current = quote.value;
+
+    if (mode.value !== 'swap' || current === null || current.path.length < 2) {
+        return null;
+    }
+
+    return [
+        current.chainId,
+        current.path[0].toLowerCase(),
+        current.path[current.path.length - 1].toLowerCase(),
+    ].join(':');
+});
+
+const loadHistory = async (): Promise<void> => {
+    const config = dex.value;
+    const current = quote.value;
+
+    if (!config || current === null || current.path.length < 2) {
+        return;
+    }
+
+    const run = ++historyRun;
+    historyAbort?.abort();
+    const controller = new AbortController();
+    historyAbort = controller;
+    historyLoading.value = true;
+
+    try {
+        const route = await resolveMarketRoute(
+            config,
+            current.path[0],
+            current.path[current.path.length - 1],
+        );
+
+        if (run !== historyRun || route === null) {
+            if (run === historyRun) {
+                history.value = null;
+            }
+
+            return;
+        }
+
+        const loaded = await loadRouteHistory(
+            config,
+            route.hops,
+            controller.signal,
+        );
+
+        if (run !== historyRun) {
+            return;
+        }
+
+        history.value = loaded;
+
+        // Open on a window that actually has movement in it. A pair that
+        // traded twice last month has nothing to show on a 24h strip, and a
+        // flat line is a claim about the price rather than about the data.
+        if (!rangePinned.value && loaded.observations.length > 0) {
+            rangeKey.value = autoRangeKey(loaded, nowSec());
+        }
+    } catch {
+        if (run === historyRun) {
+            history.value = null;
+        }
+    } finally {
+        if (run === historyRun) {
+            historyLoading.value = false;
+        }
+    }
+};
+
+watch(pairKey, (next, previous) => {
+    if (next === previous) {
+        return;
+    }
+
+    historyRun++;
+    historyAbort?.abort();
+    history.value = null;
+    historyLoading.value = false;
+
+    if (next !== null) {
+        void loadHistory();
+    }
+});
+
+const candles = computed<MarketCandle[]>(() => {
+    const loaded = history.value;
+
+    if (loaded === null || loaded.observations.length === 0) {
+        return [];
+    }
+
+    const range = marketRange(rangeKey.value);
+    const toSec = nowSec();
+
+    return buildCandles(loaded, {
+        fromSec:
+            range.windowSec === null
+                ? loaded.observations[0].ts
+                : toSec - range.windowSec,
+        toSec,
+        bucketSec: range.bucketSec,
+    });
+});
+
+/** One drawn candle, in percentages of the strip's own box. */
+type MiniBar = {
+    x: number;
+    width: number;
+    mid: number;
+    bodyTop: number;
+    bodyHeight: number;
+    wickTop: number;
+    wickHeight: number;
+    up: boolean;
+};
+
+/**
+ * The strip, as percentages rather than pixels.
+ *
+ * Hand-drawn and not the charting library: at 92px tall an axis, a crosshair
+ * and a legend are illegible, and the library would be loaded to draw forty
+ * rectangles. The full chart, where those controls have room, is the markets
+ * screen's job.
+ */
+const miniBars = computed<MiniBar[]>(() => {
+    const rows = candles.value;
+
+    if (rows.length === 0) {
+        return [];
+    }
+
+    let low = Infinity;
+    let high = -Infinity;
+
+    for (const candle of rows) {
+        low = Math.min(low, candle.low);
+        high = Math.max(high, candle.high);
+    }
+
+    // A pair that never moved has no span to scale by; it is drawn as a line
+    // through the middle rather than divided by zero.
+    const span = high - low > 0 ? high - low : 0;
+    const slot = 100 / rows.length;
+    const width = Math.max(slot * 0.62, 0.3);
+    const y = (value: number): number =>
+        span === 0 ? 50 : ((high - value) / span) * 100;
+
+    return rows.map((candle, index) => {
+        const x = index * slot + (slot - width) / 2;
+        const top = y(Math.max(candle.open, candle.close));
+        const bottom = y(Math.min(candle.open, candle.close));
+        const wickTop = y(candle.high);
+
+        return {
+            x,
+            width,
+            mid: x + width / 2,
+            bodyTop: top,
+            // Two percent of 92px is about two device pixels: a doji has to
+            // stay visible as a mark rather than thin out into the grid.
+            bodyHeight: Math.max(bottom - top, 2),
+            wickTop,
+            wickHeight: Math.max(y(candle.low) - wickTop, 1),
+            up: candle.close >= candle.open,
+        };
+    });
+});
+
+/** Move over the drawn window, in percent, or null when there is none. */
+const historyChangePct = computed<number | null>(() => {
+    const rows = candles.value;
+
+    if (rows.length < 2 || rows[0].open <= 0) {
+        return null;
+    }
+
+    return ((rows[rows.length - 1].close - rows[0].open) / rows[0].open) * 100;
+});
+
+/** What the strip is a strip of: the network and how far the route walks. */
+const venueLine = computed(() => {
+    const hops = Math.max((quote.value?.path.length ?? 2) - 1, 1);
+
+    return t('swapVenue', { chain: chain.value.label, hops });
+});
+
+/* --------------------------------------------------------- alternatives -- */
+
+/**
+ * The routes this trade was chosen over, priced in the output asset.
+ *
+ * They cost nothing — the quote priced every candidate and kept the losers —
+ * and they are the only way the screen can say "this is the best of several"
+ * instead of asserting one path as though it were the only one there is.
+ */
+const alternatives = computed(() => {
+    const current = quote.value;
+    const asset = receiveAsset.value;
+
+    if (current === null || asset === null) {
+        return [];
+    }
+
+    return current.alternatives.map((route) => ({
+        key: route.path.join('>'),
+        symbols: symbolsOf(route.path),
+        out: formatUnits(route.amountOut, asset.decimals, 6),
+        /** How much worse than the winner, in percent. */
+        worsePct:
+            current.amountOut > 0n
+                ? Number(
+                      ((current.amountOut - route.amountOut) * 10_000n) /
+                          current.amountOut,
+                  ) / 100
+                : null,
+    }));
+});
+
+/* --------------------------------------------------------------- lines --- */
+
+/** "1 CYBER ≈ 0.42 USDC", the one number a trader reads first. */
+const rateLine = computed(() => {
+    if (mode.value === 'wrap') {
+        return `1 ${payAsset.value.symbol} = 1 ${receiveAsset.value?.symbol ?? ''}`;
+    }
+
+    if (rate.value === null || receiveAsset.value === null) {
+        return '—';
+    }
+
+    return `1 ${payAsset.value.symbol} ≈ ${rate.value.toLocaleString(
+        locale.value,
+        { maximumSignificantDigits: 6 },
+    )} ${receiveAsset.value.symbol}`;
+});
+
+/** The inverse, which is the same fact read from the other side of the trade. */
+const inverseLine = computed(() => {
+    if (
+        rate.value === null ||
+        rate.value === 0 ||
+        receiveAsset.value === null
+    ) {
+        return '—';
+    }
+
+    return `1 ${receiveAsset.value.symbol} ≈ ${(1 / rate.value).toLocaleString(
+        locale.value,
+        { maximumSignificantDigits: 6 },
+    )} ${payAsset.value.symbol}`;
+});
+
+/** Fee and impact in one line under the form, where a summary belongs. */
+const summaryLine = computed(() => {
+    const cost =
+        fee.value === null
+            ? '—'
+            : `${formatUnits(fee.value, chain.value.decimals, 6)} ${chain.value.symbol}`;
+
+    return mode.value === 'wrap' || impact.value === null
+        ? t('swapSummaryFee', { fee: cost })
+        : t('swapSummary', { fee: cost, impact: impact.value.toFixed(2) });
+});
+
+const assetKind = (asset: SwapAsset | null): string =>
+    asset === null
+        ? ''
+        : asset.address === null
+          ? t('swapKindCoin', { chain: chain.value.label })
+          : t('swapKindToken', { chain: chain.value.label });
+
+onMounted(() => {
+    void dailyBoardCached().then((board) => {
+        daily.value = board;
+    });
+});
+
 watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
 </script>
 
@@ -1117,20 +1507,44 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
     <div v-if="account" class="cw-stack cw-screen">
         <!-- ------------------------------------------------------ compose --- -->
         <template v-if="phase !== 'status'">
-            <div class="cw-row" style="margin-bottom: 20px">
-                <button type="button" class="cw-back" @click="emit('back')">
-                    ← {{ t('back') }}
+            <button type="button" class="cw-back" @click="emit('back')">
+                ← {{ t('back') }}
+            </button>
+
+            <!--
+              The screen names itself and says what it is for, the way the rest
+              of the wallet's places do. The link out is Markets and not a
+              chart: the strip below is this *pair*, and the full charts are
+              per asset against the dollar — two different questions, and a
+              button that pretended otherwise would open the wrong one.
+            -->
+            <div
+                style="
+                    display: flex;
+                    align-items: baseline;
+                    justify-content: space-between;
+                    gap: 12px;
+                    margin: 22px 0 6px;
+                "
+            >
+                <h2 class="cw-title" style="margin: 0">{{ t('swapTitle') }}</h2>
+                <button
+                    type="button"
+                    class="cw-back"
+                    style="flex: none; color: var(--cw-accent)"
+                    @click="emit('markets')"
+                >
+                    {{ t('markets') }} →
                 </button>
-                <span style="font: 500 12px/1 var(--cw-sans)">{{
-                    t('swapTitle')
-                }}</span>
-                <span style="width: 44px"></span>
+            </div>
+            <div class="cw-label" style="color: var(--cw-dim)">
+                {{ t('swapEyebrow') }}
             </div>
 
             <div
                 v-if="tradable.length > 1"
                 class="cw-seg"
-                style="margin-bottom: 16px"
+                style="margin: 16px 0"
             >
                 <button
                     v-for="candidate in tradable"
@@ -1154,11 +1568,6 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
             </div>
 
             <!--
-              No exchange on this network is a fact about the network, not a
-              failure of the screen: it says which ones do have one instead of
-              drawing a form that cannot quote anything.
-            -->
-            <!--
               No Cyberia exchange here. That used to end the screen; now it only
               decides who routes the trade. The old dead end survives for the
               case it was actually right about — a chain nobody routes at all.
@@ -1174,7 +1583,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
               states that is a fact about the network rather than about us.
             -->
             <template v-else-if="!dex && routerUnreachable">
-                <p class="cw-note cw-note-warn">
+                <p class="cw-note cw-note-warn" style="margin-top: 16px">
                     <span style="flex: 1">{{ t('swapRouterDown') }}</span>
                     <button
                         type="button"
@@ -1187,7 +1596,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
             </template>
 
             <template v-else-if="!dex">
-                <p class="cw-note cw-note-warn">
+                <p class="cw-note cw-note-warn" style="margin-top: 16px">
                     <span>{{ t('swapNoDex', { chain: chain.label }) }}</span>
                 </p>
                 <button
@@ -1203,7 +1612,24 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
             </template>
 
             <template v-else>
-                <div class="cw-seg" style="margin-bottom: 20px">
+                <!--
+                  What this trade is worth beyond the trade. It is one line and
+                  it links rather than explains: the board it comes from is a
+                  screen of its own, and a swap composer is not the place to
+                  argue about experience points.
+                -->
+                <button
+                    v-if="dailyNote"
+                    type="button"
+                    class="cw-streak"
+                    @click="emit('daily')"
+                >
+                    <span class="cw-streak-chip">{{ streakChip }}</span>
+                    <span class="cw-streak-text">{{ dailyNote }}</span>
+                    <span class="cw-streak-go">→</span>
+                </button>
+
+                <div class="cw-seg" style="margin-bottom: 16px">
                     <button
                         type="button"
                         class="cw-seg-item"
@@ -1265,75 +1691,231 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                     }}</span>
                 </p>
 
-                <!-- Pay -->
-                <div class="cw-label" style="margin-bottom: 8px">
-                    {{ t('swapPay') }}
+                <!--
+                  The pair's own history, replayed out of the pools this trade
+                  would walk. It appears only once there is one: a pair whose
+                  pools have never traded draws nothing, because a flat line is
+                  a claim about the price rather than about the data.
+                -->
+                <div
+                    v-if="
+                        mode === 'swap' &&
+                        (historyLoading || miniBars.length > 0)
+                    "
+                    class="cw-card"
+                    style="padding: 13px 14px 10px; margin-bottom: 12px"
+                >
+                    <div class="cw-row" style="align-items: baseline">
+                        <span style="min-width: 0">
+                            <span
+                                style="
+                                    display: block;
+                                    font: 600 14px/1 var(--cw-sans);
+                                "
+                                >{{ payAsset.symbol }} /
+                                {{ receiveAsset?.symbol ?? '—' }}</span
+                            >
+                            <span
+                                class="cw-label"
+                                style="
+                                    display: block;
+                                    margin-top: 6px;
+                                    font-size: 9px;
+                                    letter-spacing: 0.1em;
+                                "
+                                >{{ venueLine }}</span
+                            >
+                        </span>
+                        <span style="flex: none; text-align: right">
+                            <span
+                                style="
+                                    display: block;
+                                    font: 500 17px/1 var(--cw-mono);
+                                    color: var(--cw-bright);
+                                "
+                                >{{
+                                    rate === null
+                                        ? '—'
+                                        : rate.toLocaleString(locale, {
+                                              maximumSignificantDigits: 6,
+                                          })
+                                }}</span
+                            >
+                            <span
+                                v-if="historyChangePct !== null"
+                                style="
+                                    display: block;
+                                    margin-top: 6px;
+                                    font: 400 10px/1 var(--cw-mono);
+                                "
+                                :style="{
+                                    color:
+                                        historyChangePct >= 0
+                                            ? 'var(--cw-ok)'
+                                            : 'var(--cw-bad-soft)',
+                                }"
+                                >{{ historyChangePct >= 0 ? '+' : ''
+                                }}{{ historyChangePct.toFixed(2) }}%</span
+                            >
+                        </span>
+                    </div>
+
+                    <div class="cw-mini">
+                        <p
+                            v-if="historyLoading && miniBars.length === 0"
+                            class="cw-mini-note"
+                        >
+                            {{ t('marketLoading') }}
+                        </p>
+                        <template v-else>
+                            <template
+                                v-for="(bar, index) in miniBars"
+                                :key="index"
+                            >
+                                <span
+                                    class="cw-mini-wick"
+                                    :style="{
+                                        left: `${bar.mid}%`,
+                                        top: `${bar.wickTop}%`,
+                                        height: `${bar.wickHeight}%`,
+                                        background: bar.up
+                                            ? 'var(--cw-ok)'
+                                            : 'var(--cw-bad)',
+                                    }"
+                                />
+                                <span
+                                    class="cw-mini-body"
+                                    :style="{
+                                        left: `${bar.x}%`,
+                                        width: `${bar.width}%`,
+                                        top: `${bar.bodyTop}%`,
+                                        height: `${bar.bodyHeight}%`,
+                                        background: bar.up
+                                            ? 'var(--cw-ok)'
+                                            : 'var(--cw-bad)',
+                                    }"
+                                />
+                            </template>
+                        </template>
+                    </div>
+
+                    <div class="cw-row">
+                        <div style="display: flex; gap: 2px">
+                            <button
+                                v-for="range in MARKET_RANGES"
+                                :key="range.key"
+                                type="button"
+                                class="cw-tf"
+                                :aria-pressed="rangeKey === range.key"
+                                @click="
+                                    rangeKey = range.key;
+                                    rangePinned = true;
+                                "
+                            >
+                                {{ range.label }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Pay -->
                 <div
                     class="cw-card"
-                    style="padding: 14px; border-radius: 4px"
+                    style="padding: 14px 15px"
                     :style="
                         shortfall !== null
                             ? { borderColor: 'var(--cw-bad)' }
-                            : { borderColor: 'var(--cw-border-soft)' }
+                            : undefined
                     "
                 >
+                    <div class="cw-row" style="margin-bottom: 10px">
+                        <span class="cw-label">{{ t('swapPay') }}</span>
+                        <span
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                flex: none;
+                            "
+                        >
+                            <span
+                                style="
+                                    font: 400 10px/1 var(--cw-mono);
+                                    color: var(--cw-dim);
+                                "
+                                >{{
+                                    payBalance === null
+                                        ? '—'
+                                        : formatUnits(
+                                              payBalance,
+                                              payAsset.decimals,
+                                              6,
+                                          )
+                                }}
+                                {{ payAsset.symbol }}</span
+                            >
+                            <button
+                                type="button"
+                                class="cw-ghost"
+                                style="
+                                    min-height: 28px;
+                                    padding: 0 8px;
+                                    border-color: transparent;
+                                    color: var(--cw-accent);
+                                "
+                                :disabled="
+                                    payBalance === null ||
+                                    (payAsset.address === null &&
+                                        gasPrice === null)
+                                "
+                                @click="setMax"
+                            >
+                                {{ t('max') }}
+                            </button>
+                        </span>
+                    </div>
+
                     <div style="display: flex; align-items: center; gap: 12px">
+                        <button
+                            type="button"
+                            class="cw-chip cw-chip-tight"
+                            :disabled="mode === 'wrap'"
+                            @click="picking = 'pay'"
+                        >
+                            <NetworkMark :chain="chain.id" dot :size="8" />
+                            <span style="min-width: 0">
+                                <span class="cw-chip-net">{{
+                                    payAsset.symbol
+                                }}</span>
+                                <span class="cw-chip-sub">{{
+                                    chain.label
+                                }}</span>
+                            </span>
+                            <span v-if="mode !== 'wrap'" class="cw-chip-chev"
+                                >⌄</span
+                            >
+                        </button>
                         <input
                             v-model="amount"
                             type="text"
                             inputmode="decimal"
                             placeholder="0.00"
                             :aria-label="t('amount')"
-                            style="
-                                flex: 1;
-                                min-width: 0;
-                                border: none;
-                                background: transparent;
-                                font: 500 26px/1 var(--cw-mono);
-                                color: var(--cw-text);
-                                outline: none;
-                                padding: 0;
-                            "
+                            class="cw-amount"
                         />
-                        <button
-                            type="button"
-                            class="cw-ghost"
-                            style="min-height: 32px"
-                            :disabled="mode === 'wrap'"
-                            @click="picking = 'pay'"
-                        >
-                            {{ payAsset.symbol }}
-                            <span v-if="mode !== 'wrap'">▾</span>
-                        </button>
-                        <button
-                            type="button"
-                            class="cw-ghost"
-                            style="
-                                min-height: 32px;
-                                border-color: var(--cw-accent);
-                                color: var(--cw-accent);
-                            "
-                            :disabled="
-                                payBalance === null ||
-                                (payAsset.address === null && gasPrice === null)
-                            "
-                            @click="setMax"
-                        >
-                            {{ t('max') }}
-                        </button>
                     </div>
-                    <div
-                        class="cw-row"
-                        style="
-                            margin-top: 12px;
-                            padding-top: 12px;
-                            border-top: 1px solid var(--cw-line);
-                        "
-                    >
+
+                    <div class="cw-row" style="margin-top: 9px">
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 400 9px/1 var(--cw-mono);
+                                color: var(--cw-faint);
+                            "
+                            >{{ assetKind(payAsset) }}</span
+                        >
+                        <span
+                            style="
+                                font: 400 10px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{
@@ -1347,99 +1929,92 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 )
                             }}</span
                         >
-                        <span
-                            style="
-                                font: 400 11px/1 var(--cw-mono);
-                                color: var(--cw-dim);
-                            "
-                            >{{ t('balanceShort') }}
-                            {{
-                                payBalance === null
-                                    ? '—'
-                                    : formatUnits(
-                                          payBalance,
-                                          payAsset.decimals,
-                                          6,
-                                      )
-                            }}
-                            {{ payAsset.symbol }}</span
-                        >
                     </div>
                 </div>
 
-                <div
-                    style="
-                        display: flex;
-                        justify-content: center;
-                        margin: 10px 0;
-                    "
-                >
+                <!--
+                  The flip sits *between* the two cards rather than under them:
+                  it is the one control that acts on both, and a gap with a
+                  button in it is how that reads without a label.
+                -->
+                <div class="cw-flip-row">
                     <button
                         type="button"
-                        class="cw-icon-btn"
+                        class="cw-flip"
                         :aria-label="t('swapFlip')"
                         @click="flip"
                     >
-                        <ArrowDownUp :size="15" aria-hidden="true" />
+                        <ArrowDownUp :size="14" aria-hidden="true" />
                     </button>
                 </div>
 
                 <!-- Receive -->
-                <div class="cw-label" style="margin-bottom: 8px">
-                    {{ t('swapReceive') }}
-                </div>
-                <div
-                    class="cw-card"
-                    style="
-                        padding: 14px;
-                        border-radius: 4px;
-                        border-color: var(--cw-border-soft);
-                    "
-                >
-                    <div style="display: flex; align-items: center; gap: 12px">
+                <div class="cw-card" style="padding: 14px 15px">
+                    <div class="cw-row" style="margin-bottom: 10px">
+                        <span class="cw-label">{{ t('swapReceive') }}</span>
                         <span
                             style="
-                                flex: 1;
-                                min-width: 0;
-                                overflow: hidden;
-                                text-overflow: ellipsis;
-                                font: 500 26px/1 var(--cw-mono);
-                                color: var(--cw-text);
+                                font: 400 10px/1 var(--cw-mono);
+                                color: var(--cw-dim);
+                                flex: none;
                             "
                             >{{
-                                receiveUnits === null || receiveAsset === null
-                                    ? quoting
-                                        ? '…'
-                                        : '0.00'
+                                balanceOf(receiveAsset) === null
+                                    ? '—'
                                     : formatUnits(
-                                          receiveUnits,
-                                          receiveAsset.decimals,
-                                          8,
+                                          balanceOf(receiveAsset)!,
+                                          receiveAsset?.decimals ?? 18,
+                                          6,
                                       )
-                            }}</span
+                            }}
+                            {{ receiveAsset?.symbol ?? '' }}</span
                         >
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px">
                         <button
                             type="button"
-                            class="cw-ghost"
-                            style="min-height: 32px"
+                            class="cw-chip cw-chip-tight"
                             :disabled="mode === 'wrap'"
                             @click="picking = 'receive'"
                         >
-                            {{ receiveAsset?.symbol ?? t('swapPick') }}
-                            <span v-if="mode !== 'wrap'">▾</span>
+                            <NetworkMark :chain="chain.id" dot :size="8" />
+                            <span style="min-width: 0">
+                                <span class="cw-chip-net">{{
+                                    receiveAsset?.symbol ?? t('swapPick')
+                                }}</span>
+                                <span class="cw-chip-sub">{{
+                                    chain.label
+                                }}</span>
+                            </span>
+                            <span v-if="mode !== 'wrap'" class="cw-chip-chev"
+                                >⌄</span
+                            >
                         </button>
+                        <span class="cw-amount cw-amount-out">{{
+                            receiveUnits === null || receiveAsset === null
+                                ? quoting
+                                    ? '…'
+                                    : '0.00'
+                                : formatUnits(
+                                      receiveUnits,
+                                      receiveAsset.decimals,
+                                      8,
+                                  )
+                        }}</span>
                     </div>
-                    <div
-                        class="cw-row"
-                        style="
-                            margin-top: 12px;
-                            padding-top: 12px;
-                            border-top: 1px solid var(--cw-line);
-                        "
-                    >
+
+                    <div class="cw-row" style="margin-top: 9px">
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 400 9px/1 var(--cw-mono);
+                                color: var(--cw-faint);
+                            "
+                            >{{ assetKind(receiveAsset) }}</span
+                        >
+                        <span
+                            style="
+                                font: 400 10px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{
@@ -1453,155 +2028,41 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 )
                             }}</span
                         >
-                        <span
-                            style="
-                                font: 400 11px/1 var(--cw-mono);
-                                color: var(--cw-dim);
-                            "
-                            >{{ t('balanceShort') }}
-                            {{
-                                balanceOf(receiveAsset) === null
-                                    ? '—'
-                                    : formatUnits(
-                                          balanceOf(receiveAsset)!,
-                                          receiveAsset?.decimals ?? 18,
-                                          6,
-                                      )
-                            }}</span
-                        >
                     </div>
                 </div>
 
-                <!-- Slippage: a swap has one, a wrap cannot have one. -->
-                <template v-if="mode === 'swap'">
-                    <div class="cw-row" style="margin: 22px 0 8px">
-                        <span class="cw-label">{{ t('swapSlippage') }}</span>
-                        <span
-                            style="
-                                font: 400 11px/1 var(--cw-mono);
-                                color: var(--cw-dim);
-                            "
-                            >{{ (slippageBps / 100).toFixed(2) }}%</span
-                        >
-                    </div>
-                    <div class="cw-seg">
-                        <button
-                            v-for="option in [10, 50, 100, 300]"
-                            :key="option"
-                            type="button"
-                            class="cw-seg-item"
-                            :aria-pressed="slippageBps === option"
-                            @click="slippageBps = option"
-                        >
-                            {{ (option / 100).toFixed(option < 100 ? 1 : 0) }}%
-                            <span
-                                class="cw-seg-bar"
-                                :style="{
-                                    background:
-                                        slippageBps === option
-                                            ? chain.mark.hue
-                                            : 'transparent',
-                                }"
-                            />
-                        </button>
-                    </div>
-                </template>
-
-                <!-- What the quote actually says -->
+                <!-- The rate on the left, what it costs on the right. -->
                 <div
-                    v-if="quote || wrapQuote"
+                    class="cw-row"
                     style="
-                        margin-top: 20px;
-                        border: 1px solid var(--cw-hairline);
+                        gap: 12px;
+                        padding: 12px 2px;
+                        align-items: flex-start;
                     "
                 >
-                    <div v-if="mode === 'wrap'" class="cw-kv">
-                        <span class="cw-kv-key">{{ t('swapRate') }}</span>
-                        <span class="cw-kv-val">1 : 1</span>
-                    </div>
-                    <template v-else>
-                        <div class="cw-kv">
-                            <span class="cw-kv-key">{{ t('swapRate') }}</span>
-                            <span class="cw-kv-val" style="font-weight: 400"
-                                >1 {{ payAsset.symbol }} ≈
-                                {{
-                                    rate === null
-                                        ? '—'
-                                        : rate.toLocaleString(locale, {
-                                              maximumSignificantDigits: 6,
-                                          })
-                                }}
-                                {{ receiveAsset?.symbol }}</span
-                            >
-                        </div>
-                        <div class="cw-kv">
-                            <span class="cw-kv-key">{{ t('swapMinOut') }}</span>
-                            <span class="cw-kv-val" style="font-weight: 400"
-                                >{{
-                                    quote && receiveAsset
-                                        ? formatUnits(
-                                              quote.minOut,
-                                              receiveAsset.decimals,
-                                              8,
-                                          )
-                                        : '—'
-                                }}
-                                {{ receiveAsset?.symbol }}</span
-                            >
-                        </div>
-                        <div class="cw-kv">
-                            <span class="cw-kv-key">{{ t('swapImpact') }}</span>
-                            <span
-                                class="cw-kv-val"
-                                style="font-weight: 400"
-                                :style="{
-                                    color: impactHigh
-                                        ? 'var(--cw-bad-soft)'
-                                        : undefined,
-                                }"
-                                >{{
-                                    impact === null
-                                        ? '—'
-                                        : `${impact.toFixed(2)}%`
-                                }}</span
-                            >
-                        </div>
-                        <div class="cw-kv">
-                            <span class="cw-kv-key">{{ t('swapRoute') }}</span>
-                            <span
-                                class="cw-kv-val"
-                                style="
-                                    font-weight: 400;
-                                    max-width: 240px;
-                                    overflow-wrap: anywhere;
-                                    text-align: right;
-                                "
-                                >{{ routeSymbols.join(' → ') }}</span
-                            >
-                        </div>
-                    </template>
-                    <div class="cw-kv">
-                        <span class="cw-kv-key">{{ t('kFee') }}</span>
-                        <span class="cw-kv-val" style="font-weight: 400"
-                            >{{
-                                fee === null
-                                    ? '—'
-                                    : formatUnits(fee, chain.decimals, 8)
-                            }}
-                            {{ chain.symbol }}</span
-                        >
-                    </div>
+                    <span
+                        style="
+                            font: 400 11px/1.4 var(--cw-mono);
+                            color: var(--cw-muted);
+                        "
+                        >{{ rateLine }}</span
+                    >
+                    <span
+                        style="
+                            font: 400 10px/1.4 var(--cw-mono);
+                            color: var(--cw-faint);
+                            text-align: right;
+                            flex: none;
+                        "
+                        >{{ summaryLine }}</span
+                    >
                 </div>
 
                 <!--
                   An allowance is a second transaction and the user's coin pays
                   for it. It is said before the hold, not discovered after it.
                 -->
-                <p
-                    v-if="quote?.approval"
-                    class="cw-note"
-                    style="margin-top: 12px"
-                >
+                <p v-if="quote?.approval" class="cw-note">
                     <span>{{
                         t(
                             quote.approval.reset
@@ -1699,9 +2160,9 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
 
                 <div
                     style="
-                        margin-top: 20px;
+                        margin-top: 14px;
                         padding: 14px 16px;
-                        border: 1px solid #1b2126;
+                        border: 1px solid var(--cw-line-strong);
                         background: var(--cw-surface);
                     "
                 >
@@ -1723,16 +2184,272 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                     </p>
                 </div>
 
-                <div class="cw-fill" style="min-height: 20px"></div>
                 <button
                     type="button"
-                    class="cw-btn cw-btn-primary"
-                    style="margin-top: 18px"
+                    class="cw-btn cw-btn-primary cw-btn-tall"
+                    style="margin-top: 16px"
                     :disabled="!ready || quoting"
                     @click="review()"
                 >
                     {{ quoting ? t('swapQuoting') : t('swapReview') }}
                 </button>
+
+                <div
+                    v-if="mode === 'swap' && swapXp !== null"
+                    style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        padding: 11px 0 4px;
+                    "
+                >
+                    <span
+                        style="
+                            font: 500 10px/1 var(--cw-mono);
+                            letter-spacing: 0.14em;
+                            color: var(--cw-accent);
+                        "
+                        >+{{ swapXp }} XP</span
+                    >
+                    <span
+                        style="
+                            font: 400 10px/1 var(--cw-mono);
+                            color: var(--cw-dim);
+                        "
+                        >·</span
+                    >
+                    <span
+                        style="
+                            font: 400 11px/1.4 var(--cw-sans);
+                            color: var(--cw-muted);
+                        "
+                        >{{ t('swapXpNote') }}</span
+                    >
+                </div>
+
+                <!--
+                  Everything a trade has that a trade does not need to be made.
+                  Folded away by default and not removed: the route, the routes
+                  it beat, the slippage and the floor are the four things
+                  somebody argues with afterwards, so they are all here and all
+                  reading the same quote.
+                -->
+                <button
+                    type="button"
+                    class="cw-adv"
+                    :aria-expanded="adv"
+                    @click="adv = !adv"
+                >
+                    <span>{{ t('swapAdvanced') }}</span>
+                    <span>{{ adv ? '−' : '+' }}</span>
+                </button>
+
+                <template v-if="adv">
+                    <div
+                        v-if="mode === 'swap'"
+                        class="cw-card"
+                        style="margin-top: 8px; padding: 0"
+                    >
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{ t('swapRoute') }}</span>
+                            <span
+                                class="cw-kv-val"
+                                style="
+                                    font-weight: 400;
+                                    max-width: 220px;
+                                    overflow-wrap: anywhere;
+                                    text-align: right;
+                                "
+                                >{{ routeSymbols.join(' → ') }}</span
+                            >
+                        </div>
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{ t('swapMinOut') }}</span>
+                            <span class="cw-kv-val" style="font-weight: 400"
+                                >{{
+                                    quote && receiveAsset
+                                        ? formatUnits(
+                                              quote.minOut,
+                                              receiveAsset.decimals,
+                                              8,
+                                          )
+                                        : '—'
+                                }}
+                                {{ receiveAsset?.symbol }}</span
+                            >
+                        </div>
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{ t('swapImpact') }}</span>
+                            <span
+                                class="cw-kv-val"
+                                style="font-weight: 400"
+                                :style="{
+                                    color: impactHigh
+                                        ? 'var(--cw-bad-soft)'
+                                        : undefined,
+                                }"
+                                >{{
+                                    impact === null
+                                        ? '—'
+                                        : `${impact.toFixed(2)}%`
+                                }}</span
+                            >
+                        </div>
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{
+                                t('swapInverse')
+                            }}</span>
+                            <span
+                                class="cw-kv-val"
+                                style="font-weight: 400; color: var(--cw-muted)"
+                                >{{ inverseLine }}</span
+                            >
+                        </div>
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{ t('kFee') }}</span>
+                            <span class="cw-kv-val" style="font-weight: 400"
+                                >{{
+                                    fee === null
+                                        ? '—'
+                                        : formatUnits(fee, chain.decimals, 8)
+                                }}
+                                {{ chain.symbol }}</span
+                            >
+                        </div>
+                    </div>
+
+                    <!--
+                      What the route beat. These were priced by the same search
+                      and thrown away; showing them is the only way this screen
+                      can say "the best of several" rather than assert one path.
+                    -->
+                    <template v-if="mode === 'swap' && alternatives.length > 0">
+                        <div
+                            class="cw-label"
+                            style="margin: 18px 0 9px; color: var(--cw-dim)"
+                        >
+                            {{ t('swapAlternatives') }}
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                gap: 7px;
+                            "
+                        >
+                            <div
+                                v-for="route in alternatives"
+                                :key="route.key"
+                                class="cw-card"
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 11px;
+                                    padding: 12px 14px;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0">
+                                    <span
+                                        style="
+                                            display: block;
+                                            font: 500 11px/1.4 var(--cw-mono);
+                                            overflow-wrap: anywhere;
+                                        "
+                                        >{{ route.symbols.join(' → ') }}</span
+                                    >
+                                    <span
+                                        v-if="route.worsePct !== null"
+                                        style="
+                                            display: block;
+                                            margin-top: 5px;
+                                            font: 400 10px/1 var(--cw-mono);
+                                            color: var(--cw-dim);
+                                        "
+                                        >{{
+                                            t('swapWorseBy', {
+                                                pct: route.worsePct.toFixed(2),
+                                            })
+                                        }}</span
+                                    >
+                                </span>
+                                <span
+                                    style="
+                                        flex: none;
+                                        font: 400 11px/1 var(--cw-mono);
+                                        color: var(--cw-body);
+                                    "
+                                    >{{ route.out }}</span
+                                >
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Slippage: a swap has one, a wrap cannot have one. -->
+                    <template v-if="mode === 'swap'">
+                        <div class="cw-row" style="margin: 18px 0 8px">
+                            <span class="cw-label">{{
+                                t('swapSlippage')
+                            }}</span>
+                            <span
+                                style="
+                                    font: 400 11px/1 var(--cw-mono);
+                                    color: var(--cw-dim);
+                                "
+                                >{{ (slippageBps / 100).toFixed(2) }}%</span
+                            >
+                        </div>
+                        <div class="cw-seg">
+                            <button
+                                v-for="option in [10, 50, 100, 300]"
+                                :key="option"
+                                type="button"
+                                class="cw-seg-item"
+                                :aria-pressed="slippageBps === option"
+                                @click="slippageBps = option"
+                            >
+                                {{
+                                    (option / 100).toFixed(
+                                        option < 100 ? 1 : 0,
+                                    )
+                                }}%
+                                <span
+                                    class="cw-seg-bar"
+                                    :style="{
+                                        background:
+                                            slippageBps === option
+                                                ? chain.mark.hue
+                                                : 'transparent',
+                                    }"
+                                />
+                            </button>
+                        </div>
+                    </template>
+
+                    <div
+                        v-else
+                        class="cw-card"
+                        style="margin-top: 8px; padding: 0"
+                    >
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{ t('swapRate') }}</span>
+                            <span class="cw-kv-val">1 : 1</span>
+                        </div>
+                        <div class="cw-kv">
+                            <span class="cw-kv-key">{{ t('kFee') }}</span>
+                            <span class="cw-kv-val" style="font-weight: 400"
+                                >{{
+                                    fee === null
+                                        ? '—'
+                                        : formatUnits(fee, chain.decimals, 8)
+                                }}
+                                {{ chain.symbol }}</span
+                            >
+                        </div>
+                    </div>
+                </template>
+
+                <div class="cw-fill" style="min-height: 12px"></div>
             </template>
         </template>
 
