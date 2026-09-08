@@ -234,7 +234,7 @@ export const walletMessages: Messages = {
         networksTileHint: '120 shipped · plus your own',
         networksTitle: 'Networks',
         networksBody:
-            'Your seed already holds an account on every EVM network here — the same key and the same address. What a switch changes is whether the portfolio draws that network and reads its balance, which is why they start off rather than on.',
+            'Your seed already holds an account on every EVM network here — the same key and the same address. A switch decides only whether the portfolio draws that network and reads its balance. Some arrive on and most arrive off; that is a starting position, not a ranking.',
         networksOnLabel: 'Switched on',
         networksOnCount: '{on} of {total}',
         networksCost:
@@ -243,10 +243,8 @@ export const walletMessages: Messages = {
         networksFilterAll: 'All',
         networksFilterOn: 'On',
         networksFilterIndexed: 'With token index',
-        networksBuiltinHeading: 'Ships switched on',
-        networksCatalogueHeading: 'Shipped, checked, off by default',
         networksCustomHeading: 'Added by you',
-        networksAlwaysOn: 'Always on',
+        networksHome: 'Home chain',
         networksChainId: 'chain {id}',
         networksIndexed: 'balances · tokens · history',
         networksNoIndex: 'balances only · no keyless index here',
@@ -779,7 +777,7 @@ export const walletMessages: Messages = {
             'Which screens are used and whether actions succeed. Never your seed phrase, keys, password, addresses or amounts.',
         analyticsBlocked: 'Off — your browser asks sites not to track you',
         networksSection: 'Networks',
-        builtinNetworks: 'Built-in networks',
+        vettedEndpoints: 'Endpoints we checked',
         verified: 'Verified',
         removeNetwork: 'Remove',
         removeNetworkHint:
@@ -1632,7 +1630,7 @@ export const walletMessages: Messages = {
         networksTileHint: '120 готовых · плюс свои',
         networksTitle: 'Сети',
         networksBody:
-            'Ваша сид-фраза уже держит счёт в каждой из этих EVM-сетей — тот же ключ и тот же адрес. Переключатель меняет только одно: рисует ли портфель эту сеть и читает ли её баланс. Поэтому по умолчанию они выключены.',
+            'Ваша сид-фраза уже держит счёт в каждой из этих EVM-сетей — тот же ключ и тот же адрес. Переключатель меняет только одно: рисует ли портфель эту сеть и читает ли её баланс. Часть включена изначально, большинство выключено — это начальное положение переключателя, а не ранг.',
         networksOnLabel: 'Включено',
         networksOnCount: '{on} из {total}',
         networksCost:
@@ -1641,10 +1639,8 @@ export const walletMessages: Messages = {
         networksFilterAll: 'Все',
         networksFilterOn: 'Включённые',
         networksFilterIndexed: 'С индексом токенов',
-        networksBuiltinHeading: 'Включены изначально',
-        networksCatalogueHeading: 'Проверены и выключены по умолчанию',
         networksCustomHeading: 'Добавлены вами',
-        networksAlwaysOn: 'Всегда',
+        networksHome: 'Домашняя сеть',
         networksChainId: 'chain {id}',
         networksIndexed: 'балансы · токены · история',
         networksNoIndex: 'только балансы · индекса без ключа здесь нет',
@@ -2168,7 +2164,7 @@ export const walletMessages: Messages = {
             'Какими экранами пользуются и удаются ли действия. Никогда — сид-фраза, ключи, пароль, адреса и суммы.',
         analyticsBlocked: 'Выключено — браузер просит сайты не отслеживать вас',
         networksSection: 'Сети',
-        builtinNetworks: 'Встроенные сети',
+        vettedEndpoints: 'Эндпоинты, которые мы проверили',
         verified: 'Проверено',
         removeNetwork: 'Убрать',
         removeNetworkHint:
@@ -3006,7 +3002,7 @@ export const walletMessages: Messages = {
         networksTileHint: '内置 120 条 · 外加自定义',
         networksTitle: '网络',
         networksBody:
-            '您的助记词已经在这里的每一条 EVM 网络上持有账户——同一把密钥、同一个地址。开关改变的只是钱包是否显示该网络并读取其余额，因此它们默认关闭。',
+            '您的助记词已经在这里的每一条 EVM 网络上持有账户——同一把密钥、同一个地址。开关只决定钱包是否显示该网络并读取余额。少数默认开启、多数默认关闭，这是开关的初始位置，不是高低之分。',
         networksOnLabel: '已开启',
         networksOnCount: '{total} 条中的 {on} 条',
         networksCost:
@@ -3015,10 +3011,8 @@ export const walletMessages: Messages = {
         networksFilterAll: '全部',
         networksFilterOn: '已开启',
         networksFilterIndexed: '含代币索引',
-        networksBuiltinHeading: '默认开启',
-        networksCatalogueHeading: '已核验，默认关闭',
         networksCustomHeading: '您添加的',
-        networksAlwaysOn: '常开',
+        networksHome: '主链',
         networksChainId: 'chain {id}',
         networksIndexed: '余额 · 代币 · 历史',
         networksNoIndex: '仅余额 · 此处没有免密钥索引',
@@ -3515,7 +3509,7 @@ export const walletMessages: Messages = {
             '记录使用了哪些界面以及操作是否成功。绝不包含助记词、私钥、密码、地址或金额。',
         analyticsBlocked: '已关闭 — 你的浏览器要求网站不要追踪你',
         networksSection: '网络',
-        builtinNetworks: '内置网络',
+        vettedEndpoints: '我们核验过的端点',
         verified: '已验证',
         removeNetwork: '移除',
         removeNetworkHint:

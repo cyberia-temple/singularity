@@ -200,7 +200,9 @@ export { evmChatKey, keySource, seedSource } from '@/lib/wallet/keys';
 export type { WalletKeySource } from '@/lib/wallet/keys';
 export {
     EVM_CONTRACT_SEND_GAS_CAP,
-    WALLET_CHAINS,
+    HOME_CHAIN,
+    shippedChains,
+    setShippedWalletChains,
     WALLET_FAMILY_GROUPS,
     WALLET_FEE_TIERS,
     formatUnits,
@@ -247,11 +249,11 @@ export {
     catalogueNetwork,
     catalogueWalletChain,
     catalogueWalletChains,
-    readEnabledNetworks,
+    readNetworkChoices,
     searchCatalogue,
-    writeEnabledNetworks,
+    writeNetworkChoices,
 } from '@/lib/wallet/catalogue';
-export type { CatalogueNetwork } from '@/lib/wallet/catalogue';
+export type { CatalogueNetwork, NetworkChoices } from '@/lib/wallet/catalogue';
 export type { UtxoAddressType } from '@/lib/wallet/utxo';
 export {
     ERC20_TRANSFER_GAS_CAP,

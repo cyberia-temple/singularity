@@ -7,15 +7,15 @@ import {
     catalogueWalletChain,
     catalogueWalletChains,
     deriveAccounts,
-    readEnabledNetworks,
+    readNetworkChoices,
     searchCatalogue,
     seedFromMnemonic,
     seedSource,
     setCatalogueWalletChains,
     walletChains,
-    writeEnabledNetworks,
+    writeNetworkChoices,
 } from '@/lib/wallet';
-import { WALLET_CHAINS } from '@/lib/wallet/chains';
+import { shippedChains } from '@/lib/wallet/chains';
 
 /**
  * The catalogue makes one promise per row and no more: this chain id is real,
@@ -43,10 +43,10 @@ test('the catalogue is a hundred networks and more', () => {
 test('nothing in the catalogue collides with anything else', () => {
     const ids = new Set();
     const chainIds = new Set();
-    const tags = new Set(WALLET_CHAINS.map((chain) => chain.mark.tag));
-    const builtinIds = new Set(WALLET_CHAINS.map((chain) => chain.id));
+    const tags = new Set(shippedChains().map((chain) => chain.mark.tag));
+    const shippedIds = new Set(shippedChains().map((chain) => chain.id));
     const builtinChainIds = new Set(
-        WALLET_CHAINS.map((chain) => chain.chainId).filter(
+        shippedChains().map((chain) => chain.chainId).filter(
             (id) => id !== undefined,
         ),
     );
@@ -54,7 +54,7 @@ test('nothing in the catalogue collides with anything else', () => {
     for (const network of NETWORK_CATALOGUE) {
         assert.ok(!ids.has(network.id), `duplicate id ${network.id}`);
         assert.ok(
-            !builtinIds.has(network.id),
+            !shippedIds.has(network.id),
             `${network.id} shadows a built-in network`,
         );
         assert.ok(
@@ -115,14 +115,14 @@ test('every endpoint is one a browser can actually reach', () => {
 
 test('a catalogue network is the same account as a built-in one', () => {
     const source = seedSource(seedFromMnemonic(PHRASE), 0);
-    const builtin = WALLET_CHAINS.find((chain) => chain.id === 'cyberia');
+    const home = shippedChains().find((chain) => chain.id === 'cyberia');
     const arbitrum = catalogueWalletChain(catalogueNetwork('arbitrum-one'));
 
     // The whole reason switching a network on cannot lose money: coin type 60
     // is one key, and every EVM chain in this wallet shows the same string.
-    assert.equal(arbitrum.derive(source), builtin.derive(source));
+    assert.equal(arbitrum.derive(source), home.derive(source));
     assert.equal(arbitrum.family, 'evm');
-    assert.equal(arbitrum.path(0), builtin.path(0));
+    assert.equal(arbitrum.path(0), home.path(0));
     assert.equal(arbitrum.chainId, 42161);
     assert.equal(arbitrum.decimals, 18);
 });
@@ -224,7 +224,7 @@ test('the catalogue is searched by the three things people have', () => {
     assert.equal(searchCatalogue('  ').length, NETWORK_CATALOGUE.length);
 });
 
-test('the stored choice survives a reload and forgets what it cannot use', () => {
+test('only the choices that differ from the default are stored', () => {
     const store = new Map();
 
     globalThis.window = {
@@ -236,20 +236,28 @@ test('the stored choice survives a reload and forgets what it cannot use', () =>
     };
 
     try {
-        writeEnabledNetworks(['arbitrum-one', 'polygon']);
-        assert.deepEqual(readEnabledNetworks(), ['arbitrum-one', 'polygon']);
+        // Deviations, in both directions: one network switched on that arrives
+        // off, one switched off that arrives on. A stored list of "what is on"
+        // could not have said the second thing.
+        writeNetworkChoices({ 'arbitrum-one': true, bnb: false });
+        assert.deepEqual(readNetworkChoices(), {
+            'arbitrum-one': true,
+            bnb: false,
+        });
 
-        // A network dropped from a later build must not come back as a card
-        // that can never load — the id is simply no longer in the catalogue.
+        // The key this replaced held the catalogue ids that were on, which is
+        // exactly a set of deviations from a default of off — so an existing
+        // wallet opens on the networks it closed on, with nobody asked.
+        store.delete('cyberia.wallet.networks.v2');
         store.set(
             'cyberia.wallet.catalogue.v1',
             JSON.stringify(['arbitrum-one', 'a-chain-that-was-removed']),
         );
-        assert.deepEqual(readEnabledNetworks(), ['arbitrum-one']);
+        assert.deepEqual(readNetworkChoices(), { 'arbitrum-one': true });
 
         // A corrupt list is a settings problem, never a funds problem.
-        store.set('cyberia.wallet.catalogue.v1', '{not json');
-        assert.deepEqual(readEnabledNetworks(), []);
+        store.set('cyberia.wallet.networks.v2', '{not json');
+        assert.deepEqual(readNetworkChoices(), {});
     } finally {
         delete globalThis.window;
     }
@@ -273,7 +281,7 @@ test('switching a network on adds an account and never touches the others', () =
     assert.equal(deriveAccounts(PHRASE).length, before);
     assert.equal(
         walletChains().length,
-        WALLET_CHAINS.length,
+        shippedChains().length,
         'building an adapter must not register it',
     );
 });

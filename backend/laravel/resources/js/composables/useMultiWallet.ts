@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { nftChain } from '@/lib/nftChains';
 import {
+    NETWORK_CATALOGUE,
     PRIMARY_ACCOUNT_ID,
     catalogueWalletChains,
     chatPublicKey,
@@ -25,7 +26,7 @@ import {
     mergeTokens,
     phraseAccountId,
     readCustomNetworks,
-    readEnabledNetworks,
+    readNetworkChoices,
     readManualTokens,
     sameToken,
     saveVault,
@@ -33,6 +34,9 @@ import {
     seedFromMnemonic,
     seedSource,
     setCatalogueWalletChains,
+    setShippedWalletChains,
+    shippedChains,
+    HOME_CHAIN,
     setCustomWalletChains,
     unsealVault,
     validateCustomNetwork,
@@ -41,7 +45,7 @@ import {
     withToken,
     withoutToken,
     writeCustomNetworks,
-    writeEnabledNetworks,
+    writeNetworkChoices,
     writeManualTokens,
 } from '@/lib/wallet';
 import type {
@@ -50,6 +54,7 @@ import type {
     CustomNetwork,
     CustomNetworkProblem,
     ManualToken,
+    NetworkChoices,
     OpenedVault,
     VaultContents,
     WalletAccount,
@@ -134,6 +139,9 @@ const customNetworks = ref<CustomNetwork[]>([]);
  * same set the portfolio drew.
  */
 const enabledNetworks = ref<WalletChainId[]>([]);
+
+/** What this device decided about individual networks; defaults are absent. */
+const networkChoices = ref<NetworkChoices>({});
 let enabledLoaded = false;
 const accounts = ref<WalletAccount[]>([]);
 const accountRecords = ref<WalletAccountRecord[]>([]);
@@ -306,8 +314,31 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
      */
     const syncEnabledNetworks = (ids: WalletChainId[]): void => {
         enabledNetworks.value = ids;
+        setShippedWalletChains(
+            shippedChains().filter(
+                (chain) => chain.id === HOME_CHAIN || ids.includes(chain.id),
+            ),
+        );
         setCatalogueWalletChains(catalogueWalletChains(ids));
         load();
+    };
+
+    /**
+     * Every network currently on, from the defaults and what this device chose
+     * about them. Cyberia is added whatever the storage says: it is the chain
+     * the wallet is for, and a wallet with no Cyberia card is not a state worth
+     * being able to reach by mistake.
+     */
+    const networksFromChoices = (choices: NetworkChoices): WalletChainId[] => {
+        const on = shippedChains()
+            .map((chain) => chain.id)
+            .filter((id) => choices[id] !== false);
+
+        const fromCatalogue = NETWORK_CATALOGUE.map(
+            (network) => network.id,
+        ).filter((id) => choices[id] === true);
+
+        return [...new Set([HOME_CHAIN, ...on, ...fromCatalogue])];
     };
 
     if (customNetworks.value.length === 0) {
@@ -319,7 +350,8 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     // re-reading storage on every call would undo that on the next render.
     if (!enabledLoaded) {
         enabledLoaded = true;
-        syncEnabledNetworks(readEnabledNetworks());
+        networkChoices.value = readNetworkChoices();
+        syncEnabledNetworks(networksFromChoices(networkChoices.value));
     }
 
     if (manualTokens.value.length === 0) {
@@ -354,22 +386,39 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
      * is a choice and not a default.
      */
     const enableNetwork = (id: WalletChainId): void => {
-        if (enabledNetworks.value.includes(id)) {
+        setNetwork(id, true);
+    };
+
+    /** Switch a network off. Removes a card, never an account. */
+    const disableNetwork = (id: WalletChainId): void => {
+        setNetwork(id, false);
+    };
+
+    /**
+     * One switch for every network, shipped or catalogue alike.
+     *
+     * Only the deviation from the default is written down — a shipped network
+     * switched back on stops being a stored choice — so a wallet that never
+     * touches this screen keeps whatever the build ships, and a later shipped
+     * network reaches it too. Cyberia has no switch and silently ignores one.
+     */
+    const setNetwork = (id: WalletChainId, on: boolean): void => {
+        if (id === HOME_CHAIN) {
             return;
         }
 
-        const next = [...enabledNetworks.value, id];
-        writeEnabledNetworks(next);
-        syncEnabledNetworks(next);
-    };
+        const shipped = shippedChains().some((chain) => chain.id === id);
+        const next = { ...networkChoices.value };
 
-    /** Switch a shipped network off. Removes a card, never an account. */
-    const disableNetwork = (id: WalletChainId): void => {
-        const next = enabledNetworks.value.filter(
-            (candidate) => candidate !== id,
-        );
-        writeEnabledNetworks(next);
-        syncEnabledNetworks(next);
+        if (on === shipped) {
+            delete next[id];
+        } else {
+            next[id] = on;
+        }
+
+        networkChoices.value = next;
+        writeNetworkChoices(next);
+        syncEnabledNetworks(networksFromChoices(next));
     };
 
     /**
@@ -677,7 +726,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         // Which of the shipped networks were switched on is the same kind of
         // record — it says which chains this person uses — and it comes back
         // from the catalogue in one tap.
-        writeEnabledNetworks([]);
+        writeNetworkChoices({});
         syncEnabledNetworks([]);
         writeManualTokens([]);
         manualTokens.value = [];
@@ -1458,6 +1507,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         enabledNetworks: computed(() => enabledNetworks.value),
         enableNetwork,
         disableNetwork,
+        setNetwork,
         tokens: computed(() => tokens.value),
         manualTokens: computed(() => manualTokens.value),
         /** The quote for one asset — the native coin when `token` is null. */

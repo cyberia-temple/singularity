@@ -4,29 +4,40 @@ import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import {
+    HOME_CHAIN,
     NETWORK_CATALOGUE,
     catalogueMark,
-    searchCatalogue,
+    shippedChains,
 } from '@/lib/wallet';
-import type { CatalogueNetwork, WalletChainId } from '@/lib/wallet';
+import type { WalletChainId, WalletMark } from '@/lib/wallet';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
- * The network list: what the wallet ships knowing, and which of it is on.
+ * The network list: everything this wallet knows how to reach, and which of it
+ * is on.
+ *
+ * One list, because there is one kind of network. The screen used to open with
+ * eight cards marked "always on" and then a hundred and twenty rows with
+ * switches underneath, which drew a hierarchy that does not exist: a network we
+ * happened to ship switched on is made by the same factory, read through the
+ * same adapters and signed with the same key as one somebody switches on today.
+ * What ships on is a default about how many balances a refresh should read —
+ * 120 cards reading 120 balances is not a portfolio, it is a load test — and a
+ * default belongs in the switch's starting position, not in a separate tier.
+ *
+ * Cyberia is the exception and the only one: it is the chain this wallet is
+ * for, so it sits first and has no switch.
  *
  * The seed derives an account on every one of these already — that is what
- * BIP-44 coin type 60 means — so nothing on this screen creates or destroys an
- * account. What a switch changes is whether the portfolio draws a card for the
- * network and reads its balance on every refresh, which is exactly why it is a
- * switch: 120 cards reading 120 balances is not a portfolio, it is a load test.
+ * BIP-44 coin type 60 means — so nothing here creates or destroys an account.
+ * Every row states what that network can actually do rather than implying it:
+ * balances and sending are true everywhere, tokens and history need a keyless
+ * index that about a third of them have, and the rest say so in the row instead
+ * of showing an empty list later.
  *
- * Every row states what that network can actually do here rather than implying
- * it. Balances and sending are true everywhere — same key, verified RPC. Tokens
- * and history need a keyless index, which about a third of the catalogue has,
- * and the rest say so in the row instead of showing an empty list later.
- *
- * Three groups, in the order the trust runs out: what ships on, what this
- * project checked and shipped off, and what the user typed in themselves.
+ * The one group still kept apart is the networks the user typed in themselves,
+ * and that is not rank either — nobody vetted the endpoint, and every screen
+ * that draws one says so.
  */
 
 const props = defineProps<{
@@ -53,36 +64,96 @@ const FILTERS: { id: Filter; label: () => string }[] = [
 
 const enabled = computed(() => props.wallet.enabledNetworks.value);
 
-const isOn = (network: CatalogueNetwork): boolean =>
-    enabled.value.includes(network.id);
+type Row = {
+    id: WalletChainId;
+    label: string;
+    symbol: string;
+    /** Only the catalogue needs one: its marks are derived, not registered. */
+    mark?: WalletMark;
+    chainId: number | null;
+    indexed: boolean;
+    explorer: boolean;
+    on: boolean;
+    /** The home chain, which has no switch. */
+    home: boolean;
+};
 
-/** The networks that ship switched on — every wallet has these on day one. */
-const builtin = computed(() =>
-    props.wallet.accounts.value.filter(
-        (account) =>
-            !account.custom &&
-            !NETWORK_CATALOGUE.some((network) => network.id === account.chain),
-    ),
-);
+/**
+ * Every network, from both places it can come from, as one kind of row.
+ *
+ * Cyberia first because it is the exception; everything after it alphabetical,
+ * which is the one order that is visibly not a ranking. Registry order would
+ * have put the shipped eight on top again by accident.
+ */
+const all = computed<Row[]>(() => {
+    const on = enabled.value;
+
+    const shipped = shippedChains().map<Row>((chain) => ({
+        id: chain.id,
+        label: chain.label,
+        symbol: chain.symbol,
+        chainId: chain.chainId ?? null,
+        indexed: chain.readToken !== undefined,
+        explorer: chain.explorerTxUrl('0x0') !== null,
+        on: on.includes(chain.id),
+        home: chain.id === HOME_CHAIN,
+    }));
+
+    const catalogue = NETWORK_CATALOGUE.map<Row>((network) => ({
+        id: network.id,
+        label: network.label,
+        symbol: network.symbol,
+        mark: catalogueMark(network),
+        chainId: network.chainId,
+        indexed: network.blockscout !== undefined,
+        explorer: network.explorer !== null,
+        on: on.includes(network.id),
+        home: false,
+    }));
+
+    return [...shipped, ...catalogue].sort((a, b) => {
+        if (a.home !== b.home) {
+            return a.home ? -1 : 1;
+        }
+
+        return a.label.localeCompare(b.label);
+    });
+});
 
 const rows = computed(() => {
-    const matched = searchCatalogue(query.value);
+    const term = query.value.trim().toLowerCase();
 
-    return filter.value === 'on'
-        ? matched.filter(isOn)
-        : filter.value === 'indexed'
-          ? matched.filter((network) => network.blockscout !== undefined)
-          : matched;
+    return all.value.filter((row) => {
+        if (filter.value === 'on' && !row.on) {
+            return false;
+        }
+
+        if (filter.value === 'indexed' && !row.indexed) {
+            return false;
+        }
+
+        return (
+            term === '' ||
+            row.label.toLowerCase().includes(term) ||
+            row.symbol.toLowerCase().includes(term) ||
+            String(row.chainId ?? '').includes(term)
+        );
+    });
 });
+
+const onCount = computed(() => all.value.filter((row) => row.on).length);
 
 /** Networks the user described themselves, listed so they can be removed. */
 const custom = computed(() => props.wallet.customNetworks.value);
 
-const toggle = (network: CatalogueNetwork): void => {
-    if (isOn(network)) {
-        props.wallet.disableNetwork(network.id);
-    } else {
-        props.wallet.enableNetwork(network.id);
+const toggle = (row: Row): void => {
+    if (row.home) {
+        return;
+    }
+
+    props.wallet.setNetwork(row.id, !row.on);
+
+    if (!row.on) {
         // A network switched on has never been read: ask for its balance now
         // rather than leaving a card that says nothing until the next refresh.
         void props.wallet.refreshBalances();
@@ -90,12 +161,12 @@ const toggle = (network: CatalogueNetwork): void => {
 };
 
 /** What a row promises, in one line, and never more than is true. */
-const capabilityOf = (network: CatalogueNetwork): string =>
-    network.blockscout !== undefined
+const capabilityOf = (row: Row): string =>
+    row.indexed
         ? t('networksIndexed')
-        : network.explorer === null
-          ? t('networksNoExplorer')
-          : t('networksNoIndex');
+        : row.explorer
+          ? t('networksNoIndex')
+          : t('networksNoExplorer');
 </script>
 
 <template>
@@ -112,12 +183,7 @@ const capabilityOf = (network: CatalogueNetwork): string =>
         <div class="cw-card" style="margin-top: 18px; padding: 14px 16px">
             <div class="cw-label">{{ t('networksOnLabel') }}</div>
             <div class="cw-total" style="margin-top: 8px; font-size: 26px">
-                {{
-                    t('networksOnCount', {
-                        on: enabled.length + builtin.length,
-                        total: NETWORK_CATALOGUE.length + builtin.length,
-                    })
-                }}
+                {{ t('networksOnCount', { on: onCount, total: all.length }) }}
             </div>
             <p
                 class="cw-prose"
@@ -127,78 +193,11 @@ const capabilityOf = (network: CatalogueNetwork): string =>
             </p>
         </div>
 
-        <!-- Ships on: one address, and the networks nobody has to go find. -->
-        <div class="cw-group" style="margin-top: 24px">
-            <span
-                class="cw-label"
-                style="
-                    font-size: 9px;
-                    letter-spacing: 0.2em;
-                    color: var(--cw-faint);
-                "
-                >{{ t('networksBuiltinHeading') }}</span
-            >
-        </div>
-
-        <div class="cw-stack" style="gap: 8px; margin-top: 8px">
-            <button
-                v-for="account in builtin"
-                :key="account.chain"
-                type="button"
-                class="cw-card cw-card-button"
-                @click="emit('open', account.chain)"
-            >
-                <div style="display: flex; align-items: center; gap: 12px">
-                    <NetworkMark :chain="account.chain" :size="28" />
-                    <span style="flex: 1; min-width: 0; text-align: left">
-                        <span
-                            style="
-                                display: block;
-                                font: 500 13px/1.2 var(--cw-sans);
-                            "
-                            >{{ account.label }}</span
-                        >
-                        <span
-                            style="
-                                display: block;
-                                margin-top: 2px;
-                                font: 400 10px/1.4 var(--cw-mono);
-                                color: var(--cw-dim);
-                            "
-                            >{{ account.symbol }}</span
-                        >
-                    </span>
-                    <span
-                        style="
-                            font: 400 10px/1 var(--cw-mono);
-                            letter-spacing: 0.08em;
-                            color: var(--cw-muted);
-                            text-transform: uppercase;
-                        "
-                        >{{ t('networksAlwaysOn') }}</span
-                    >
-                </div>
-            </button>
-        </div>
-
-        <!-- The catalogue: shipped, checked, and off until somebody wants it. -->
-        <div class="cw-group" style="margin-top: 26px">
-            <span
-                class="cw-label"
-                style="
-                    font-size: 9px;
-                    letter-spacing: 0.2em;
-                    color: var(--cw-faint);
-                "
-                >{{ t('networksCatalogueHeading') }}</span
-            >
-        </div>
-
         <input
             v-model="query"
             type="search"
             class="cw-input"
-            style="margin-top: 10px"
+            style="margin-top: 18px"
             :placeholder="t('networksSearch')"
             :aria-label="t('networksSearch')"
         />
@@ -223,26 +222,41 @@ const capabilityOf = (network: CatalogueNetwork): string =>
             </button>
         </div>
 
+        <!--
+          One row per network, and the same row for every one of them. The
+          switch is the only thing that differs, and only for Cyberia, which
+          does not have one.
+        -->
         <div class="cw-stack" style="gap: 8px; margin-top: 12px">
             <div
-                v-for="network in rows"
-                :key="network.id"
+                v-for="row in rows"
+                :key="row.id"
                 class="cw-card"
                 style="padding: 11px 14px"
             >
                 <div style="display: flex; align-items: center; gap: 12px">
-                    <NetworkMark
-                        :chain="network.id"
-                        :mark="catalogueMark(network)"
-                        :size="28"
-                    />
-                    <span style="flex: 1; min-width: 0">
+                    <NetworkMark :chain="row.id" :mark="row.mark" :size="28" />
+                    <button
+                        type="button"
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            border: 0;
+                            background: none;
+                            padding: 0;
+                            text-align: left;
+                            cursor: pointer;
+                        "
+                        :disabled="!row.on"
+                        @click="row.on && emit('open', row.id)"
+                    >
                         <span
                             style="
                                 display: block;
                                 font: 500 13px/1.2 var(--cw-sans);
+                                color: var(--cw-text);
                             "
-                            >{{ network.label }}</span
+                            >{{ row.label }}</span
                         >
                         <span
                             style="
@@ -251,27 +265,40 @@ const capabilityOf = (network: CatalogueNetwork): string =>
                                 font: 400 10px/1.4 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
-                            >{{ network.symbol }} ·
-                            {{ t('networksChainId', { id: network.chainId }) }}
-                            · {{ capabilityOf(network) }}</span
+                            >{{ row.symbol
+                            }}<template v-if="row.chainId !== null">
+                                ·
+                                {{
+                                    t('networksChainId', { id: row.chainId })
+                                }}</template
+                            >
+                            · {{ capabilityOf(row) }}</span
                         >
-                    </span>
+                    </button>
+
+                    <span
+                        v-if="row.home"
+                        class="cw-label"
+                        style="flex: none; color: var(--cw-accent)"
+                        >{{ t('networksHome') }}</span
+                    >
                     <button
+                        v-else
                         type="button"
                         class="cw-ghost"
-                        :aria-pressed="isOn(network)"
+                        :aria-pressed="row.on"
                         :style="
-                            isOn(network)
+                            row.on
                                 ? {
                                       borderColor: 'var(--cw-accent)',
                                       color: 'var(--cw-accent)',
                                   }
                                 : undefined
                         "
-                        @click="toggle(network)"
+                        @click="toggle(row)"
                     >
                         {{
-                            isOn(network)
+                            row.on
                                 ? t('networksSwitchOff')
                                 : t('networksSwitchOn')
                         }}

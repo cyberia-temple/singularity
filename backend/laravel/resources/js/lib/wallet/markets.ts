@@ -74,10 +74,11 @@ const EXCHANGE_SYMBOLS: Partial<Record<WalletChainId, string>> = {
 /**
  * The exchange symbol for a network's own coin, or null.
  *
- * Only the built-in networks are answered. A catalogue or user-added chain may
- * well have a listed coin, but nothing here has verified which — and a symbol
- * assembled from a ticker (`BINANCE:` + symbol + `USDT`) is exactly the guess
- * that renders blank.
+ * Only the networks in the table above are answered, and that table is short
+ * because each line was checked rather than because those chains are special.
+ * Any other network may well have a listed coin; nothing here has verified
+ * which, and a symbol assembled from a ticker (`BINANCE:` + symbol + `USDT`) is
+ * exactly the guess that renders blank.
  */
 export const exchangeSymbol = (chain: WalletChainId): string | null =>
     EXCHANGE_SYMBOLS[chain] ?? null;

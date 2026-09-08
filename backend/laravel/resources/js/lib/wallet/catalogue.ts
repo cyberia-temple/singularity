@@ -17,7 +17,7 @@ import type {
  * the RPC has to return this chain's own id to a request carrying a browser
  * `Origin` (a node that answers curl and refuses a page is a network the wallet
  * would show as permanently unreachable), and the index has to answer the same
- * `tokenlist` call the built-in chains use. That is why this file is generated
+ * `tokenlist` call the shipped chains use. That is why this file is generated
  * from probes and not typed out of a chain list.
  *
  * **Off by default, and that is the design.** A portfolio is the answer to
@@ -1217,7 +1217,10 @@ export const NETWORK_CATALOGUE: readonly CatalogueNetwork[] = [
     },
 ];
 
-const STORAGE_KEY = 'cyberia.wallet.catalogue.v1';
+const STORAGE_KEY = 'cyberia.wallet.networks.v2';
+
+/** What the key was called while only catalogue networks had a switch. */
+const LEGACY_KEY = 'cyberia.wallet.catalogue.v1';
 
 /** Catalogue entries by id, for the lookups the wallet does on every unlock. */
 const BY_ID = new Map(
@@ -1228,45 +1231,80 @@ export const catalogueNetwork = (id: WalletChainId): CatalogueNetwork | null =>
     BY_ID.get(id) ?? null;
 
 /**
- * Which catalogue networks this device has switched on.
+ * What this device has decided about each network, and only that.
  *
- * Ids that are no longer in the catalogue are dropped on read rather than
- * kept: a chain whose endpoint stopped answering is removed from the shipped
- * list, and a stored id pointing at nothing would otherwise become a network
- * card that can never load.
+ * Deviations rather than a list of what is on, because every network now has a
+ * default and the two kinds of default are the only thing separating a shipped
+ * network from a catalogue one: some arrive on, most arrive off, and a stored
+ * list of "what is on" would have quietly frozen that distinction into the
+ * saved state. A network absent from this map is at its default, which is also
+ * what makes a shipped list that grows later reach existing wallets.
  */
-export const readEnabledNetworks = (): WalletChainId[] => {
+export type NetworkChoices = Record<string, boolean>;
+
+export const readNetworkChoices = (): NetworkChoices => {
     if (typeof window === 'undefined') {
-        return [];
+        return {};
     }
 
     try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
-        const parsed: unknown = raw ? JSON.parse(raw) : [];
 
-        return Array.isArray(parsed)
-            ? parsed.filter(
-                  (id): id is string => typeof id === 'string' && BY_ID.has(id),
+        if (raw) {
+            const parsed: unknown = JSON.parse(raw);
+
+            if (
+                parsed &&
+                typeof parsed === 'object' &&
+                !Array.isArray(parsed)
+            ) {
+                return Object.fromEntries(
+                    Object.entries(parsed as Record<string, unknown>).filter(
+                        (entry): entry is [string, boolean] =>
+                            typeof entry[1] === 'boolean',
+                    ),
+                );
+            }
+        }
+
+        /*
+         * The old key held the catalogue ids that were switched on, which is
+         * exactly a set of deviations from a default of off — so it migrates
+         * without asking anybody anything, and the wallet opens on the same
+         * networks it closed on.
+         */
+        const legacy: unknown = JSON.parse(
+            window.localStorage.getItem(LEGACY_KEY) ?? '[]',
+        );
+
+        return Array.isArray(legacy)
+            ? Object.fromEntries(
+                  legacy
+                      .filter(
+                          (id): id is string =>
+                              typeof id === 'string' && BY_ID.has(id),
+                      )
+                      .map((id) => [id, true] as const),
               )
-            : [];
+            : {};
     } catch {
         // A corrupt list is a settings problem, never a funds problem: the
         // accounts are in the seed, and switching a network back on restores
         // the card exactly as it was.
-        return [];
+        return {};
     }
 };
 
-export const writeEnabledNetworks = (ids: readonly WalletChainId[]): void => {
+export const writeNetworkChoices = (choices: NetworkChoices): void => {
     if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(choices));
     }
 };
 
 /**
  * A catalogue entry as a wallet chain.
  *
- * Deliberately the *same* factory the built-in EVM networks are made with, and
+ * Deliberately the *same* factory every other EVM network is made with, and
  * that is the point: a network switched on here reads its balance, lists its
  * tokens, quotes its fees and signs its transfers through exactly the code
  * path Cyberia and Base do. The only thing that varies is what the entry
