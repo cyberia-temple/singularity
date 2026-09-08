@@ -282,8 +282,22 @@ class CrosschainRouter
             'recipient' => $request['recipient'],
             'amount' => (string) $request['amount'],
             'tradeType' => 'EXACT_INPUT',
-            'referrer' => (string) config('crosschain.referrer', ''),
         ];
+
+        /*
+         * No `referrer`, and that is not an oversight.
+         *
+         * Relay moved referrer attribution behind an API key: a quote carrying
+         * one now comes back `401 UNAUTHORIZED_QUOTE — "Please provide an api
+         * key"`, and it fails the *whole* quote rather than dropping the field.
+         * This host has no key, so every cross-chain quote it asked for was
+         * failing — the same request without the field is answered normally.
+         *
+         * `appFees` is unaffected and still needs no key, which is the half
+         * that matters: attribution is analytics on somebody else's dashboard,
+         * the fee is the money. Putting the referrer back means adding key
+         * auth, not re-adding the line.
+         */
 
         if (isset($request['slippageBps'])) {
             $body['slippageTolerance'] = (string) (int) $request['slippageBps'];

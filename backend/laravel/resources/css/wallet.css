@@ -454,7 +454,21 @@ html:has(.cw-page) {
     position: relative;
     display: flex;
     min-height: 640px;
+    /*
+     * `clip` and not `hidden`, with `hidden` left as the fallback for browsers
+     * that do not know it. Both clip identically; the difference is that
+     * `hidden` still creates a *scroll container*, and a container that scrolls
+     * is one `scrollIntoView` away from pushing its own chrome off the top —
+     * with no scrollbar and no gesture to bring it back, because nothing here
+     * is scrollable by hand.
+     *
+     * That was not hypothetical: the scan line below animates 120px of gradient
+     * down past the bottom edge, which by itself made `scrollHeight` exceed
+     * `clientHeight`, and any focus landing near the foot of a form scrolled
+     * the context bar and the masthead out of the frame for good.
+     */
     overflow: hidden;
+    overflow: clip;
     border: 1px solid var(--cw-border-soft);
     border-radius: 8px;
     background: var(--cw-app);

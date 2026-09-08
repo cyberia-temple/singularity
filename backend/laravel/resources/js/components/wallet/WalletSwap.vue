@@ -10,6 +10,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import GasSponsor from '@/components/wallet/GasSponsor.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
+import WalletRouteSwap from '@/components/wallet/WalletRouteSwap.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { analytics, errorCode } from '@/lib/analytics';
@@ -38,6 +39,7 @@ import type {
     WrapDirection,
     WrapQuote,
 } from '@/lib/wallet';
+import { fetchCrosschainConfig } from '@/lib/wallet/crosschain';
 import { formatUsd, shortAddress, usdValue } from '@/lib/wallet/format';
 import {
     announceWalletEvent,
@@ -125,6 +127,28 @@ const loadingAsset = ref(false);
 
 const chain = computed(() => walletChain(props.chain));
 
+/*
+ * A network with no Cyberia exchange is not a network with no trade.
+ *
+ * The screen used to stop at "we have not deployed here" — a fact about this
+ * project, offered as though it were a fact about the chain. BNB Chain has
+ * more liquidity than Cyberia ever will; what is missing is only *our* router.
+ * So the wallet asks the one it already asks for cross-chain swaps, and this
+ * flag is the whole difference: does that router serve this chain, or is there
+ * genuinely nothing to offer.
+ *
+ * Asked lazily and only when our own DEX is absent, because it is a network
+ * call and every chain that has our router has already answered the question.
+ */
+const routerChains = ref<number[] | null>(null);
+const routerAsked = ref(false);
+
+const routable = computed(
+    () =>
+        chain.value.chainId !== undefined &&
+        (routerChains.value ?? []).includes(chain.value.chainId),
+);
+
 const account = computed(() =>
     props.wallet.accounts.value.find(
         (candidate) => candidate.chain === props.chain,
@@ -137,9 +161,18 @@ const dex = computed(() =>
 );
 
 /** Networks this account can trade on — the only ones the picker offers. */
+/**
+ * Networks this account can trade on — the only ones the picker offers.
+ *
+ * "Can trade on" and not "has a Cyberia exchange on": with a router behind the
+ * screen the current network belongs in the strip too, or the picker offers
+ * two elsewheres while quoting a trade right here and nothing is marked.
+ */
 const tradable = computed(() =>
-    props.wallet.accounts.value.filter((candidate) =>
-        hasSwap(walletChain(candidate.chain).chainId),
+    props.wallet.accounts.value.filter(
+        (candidate) =>
+            hasSwap(walletChain(candidate.chain).chainId) ||
+            (candidate.chain === props.chain && routable.value),
     ),
 );
 
@@ -1004,6 +1037,36 @@ watch(mode, (next) => {
     }
 });
 
+/*
+ * One call, the first time this screen lands on a chain we do not serve, and
+ * never again — the answer is the same for every visitor and the config route
+ * is cached server-side anyway. A failure here is not an error state: it means
+ * the fallback is unavailable, which is exactly the old message.
+ */
+watch(
+    [() => props.chain, dex],
+    async () => {
+        if (dex.value || routerAsked.value) {
+            return;
+        }
+
+        routerAsked.value = true;
+
+        try {
+            const config = await fetchCrosschainConfig();
+
+            routerChains.value = config.enabled
+                ? config.chains
+                      .filter((row) => row.vm === 'evm')
+                      .map((row) => row.id)
+                : [];
+        } catch {
+            routerChains.value = [];
+        }
+    },
+    { immediate: true },
+);
+
 watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
 </script>
 
@@ -1052,7 +1115,18 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
               failure of the screen: it says which ones do have one instead of
               drawing a form that cannot quote anything.
             -->
-            <template v-if="!dex">
+            <!--
+              No Cyberia exchange here. That used to end the screen; now it only
+              decides who routes the trade. The old dead end survives for the
+              case it was actually right about — a chain nobody routes at all.
+            -->
+            <WalletRouteSwap
+                v-if="!dex && routable"
+                :wallet="wallet"
+                :chain="props.chain"
+            />
+
+            <template v-else-if="!dex">
                 <p class="cw-note cw-note-warn">
                     <span>{{ t('swapNoDex', { chain: chain.label }) }}</span>
                 </p>

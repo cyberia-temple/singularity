@@ -177,9 +177,19 @@ it('puts Cyberia’s fee into every quote it asks for', function () {
         return $request['appFees'] === [[
             'recipient' => CROSS_FEE_ADDRESS,
             'fee' => '75',
-        ]] && $request['referrer'] === 'cyberia.church'
-            && $request['tradeType'] === 'EXACT_INPUT';
+        ]] && $request['tradeType'] === 'EXACT_INPUT';
     });
+});
+
+it('sends no referrer, because one costs the whole quote', function () {
+    $this->postJson('/api/wallet/crosschain/quote', crossPayload())->assertOk();
+
+    // Relay put referrer attribution behind an API key and answers a quote
+    // carrying one with UNAUTHORIZED_QUOTE — it fails the quote rather than
+    // ignoring the field, so every swap this host asked for was failing. The
+    // fee needs no key and stays.
+    Http::assertSent(fn (Request $request) => ! str_ends_with($request->url(), '/quote')
+        || ! array_key_exists('referrer', $request->data()));
 });
 
 it('never takes the fee from the browser', function () {
@@ -193,10 +203,12 @@ it('never takes the fee from the browser', function () {
             return false;
         }
 
-        // Composed here from config, never read back from what was posted.
+        // Composed here from config, never read back from what was posted —
+        // and a referrer the browser supplies is dropped with everything else
+        // this host does not send.
         return $request['appFees'][0]['recipient'] === CROSS_FEE_ADDRESS
             && $request['appFees'][0]['fee'] === '75'
-            && $request['referrer'] === 'cyberia.church';
+            && ! array_key_exists('referrer', $request->data());
     });
 });
 
