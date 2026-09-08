@@ -55,6 +55,7 @@ import WalletTrackerPublish from '@/components/wallet/WalletTrackerPublish.vue';
 import { useLocale } from '@/composables/useLocale';
 import { useMultiWallet } from '@/composables/useMultiWallet';
 import { useWalletAuth } from '@/composables/useWalletAuth';
+import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { isNativeShell, nativeShell } from '@/lib/native';
 import {
@@ -126,6 +127,13 @@ const authenticated = computed(() => !!page.props.auth?.user);
 
 /** Inside the desktop or mobile app the wallet owns the whole window. */
 const native = isNativeShell();
+
+/*
+ * Light or dark. The attribute goes on the same element the tokens are defined
+ * on, so a screen never renders half-swapped: one element changes and every
+ * colour under it is already the other palette.
+ */
+const { scheme } = useWalletTheme();
 
 const desktop = useMediaQuery('(min-width: 1024px)');
 
@@ -941,23 +949,15 @@ watch(
 
     <div
         class="cw"
+        :data-cw-theme="scheme"
         :class="
             native
                 ? 'flex min-h-0 flex-1 flex-col p-3 sm:p-4'
-                : 'mx-auto max-w-[1400px] p-4 sm:p-6'
+                : 'cw-page flex flex-col p-4 sm:p-6'
         "
     >
         <!-- Masthead -->
-        <header
-            class="cw-masthead"
-            style="
-                display: flex;
-                align-items: flex-end;
-                gap: 20px;
-                flex-wrap: wrap;
-                margin-bottom: 24px;
-            "
-        >
+        <header class="cw-masthead">
             <div style="display: flex; align-items: center; gap: 12px">
                 <span
                     style="
@@ -987,21 +987,8 @@ watch(
                     >{{ t('wallet') }}</span
                 >
             </div>
-            <span
-                style="
-                    flex: 1;
-                    min-width: 40px;
-                    height: 1px;
-                    background: linear-gradient(
-                        90deg,
-                        var(--cw-border-soft),
-                        transparent
-                    );
-                "
-            />
-            <span class="cw-label" style="letter-spacing: 0.14em">{{
-                t('subtitle')
-            }}</span>
+            <span class="cw-masthead-rule" />
+            <span class="cw-label cw-masthead-tag">{{ t('subtitle') }}</span>
             <button type="button" class="cw-ghost" @click="toggleLocale">
                 <Languages :size="14" aria-hidden="true" />
                 {{ nextTag }}
@@ -1647,11 +1634,12 @@ watch(
             <div class="cw-scan" aria-hidden="true"></div>
         </div>
 
-        <p
-            v-if="!native"
-            class="cw-prose"
-            style="margin-top: 16px; max-width: 80ch"
-        >
+        <!--
+          What the wallet is, for somebody who has not made one yet. Under a
+          portfolio it is a paragraph explaining the thing you are already
+          holding, and on a phone it was the last 150px of the frame.
+        -->
+        <p v-if="!native && stage !== 'app'" class="cw-intro cw-prose">
             {{ t('intro') }}
         </p>
     </div>
