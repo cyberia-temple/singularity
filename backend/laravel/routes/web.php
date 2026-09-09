@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\SolanaStakingController;
 use App\Http\Controllers\Api\TgWhaleController;
 use App\Http\Controllers\Api\WalletAttachController;
 use App\Http\Controllers\Api\WalletChatController;
+use App\Http\Controllers\Api\WalletDailyController;
 use App\Http\Controllers\Api\WalletLainController;
 use App\Http\Controllers\Api\WalletSocialController;
 use App\Http\Controllers\ApiController;
@@ -339,6 +340,26 @@ Route::prefix('api/wallet/lain')->name('wallet.lain.')->group(function () {
         ->middleware('throttle:30,1')->name('verify');
     Route::post('chat', [WalletLainController::class, 'chat'])
         ->middleware('throttle:10,1')->name('chat');
+});
+
+/**
+ * The wallet's daily board (WalletDailyController).
+ *
+ * A web route and not an `/api` one, deliberately: this is the single wallet
+ * surface whose subject is an *account* rather than an address, so it needs the
+ * session `/api` does not carry. Experience, streaks and quests belong to the
+ * person the site already knows; keeping a second address-keyed ledger beside
+ * them would mean a swap paid XP the profile page had never heard of.
+ *
+ * The read answers signed out as well, with the half that is genuinely public
+ * — the quest catalogue, what a streak pays, the board the /leaderboard page
+ * has always shown. Only the check-in needs somebody to be standing there.
+ */
+Route::prefix('api/wallet/daily')->name('wallet.daily.')->group(function () {
+    Route::get('/', [WalletDailyController::class, 'show'])
+        ->middleware('throttle:60,1')->name('show');
+    Route::post('check-in', [WalletDailyController::class, 'checkIn'])
+        ->middleware('throttle:20,1')->name('check-in');
 });
 
 /**

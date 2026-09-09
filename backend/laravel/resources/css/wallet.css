@@ -93,6 +93,12 @@
     --cw-grid: rgba(255, 255, 255, 0.018);
     --cw-raster-ink: rgba(255, 255, 255, 0.05);
     --cw-scan-ink: rgba(47, 233, 224, 0.035);
+    /*
+     * The accent as a ground rather than as ink: for the one panel per screen
+     * that is an *offer* — take this, start here — which a plain card cannot
+     * say and a warning colour would say wrongly.
+     */
+    --cw-accent-tint: rgba(47, 233, 224, 0.05);
 
     /* State edges and washes, kept apart from the flat state colours above. */
     --cw-bad-line: rgba(255, 92, 104, 0.3);
@@ -209,6 +215,7 @@
     --cw-grid: rgba(0, 0, 0, 0.036);
     --cw-raster-ink: rgba(0, 0, 0, 0.1);
     --cw-scan-ink: rgba(11, 155, 147, 0.06);
+    --cw-accent-tint: rgba(11, 155, 147, 0.08);
 
     --cw-bad-line: rgba(206, 35, 49, 0.3);
     --cw-bad-line-strong: rgba(206, 35, 49, 0.45);
@@ -390,24 +397,23 @@ html[data-native-shell='desktop']
 }
 
 /*
- * On the site the wallet is an app inside a page, and the two disagree about
- * who scrolls.
+ * The wallet is an application and takes a frame, not a page — a browser tab
+ * included, which is where this was learned the hard way.
  *
  * A page scrolls as one document, so a shell that simply grew with its content
  * took the tab bar with it: the seven destinations sat at the bottom of the
  * *document*, and reaching them from a long portfolio meant scrolling past
  * everything first — the one control that exists so you never have to. The
- * native shells never had this, because `h-dvh` there gives the frame a
- * definite height and the wallet's own body does the scrolling.
+ * shells never had this, because `h-dvh` there gives the frame a definite
+ * height and the wallet's own body does the scrolling.
  *
- * So the browser gets the same frame. `Web3Layout` makes the wallet route
- * `h-dvh` and drops the footer; the height then arrives down the tree and this
- * rule only has to pass it on. Subtracting a header height here instead would
- * write that number in two files and be wrong in whichever one changed second —
- * and `dvh` is the layout's business anyway, since it is a mobile browser's
- * toolbars that make the viewport a moving target.
+ * `WalletFrameLayout` now gives every container that same `h-dvh`; the height
+ * arrives down the tree and this rule only has to pass it on. Nothing here
+ * subtracts a header, because there is no longer a header over the wallet in
+ * any container — a number like that would have been written in two files and
+ * wrong in whichever one changed second.
  */
-.cw-page {
+.cw-frame {
     min-height: 0;
     flex: 1;
 }
@@ -415,12 +421,12 @@ html[data-native-shell='desktop']
 /*
  * The ground goes edge to edge and the content is what is measured.
  *
- * Capping the page itself put a 1400px light panel on a black desk once the
- * wallet could be light — a seam under the site header that read as a rendering
- * fault rather than a margin. The surface now fills the window and each row
- * inside it keeps the measure.
+ * Capping the frame itself put a 1400px light panel on a black desk once the
+ * wallet could be light — a seam that read as a rendering fault rather than as
+ * a margin. The surface fills the window and each row inside it keeps the
+ * measure, on a wide desktop window as much as in a browser.
  */
-.cw-page > * {
+.cw-frame > * {
     width: 100%;
     max-width: 1400px;
     margin-inline: auto;
@@ -428,11 +434,11 @@ html[data-native-shell='desktop']
 
 /*
  * The site reserves a scrollbar gutter on `html` so a centred header does not
- * jump between a short page and a long one. This page never scrolls, so the
- * gutter is 15px of dead column — invisible while everything was dark, and a
- * black stripe down the side of a light wallet.
+ * jump between a short page and a long one. The wallet never scrolls as a
+ * document, so the gutter is 15px of dead column — invisible while everything
+ * was dark, and a black stripe down the side of a light wallet.
  */
-html:has(.cw-page) {
+html:has(.cw-frame) {
     scrollbar-gutter: auto;
 }
 
@@ -441,11 +447,11 @@ html:has(.cw-page) {
  * absorbs what is left. Without this the masthead and an error note shrink
  * first, because `flex: 0 1 auto` lets them.
  */
-.cw-page > :not(.cw-shell) {
+.cw-frame > :not(.cw-shell) {
     flex: none;
 }
 
-.cw-page .cw-shell {
+.cw-frame .cw-shell {
     flex: 1;
     min-height: 0;
 }
@@ -454,7 +460,21 @@ html:has(.cw-page) {
     position: relative;
     display: flex;
     min-height: 640px;
+    /*
+     * `clip` and not `hidden`, with `hidden` left as the fallback for browsers
+     * that do not know it. Both clip identically; the difference is that
+     * `hidden` still creates a *scroll container*, and a container that scrolls
+     * is one `scrollIntoView` away from pushing its own chrome off the top —
+     * with no scrollbar and no gesture to bring it back, because nothing here
+     * is scrollable by hand.
+     *
+     * That was not hypothetical: the scan line below animates 120px of gradient
+     * down past the bottom edge, which by itself made `scrollHeight` exceed
+     * `clientHeight`, and any focus landing near the foot of a form scrolled
+     * the context bar and the masthead out of the frame for good.
+     */
     overflow: hidden;
+    overflow: clip;
     border: 1px solid var(--cw-border-soft);
     border-radius: 8px;
     background: var(--cw-app);
@@ -1781,4 +1801,297 @@ html:has(.cw-page) {
     to {
         transform: rotate(360deg);
     }
+}
+
+/*
+ * The check-in strip.
+ *
+ * Seven boxes and a window on the current run rather than a calendar — see
+ * `streakStrip()` for why. Three states and only one of them is coloured: the
+ * day the button decides. Amber and not the accent, because a streak is a
+ * thing that can be *lost*, which is the family amber owns on this surface.
+ */
+.cw-days {
+    display: flex;
+    gap: 5px;
+    margin: 12px 0 13px;
+}
+
+.cw-day {
+    display: flex;
+    height: 42px;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid var(--cw-line);
+    background: var(--cw-panel);
+}
+
+.cw-day-kept {
+    border-color: var(--cw-pending-line);
+    background: var(--cw-pending-tint);
+}
+
+.cw-day-today {
+    border-color: var(--cw-pending);
+}
+
+.cw-day-n {
+    font: 400 9px/1 var(--cw-mono);
+    color: var(--cw-dim);
+}
+
+.cw-day-kept .cw-day-n,
+.cw-day-today .cw-day-n {
+    color: var(--cw-pending-soft);
+}
+
+.cw-day-mark {
+    font: 400 9px/1 var(--cw-mono);
+    color: var(--cw-faint);
+}
+
+.cw-day-today .cw-day-mark {
+    color: var(--cw-pending);
+}
+
+/*
+ * The board. Four columns, and the middle one is the only elastic one: a name
+ * is the field with no length, and rank, level and XP are all data that must
+ * stay in the same column down the whole list to be comparable at a glance.
+ */
+.cw-board-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--cw-line);
+}
+
+.cw-board-row:last-child {
+    border-bottom: none;
+}
+
+/*
+ * Where you are on it, which is the only reason to open a board at all.
+ *
+ * An edge and not only a wash: at five percent the wash is invisible on the
+ * dark palette, and a row nobody can find is the one thing this board must not
+ * be. The edge is drawn inside the padding so the row keeps its rhythm.
+ */
+.cw-board-you {
+    box-shadow: inset 2px 0 0 var(--cw-accent);
+    background: var(--cw-accent-tint);
+}
+
+.cw-board-you .cw-board-who {
+    color: var(--cw-bright);
+}
+
+.cw-board-n {
+    width: 24px;
+    flex: none;
+    font: 400 10px/1 var(--cw-mono);
+    color: var(--cw-dim);
+}
+
+.cw-board-who {
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    font: 500 12px/1.2 var(--cw-sans);
+    color: var(--cw-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cw-board-lvl {
+    flex: none;
+    font: 400 9px/1 var(--cw-mono);
+    letter-spacing: 0.12em;
+    color: var(--cw-faint);
+}
+
+.cw-board-xp {
+    flex: none;
+    font: 400 10px/1 var(--cw-mono);
+    color: var(--cw-accent);
+    text-align: right;
+}
+
+/*
+ * The swap composer.
+ *
+ * The two cards are one control with a seam, and the flip button sits *in* the
+ * seam: negative margins pull the row into both cards and a raised stacking
+ * context keeps it above their borders. Anything else — a button under the
+ * pair, a button beside it — reads as a third thing rather than as the hinge
+ * between two.
+ */
+.cw-flip-row {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    margin: -11px 0;
+}
+
+.cw-flip {
+    display: flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--cw-border-soft);
+    border-radius: 50%;
+    background: var(--cw-app);
+    color: var(--cw-accent);
+    cursor: pointer;
+}
+
+.cw-flip:hover {
+    border-color: var(--cw-accent);
+}
+
+/*
+ * The amount, and it is the largest thing on the screen on purpose: it is the
+ * number the whole form exists to set. Right-aligned so the digits line up
+ * with the output below them — two numbers that must be compared cannot be
+ * compared across a ragged edge.
+ */
+.cw-amount {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: 500 26px/1 var(--cw-sans);
+    color: var(--cw-bright);
+    text-align: right;
+    outline: none;
+}
+
+/* The output is quoted rather than typed, so it wears the accent. */
+.cw-amount-out {
+    display: flex;
+    overflow: hidden;
+    align-items: center;
+    justify-content: flex-end;
+    color: var(--cw-accent);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The primary action of a whole screen, one step taller than a button in a row. */
+.cw-btn-tall {
+    height: 56px;
+    font-size: 15px;
+}
+
+/*
+ * What a trade is worth beyond the trade. Amber because a streak is a thing
+ * that can be lost, which is the family amber owns on this surface — never the
+ * accent, which here means "this is the money".
+ */
+.cw-streak {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--cw-pending-line);
+    background: var(--cw-pending-tint);
+    cursor: pointer;
+    text-align: left;
+}
+
+.cw-streak:hover {
+    border-color: var(--cw-pending);
+}
+
+.cw-streak-chip {
+    flex: none;
+    font: 500 9px/1 var(--cw-mono);
+    letter-spacing: 0.16em;
+    color: var(--cw-pending);
+    text-transform: uppercase;
+}
+
+.cw-streak-text {
+    flex: 1;
+    min-width: 0;
+    font: 400 11px/1.35 var(--cw-sans);
+    color: var(--cw-body);
+}
+
+.cw-streak-go {
+    flex: none;
+    font: 400 11px/1 var(--cw-mono);
+    color: var(--cw-pending);
+}
+
+/*
+ * The pair's own strip: forty candles drawn as positioned rectangles rather
+ * than by the charting library. At 92px an axis and a crosshair are illegible,
+ * and loading a library to draw forty boxes is the trade nobody wanted.
+ */
+.cw-mini {
+    position: relative;
+    height: 92px;
+    margin: 12px 0 10px;
+}
+
+.cw-mini-wick {
+    position: absolute;
+    width: 1px;
+    opacity: 0.55;
+}
+
+.cw-mini-body {
+    position: absolute;
+}
+
+.cw-mini-note {
+    margin: 0;
+    font: 400 10px/1 var(--cw-mono);
+    letter-spacing: 0.12em;
+    color: var(--cw-faint);
+    text-transform: uppercase;
+}
+
+/* The disclosure over everything a trade has but does not need to be made. */
+.cw-adv {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--cw-line);
+    background: var(--cw-panel);
+    font: 500 10px/1 var(--cw-mono);
+    letter-spacing: 0.18em;
+    color: var(--cw-muted);
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.cw-adv:hover {
+    border-color: var(--cw-border-soft);
+}
+
+/*
+ * A card that is an offer. Dashed like a placeholder because that is what it
+ * is — something not yet taken — and the only card on a screen allowed to sit
+ * on the accent.
+ */
+.cw-card-offer {
+    border-style: dashed;
+    border-color: var(--cw-accent);
+    background: var(--cw-accent-tint);
 }

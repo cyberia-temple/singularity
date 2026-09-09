@@ -58,6 +58,7 @@ const emit = defineEmits<{
     earn: [];
     browse: [];
     arena: [];
+    daily: [];
     preferences: [];
 }>();
 
@@ -588,6 +589,33 @@ const recent = computed(() =>
                 }}</span>
             </button>
         </div>
+
+        <!--
+          What this project pays for using it. A row of its own because it is
+          the only entry here that is not about a balance at all: it is about
+          the person, and it says so on the screen it opens.
+        -->
+        <button
+            type="button"
+            class="cw-card cw-card-button"
+            style="margin-bottom: 10px; padding: 14px 16px"
+            @click="emit('daily')"
+        >
+            <span class="cw-row">
+                <span style="text-align: left">
+                    <span
+                        style="display: block; font: 500 12px/1 var(--cw-sans)"
+                        >{{ t('dailyTitle') }}</span
+                    >
+                    <span
+                        class="cw-label"
+                        style="display: block; margin-top: 5px; font-size: 9px"
+                        >{{ t('tileDailyHint') }}</span
+                    >
+                </span>
+                <span class="cw-label" style="color: var(--cw-fainter)">→</span>
+            </span>
+        </button>
 
         <!--
           The other kind of swap, and a full row rather than a fourth tile in

@@ -20,6 +20,7 @@ test('a relay job cannot outlive the queue that would re-release it', function (
         (int) config('bridge.relay.solana_timeout_seconds'),
         (int) config('bridge.relay.ton_timeout_seconds'),
         (int) config('bridge.relay.yenten_timeout_seconds'),
+        (int) config('bridge.relay.monero_timeout_seconds'),
     );
 
     // One request can run a payout AND a burn, so the job needs room for two

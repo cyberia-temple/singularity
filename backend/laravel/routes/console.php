@@ -37,6 +37,11 @@ Schedule::command('launchpad:pin-sites')->hourly()->withoutOverlapping();
 // answer can drift from the question; cheap because a run with nothing to
 // settle is one eth_call and a cached quote, and signs nothing.
 Schedule::command('predictions:resolve')->everyFiveMinutes()->withoutOverlapping();
+// Deposits that land on an address instead of arriving as a signed
+// transaction: nothing notifies this server, so it looks. Every two minutes
+// because that is a Monero block — polling faster asks the same question
+// about the same unconfirmed deposit twice.
+Schedule::command('bridge:sweep-deposits')->everyTwoMinutes()->withoutOverlapping();
 // Capacity holds taken before a wallet prompt that never came back. They stop
 // counting against liquidity the moment they expire — this only closes the
 // row, and it never touches a hold that has a transfer behind it.

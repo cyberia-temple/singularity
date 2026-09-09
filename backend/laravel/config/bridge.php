@@ -51,6 +51,13 @@ return [
         // fee (~0.004 TON) is paid out of this reserve and the remainder
         // accrues to the relayer hot wallet.
         'ton_payout_fee_ton' => env('BRIDGE_TON_PAYOUT_FEE_TON', '0.01'),
+        // Flat XMR retained from evm_to_xmr payouts. A Monero transaction fee
+        // is charged to the *sender* on top of the amount sent, so the wallet
+        // pays it and this is what refills the wallet for it: the recipient
+        // gets the net amount exactly, and the reserve absorbs a fee that
+        // moves with priority and transaction size (~0.00006 XMR at normal
+        // priority, an order of magnitude more when the pool is busy).
+        'monero_payout_fee_xmr' => env('BRIDGE_MONERO_PAYOUT_FEE_XMR', '0.0005'),
     ],
 
     /*
@@ -72,7 +79,7 @@ return [
     'inventory' => [
         'measured_chain_types' => array_values(array_filter(array_map(
             'trim',
-            explode(',', (string) env('BRIDGE_INVENTORY_MEASURED_TYPES', 'evm,solana,ton')),
+            explode(',', (string) env('BRIDGE_INVENTORY_MEASURED_TYPES', 'evm,solana,ton,monero')),
         ))),
 
         // How long a pre-signature reservation holds capacity. Long enough for
@@ -100,6 +107,13 @@ return [
 
         // Toncoin kept back on the TON hot wallet for jetton message fees.
         'ton_fee_reserve' => env('BRIDGE_TON_FEE_RESERVE', '0.1'),
+
+        // XMR kept back in the bridge wallet so the last payout it admits can
+        // still pay its own network fee. Monero is 'measured' only when a
+        // wallet is attached to this server (see MoneroWalletRpc); with none,
+        // the corridor reports 'unmeasured' exactly as it did before, because
+        // the reserves are then held somewhere this server cannot read.
+        'monero_fee_reserve_xmr' => env('BRIDGE_MONERO_FEE_RESERVE_XMR', '0.01'),
     ],
 
     /*
@@ -122,6 +136,9 @@ return [
         'solana_timeout_seconds' => (int) env('BRIDGE_RELAY_SOLANA_TIMEOUT', 120),
         'ton_timeout_seconds' => (int) env('BRIDGE_RELAY_TON_TIMEOUT', 240),
         'yenten_timeout_seconds' => (int) env('BRIDGE_RELAY_YENTEN_TIMEOUT', 300),
+        // monero-wallet-rpc builds, signs and relays inside the one `transfer`
+        // call, and a wallet with many outputs takes its time about it.
+        'monero_timeout_seconds' => (int) env('BRIDGE_RELAY_MONERO_TIMEOUT', 240),
         // One request can run a payout AND a burn, so the job must outlive
         // two of the slowest scripts back to back.
         'job_timeout_seconds' => (int) env('BRIDGE_RELAY_JOB_TIMEOUT', 660),
@@ -145,7 +162,8 @@ return [
     |--------------------------------------------------------------------------
     | Supported chains.
     |--------------------------------------------------------------------------
-    | type drives the verify/payout strategy: evm | solana | ton | yenten.
+    | type drives the verify/payout strategy: evm | solana | ton | yenten |
+    | monero.
     | Chains with other type values are manual-review corridors unless a
     | verifier/payout implementation is added and auto_process is enabled.
     | deposit_address is where users send source-chain deposits; null on EVM
@@ -333,6 +351,37 @@ return [
             // Requires deposit_address to be a standard (4...) address.
             'hd_seed' => env('BRIDGE_XMR_HD_SEED'),
             'minimum_confirmations' => (int) env('BRIDGE_XMR_MIN_CONFIRMATIONS', 10),
+
+            // A Monero corridor is a wallet, not an API key. Nobody can read
+            // an address on this chain from outside — that is what the chain
+            // is for — so both halves of the corridor go through a
+            // `monero-wallet-rpc` this server holds: bridge-in reads what
+            // landed on a per-request subaddress, bridge-out sends from the
+            // same wallet. Unset means the corridor has no wallet: deposits
+            // cannot be seen, payouts cannot be made, and every surface says
+            // so rather than failing halfway. `services/monero/` runs both.
+            'wallet_rpc_url' => env('BRIDGE_XMR_WALLET_RPC_URL', ''),
+            // monero-wallet-rpc's --rpc-login, which is HTTP digest auth.
+            'wallet_rpc_user' => env('BRIDGE_XMR_WALLET_RPC_USER', ''),
+            'wallet_rpc_password' => env('BRIDGE_XMR_WALLET_RPC_PASSWORD', ''),
+            'wallet_rpc_timeout' => (int) env('BRIDGE_XMR_WALLET_RPC_TIMEOUT', 15),
+            // Which wallet account the bridge lives in. Subaddresses are
+            // created inside it and payouts are spent from it, so changing it
+            // after requests exist orphans the indices already handed out.
+            'wallet_account_index' => (int) env('BRIDGE_XMR_WALLET_ACCOUNT', 0),
+            // 0 = default, 1 = unimportant, 2 = normal, 3 = elevated. A bridge
+            // payout is not a race, and priority is paid for in fee.
+            'payout_priority' => (int) env('BRIDGE_XMR_PAYOUT_PRIORITY', 1),
+            // How far back the relayer looks for a payout it may already have
+            // made when a `transfer` response was lost. ~24h of blocks.
+            'payout_lookback_blocks' => (int) env('BRIDGE_XMR_PAYOUT_LOOKBACK_BLOCKS', 720),
+            // How long a request's deposit subaddress is watched before an
+            // EMPTY one is closed. Longer than Yenten's hour because ten
+            // Monero confirmations are twenty minutes on their own and the
+            // watching costs one filtered RPC call either way. A deposit that
+            // did land is honoured whenever it lands — the subaddress belongs
+            // to this wallet forever, so the coins are never stranded.
+            'deposit_ttl_minutes' => (int) env('BRIDGE_XMR_DEPOSIT_TTL_MINUTES', 1440),
         ],
     ],
 
@@ -482,11 +531,16 @@ return [
             'enabled' => filter_var(env('BRIDGE_ROUTE_EVM_TO_LTC_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
             'coming_soon' => filter_var(env('BRIDGE_ROUTE_EVM_TO_LTC_COMING_SOON', true), FILTER_VALIDATE_BOOLEAN),
         ],
+        // Monero, both ways, through the wallet this server holds: a deposit
+        // to a per-request subaddress mints the Cyberia wrapper, and burning
+        // the wrapper sends real XMR back out. Both stay "Coming soon" until
+        // an operator attaches that wallet — the corridor is honest about
+        // having none rather than accepting deposits it cannot see.
         'xmr_to_evm' => [
             'direction' => 'xmr_to_evm',
             'source_chain' => 'monero',
             'destination_chain' => 'cyberia',
-            'auto_process' => false,
+            'auto_process' => true,
             'enabled' => filter_var(env('BRIDGE_ROUTE_XMR_TO_EVM_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
             'coming_soon' => filter_var(env('BRIDGE_ROUTE_XMR_TO_EVM_COMING_SOON', true), FILTER_VALIDATE_BOOLEAN),
         ],
@@ -494,7 +548,7 @@ return [
             'direction' => 'evm_to_xmr',
             'source_chain' => 'cyberia',
             'destination_chain' => 'monero',
-            'auto_process' => false,
+            'auto_process' => true,
             'enabled' => filter_var(env('BRIDGE_ROUTE_EVM_TO_XMR_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
             'coming_soon' => filter_var(env('BRIDGE_ROUTE_EVM_TO_XMR_COMING_SOON', true), FILTER_VALIDATE_BOOLEAN),
         ],

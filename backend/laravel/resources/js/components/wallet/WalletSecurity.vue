@@ -9,13 +9,8 @@ import {
     useSecureClipboard,
 } from '@/composables/useSecureClipboard';
 import { analytics } from '@/lib/analytics';
-import {
-    disablePush,
-    enablePush,
-    pushState
-    
-} from '@/lib/wallet/push';
-import type {PushState} from '@/lib/wallet/push';
+import { disablePush, enablePush, pushState } from '@/lib/wallet/push';
+import type { PushState } from '@/lib/wallet/push';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -127,7 +122,13 @@ const setAnalytics = (on: boolean): void => {
 };
 
 /** The networks that ship with the wallet, named so "verified" means something. */
-const builtin = computed(() =>
+/**
+ * The networks read through an endpoint this project checked, named as that
+ * rather than as a tier. It is the same list the row's "verified" tag is about,
+ * and the only thing it separates from the rows below is who vetted the host —
+ * not which chains count.
+ */
+const vetted = computed(() =>
     props.wallet.chains.value
         .filter((chain) => !chain.custom)
         .map((chain) => chain.label)
@@ -476,7 +477,7 @@ onBeforeUnmount(() => {
                             color: var(--cw-text);
                         "
                     >
-                        {{ t('builtinNetworks') }}
+                        {{ t('vettedEndpoints') }}
                     </div>
                     <div
                         style="
@@ -485,7 +486,7 @@ onBeforeUnmount(() => {
                             color: var(--cw-dim);
                         "
                     >
-                        {{ builtin }}
+                        {{ vetted }}
                     </div>
                 </div>
                 <span

@@ -1,8 +1,17 @@
-import { PublicKey } from '@solana/web3.js';
+import type {
+    AddressLookupTableAccount} from '@solana/web3.js';
+import {
+    Connection,
+    PublicKey,
+    TransactionInstruction,
+    TransactionMessage,
+    VersionedTransaction,
+} from '@solana/web3.js';
 import { JsonRpcProvider, isAddress } from 'ethers';
+import { confirmSignature, solanaRpcUrl } from '@/lib/solanaRpc';
 import { walletChain } from '@/lib/wallet/chains';
 import type { WalletChain, WalletChainId } from '@/lib/wallet/chains';
-import { evmSigner } from '@/lib/wallet/keys';
+import { evmSigner, solanaKeypair } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
 import { isValidUtxoAddress } from '@/lib/wallet/utxo';
 
@@ -85,7 +94,18 @@ export type CrossAmount = {
     usd: number | null;
 };
 
-export type CrossTx = {
+/**
+ * One transaction the wallet is asked to sign.
+ *
+ * Two shapes, because the chains genuinely differ. An EVM leg is a single call
+ * — where to, what calldata, how much value. A Solana leg is the instructions
+ * a v0 transaction is compiled from plus the lookup tables they reference: the
+ * router hands over the parts and whoever holds the key does the assembling,
+ * which is also the only arrangement under which the signer can see what it is
+ * signing.
+ */
+export type CrossEvmTx = {
+    vm: 'evm';
     chainId: number;
     to: string;
     data: string;
@@ -94,6 +114,21 @@ export type CrossTx = {
     maxFeePerGas: bigint | null;
     maxPriorityFeePerGas: bigint | null;
 };
+
+export type CrossSvmInstruction = {
+    programId: string;
+    keys: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
+    /** Base64, exactly as the router encoded it. */
+    data: string;
+};
+
+export type CrossSvmTx = {
+    vm: 'svm';
+    instructions: CrossSvmInstruction[];
+    lookupTables: string[];
+};
+
+export type CrossTx = CrossEvmTx | CrossSvmTx;
 
 export type CrossStep = {
     /** `approve` or `deposit` — the two a wallet is ever asked for. */
@@ -148,6 +183,52 @@ export type CrossDestinationProblem = 'notRouted' | 'unverifiable';
  */
 const SOLANA_CHAIN_ID = 792703809;
 const BITCOIN_CHAIN_ID = 8253038;
+
+/** The router's name for "the coin Solana runs on" — the system program. */
+export const SOLANA_NATIVE = '11111111111111111111111111111111';
+
+/**
+ * The router's id for a wallet network.
+ *
+ * An EVM network answers with its own chain id and needs no table. The others
+ * do: a chain with no EVM chain id still has to be named somehow, and the
+ * router invented ids for them. Only the two the wallet can reach are listed —
+ * an id here is a claim that this wallet has an account on that chain, not that
+ * the router serves it.
+ */
+const ROUTER_IDS: Partial<Record<WalletChainId, number>> = {
+    solana: SOLANA_CHAIN_ID,
+    bitcoin: BITCOIN_CHAIN_ID,
+};
+
+export const routerChainId = (id: WalletChainId): number | null => {
+    const named = ROUTER_IDS[id];
+
+    if (named !== undefined) {
+        return named;
+    }
+
+    try {
+        return walletChain(id).chainId ?? null;
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * How the router spells this network's own coin. Two different zero-ish
+ * constants, and using the EVM one on Solana asks for a token that does not
+ * exist rather than for SOL.
+ */
+export const routerNativeCurrency = (id: WalletChainId): string => {
+    try {
+        return walletChain(id).family === 'solana'
+            ? SOLANA_NATIVE
+            : CROSS_NATIVE;
+    } catch {
+        return CROSS_NATIVE;
+    }
+};
 
 export const crossDestinationValidator = (
     chain: CrossChainRow,
@@ -295,17 +376,47 @@ export const parseCrossQuote = (payload: unknown): CrossQuote => {
             id: String(step.id ?? 'step'),
             description: String(step.description ?? ''),
             items: ((step.items ?? []) as Record<string, unknown>[]).map(
-                (item) => ({
-                    chainId: Number(item.chainId ?? 0),
-                    to: String(item.to ?? ''),
-                    data: String(item.data ?? '0x'),
-                    value: BigInt(String(item.value ?? '0')),
-                    gas: optionalBigInt(item.gas),
-                    maxFeePerGas: optionalBigInt(item.maxFeePerGas),
-                    maxPriorityFeePerGas: optionalBigInt(
-                        item.maxPriorityFeePerGas,
-                    ),
-                }),
+                (item): CrossTx =>
+                    item.vm === 'svm'
+                        ? {
+                              vm: 'svm',
+                              instructions: (
+                                  (item.instructions ?? []) as Record<
+                                      string,
+                                      unknown
+                                  >[]
+                              ).map((instruction) => ({
+                                  programId: String(
+                                      instruction.programId ?? '',
+                                  ),
+                                  keys: (
+                                      (instruction.keys ?? []) as Record<
+                                          string,
+                                          unknown
+                                      >[]
+                                  ).map((key) => ({
+                                      pubkey: String(key.pubkey ?? ''),
+                                      isSigner: key.isSigner === true,
+                                      isWritable: key.isWritable === true,
+                                  })),
+                                  data: String(instruction.data ?? ''),
+                              })),
+                              lookupTables: (
+                                  (item.lookupTables ?? []) as unknown[]
+                              ).map((address) => String(address)),
+                          }
+                        : {
+                              vm: 'evm',
+                              chainId: Number(item.chainId ?? 0),
+                              to: String(item.to ?? ''),
+                              data: String(item.data ?? '0x'),
+                              value: BigInt(String(item.value ?? '0')),
+                              gas: optionalBigInt(item.gas),
+                              maxFeePerGas: optionalBigInt(item.maxFeePerGas),
+                              maxPriorityFeePerGas: optionalBigInt(
+                                  item.maxPriorityFeePerGas,
+                              ),
+                          },
             ),
         })),
         in: inflow,
@@ -489,6 +600,82 @@ export type CrossReceipt = {
  * whole route, so the screen can show a transaction the user can look up while
  * the next one is still being signed.
  */
+/**
+ * Sign one Solana leg.
+ *
+ * The router hands over instructions rather than a finished transaction, so the
+ * transaction is compiled here — which is the only version of this that lets
+ * the signer see what it signs. A v0 message and not a legacy one, because the
+ * route references address lookup tables and a legacy transaction has no way to
+ * carry them; the tables are fetched from the chain by address, because their
+ * *contents* are what the instructions' account indexes resolve against and
+ * taking them on the router's word would be signing a blindfolded account list.
+ */
+const executeSvmStep = async (
+    source: WalletKeySource,
+    item: CrossSvmTx,
+    rpcUrl: string | undefined,
+    /** Called the moment the signature exists, before the wait for it. */
+    onSent: (signature: string) => void,
+): Promise<void> => {
+    const keypair = solanaKeypair(source);
+    const connection = new Connection(rpcUrl || solanaRpcUrl(), 'confirmed');
+
+    const lookupTables = (
+        await Promise.all(
+            item.lookupTables.map(async (address) => {
+                const table = await connection.getAddressLookupTable(
+                    new PublicKey(address),
+                );
+
+                return table.value;
+            }),
+        )
+    ).filter((table): table is AddressLookupTableAccount => table !== null);
+
+    if (lookupTables.length !== item.lookupTables.length) {
+        // A table the cluster will not return is an account list this wallet
+        // cannot resolve. Compiling anyway would sign whatever the remaining
+        // indexes happen to point at.
+        throw new Error('A lookup table this route needs could not be read.');
+    }
+
+    const instructions = item.instructions.map(
+        (instruction) =>
+            new TransactionInstruction({
+                programId: new PublicKey(instruction.programId),
+                keys: instruction.keys.map((key) => ({
+                    pubkey: new PublicKey(key.pubkey),
+                    isSigner: key.isSigner,
+                    isWritable: key.isWritable,
+                })),
+                data: Buffer.from(instruction.data, 'base64'),
+            }),
+    );
+
+    const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash('confirmed');
+    const message = new TransactionMessage({
+        payerKey: keypair.publicKey,
+        recentBlockhash: blockhash,
+        instructions,
+    }).compileToV0Message(lookupTables);
+
+    const transaction = new VersionedTransaction(message);
+
+    transaction.sign([keypair]);
+
+    const signature = await connection.sendRawTransaction(
+        transaction.serialize(),
+    );
+
+    onSent(signature);
+
+    // Waited on here, beside the blockhash it was built against, so an expiry
+    // is reported as an expiry rather than as a swap that vanished.
+    await confirmSignature(connection, signature, { lastValidBlockHeight });
+};
+
 export const executeCrossSwap = async (
     source: WalletKeySource,
     request: {
@@ -500,6 +687,37 @@ export const executeCrossSwap = async (
     },
 ): Promise<CrossReceipt> => {
     const chain: WalletChain = walletChain(request.chain);
+    const hashes: string[] = [];
+
+    /*
+     * Solana first, and entirely separately: it needs no EVM provider, no chain
+     * id and no gas ceiling, and building one to throw it away would put an
+     * endpoint requirement on a chain that does not have one.
+     */
+    if (chain.family === 'solana') {
+        for (const step of request.quote.steps) {
+            for (const item of step.items) {
+                if (item.vm !== 'svm') {
+                    throw new Error(
+                        'The route asked for a transaction on another network.',
+                    );
+                }
+
+                await executeSvmStep(
+                    source,
+                    item,
+                    request.rpcUrl,
+                    (signature) => {
+                        hashes.push(signature);
+                        request.onStep?.(step, signature);
+                    },
+                );
+            }
+        }
+
+        return { requestId: request.quote.requestId, hashes };
+    }
+
     const endpoint = request.rpcUrl || chain.endpoint;
 
     if (!endpoint || chain.chainId === undefined) {
@@ -511,11 +729,10 @@ export const executeCrossSwap = async (
         name: String(chain.id),
     });
     const signer = evmSigner(source).connect(provider);
-    const hashes: string[] = [];
 
     for (const step of request.quote.steps) {
         for (const item of step.items) {
-            if (item.chainId !== chain.chainId) {
+            if (item.vm !== 'evm' || item.chainId !== chain.chainId) {
                 // Every step of a route this wallet signs is on the origin
                 // chain; anything else is the router's own leg and is not ours
                 // to broadcast. Refusing is the only safe reading.

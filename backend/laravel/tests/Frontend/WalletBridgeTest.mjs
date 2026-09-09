@@ -59,6 +59,20 @@ const config = {
             nativeCurrency: { name: 'Solana', symbol: 'SOL', decimals: 9 },
             depositAddress: 'So1anaHotWa11et',
         },
+        {
+            key: 'monero',
+            label: 'Monero',
+            type: 'monero',
+            addressType: 'monero',
+            wallet: 'manual',
+            evmChainId: null,
+            rpcUrl: null,
+            explorerTx: 'https://xmrchain.net/tx/{hash}',
+            nativeCurrency: { name: 'Monero', symbol: 'XMR', decimals: 12 },
+            // Deposits land on a subaddress the bridge's wallet mints per
+            // request, so there is no shared address to publish here.
+            depositAddress: null,
+        },
     ],
     routes: [
         {
@@ -109,6 +123,30 @@ const config = {
             unavailableReason: 'Coming soon',
             tokens: ['CYBER'],
         },
+        {
+            direction: 'evm_to_xmr',
+            source: 'cyberia',
+            destination: 'monero',
+            sourceLabel: 'Cyberia',
+            destinationLabel: 'Monero',
+            destinationAddressType: 'monero',
+            autoProcess: true,
+            operational: true,
+            unavailableReason: null,
+            tokens: ['XMR'],
+        },
+        {
+            direction: 'xmr_to_evm',
+            source: 'monero',
+            destination: 'cyberia',
+            sourceLabel: 'Monero',
+            destinationLabel: 'Cyberia',
+            destinationAddressType: 'evm',
+            autoProcess: true,
+            operational: true,
+            unavailableReason: null,
+            tokens: ['XMR'],
+        },
     ],
     tokens: [
         {
@@ -135,6 +173,28 @@ const config = {
                     master: null,
                     native: false,
                     decimals: 6,
+                    tokenProgram: null,
+                },
+            },
+        },
+        {
+            symbol: 'XMR',
+            model: 'mint',
+            chains: {
+                cyberia: {
+                    address: '0xe2e8d51c18d6e0fddbb9ff4bf63235d688dd00ae',
+                    mint: null,
+                    master: null,
+                    native: false,
+                    decimals: 12,
+                    tokenProgram: null,
+                },
+                monero: {
+                    address: null,
+                    mint: null,
+                    master: null,
+                    native: true,
+                    decimals: 12,
                     tokenProgram: null,
                 },
             },
@@ -194,6 +254,28 @@ test('an asset locked through the bridge contract is never sent by transfer', ()
     );
 });
 
+test('sending the XMR wrapper out to real Monero is an ordinary transfer this wallet can sign', () => {
+    // The source leg is an ERC-20 transfer on Cyberia like any other; what is
+    // unusual about the corridor is entirely on the other side, where a wallet
+    // this server holds pays out real XMR. Nothing about that reaches the
+    // signing path here — which is why it needs no special case.
+    assert.equal(
+        bridgeBlockFor(config, routeOf('evm_to_xmr'), 'XMR', HELD),
+        'ok',
+    );
+});
+
+test('bridging Monero IN is named as unsupported here, because this wallet cannot spend XMR', () => {
+    // The wallet derives a Monero account and can receive on it, but it has no
+    // way to construct a Monero send — so the corridor is listed with its
+    // reason and the deposit is made from the user's own Monero wallet on the
+    // site's bridge instead.
+    assert.equal(
+        bridgeBlockFor(config, routeOf('xmr_to_evm'), 'XMR', HELD),
+        'sourceUnsupported',
+    );
+});
+
 test('a chain this wallet has no account on is refused for that reason', () => {
     assert.equal(
         bridgeBlockFor(config, routeOf('robinhood_to_evm'), 'ETH', [49406]),
@@ -231,7 +313,7 @@ test('every corridor is listed, open or not', () => {
     assert.equal(options.length, config.routes.length);
     assert.deepEqual(
         options.map((option) => option.block),
-        ['ok', 'ok', 'sourceUnsupported', 'closed'],
+        ['ok', 'ok', 'sourceUnsupported', 'closed', 'ok', 'sourceUnsupported'],
     );
 
     // The source chain id travels with the row, because it is what decides

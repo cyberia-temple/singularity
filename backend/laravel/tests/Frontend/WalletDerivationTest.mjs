@@ -5,7 +5,7 @@ import { Keypair } from '@solana/web3.js';
 import { Mnemonic, getBytes, keccak256 } from 'ethers';
 import { moneroAddressKind, moneroStandardAddress } from '@/lib/monero';
 import {
-    WALLET_CHAINS,
+    shippedChains,
     createMnemonic,
     deriveAccounts,
     deriveAddress,
@@ -131,7 +131,7 @@ test('every chain derives from the one phrase and exposes no secrets', () => {
 
     assert.deepEqual(
         accounts.map((account) => account.chain),
-        WALLET_CHAINS.map((chain) => chain.id),
+        shippedChains().map((chain) => chain.id),
     );
 
     for (const account of accounts) {
@@ -149,7 +149,7 @@ test('each account validates its own family and rejects the others', () => {
     const accounts = deriveAccounts(PHRASE);
 
     for (const account of accounts) {
-        const chain = WALLET_CHAINS.find((c) => c.id === account.chain);
+        const chain = shippedChains().find((c) => c.id === account.chain);
 
         assert.equal(chain.isValidAddress(account.address), true);
 
@@ -179,7 +179,7 @@ test('every EVM network is the same address, and only that address', () => {
 
     // Each of them still points at its own chain and explorer.
     const chainIds = evm.map(
-        (account) => WALLET_CHAINS.find((c) => c.id === account.chain).chainId,
+        (account) => shippedChains().find((c) => c.id === account.chain).chainId,
     );
 
     assert.equal(new Set(chainIds).size, evm.length);

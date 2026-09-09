@@ -1,0 +1,112 @@
+# The Monero side of the bridge: a node and a wallet.
+#
+# Every other corridor in config/bridge.php can be served by asking somebody
+# else — an explorer, a public RPC, an indexer. Monero cannot: an address
+# reveals nothing to anyone without its view key, which is the entire point of
+# the chain. So the bridge holds a wallet, and this is it.
+#
+#   monerod             the node. It syncs the chain (~100 GB pruned) and
+#                       answers only the wallet below — its RPC port is not
+#                       published to the host at all.
+#   monero-wallet-rpc   the wallet. Laravel talks to this and nothing else:
+#                       it mints a subaddress per bridge request, reports what
+#                       landed on each, and signs payouts.
+#
+# The wallet is a HOT wallet with spend keys: it is what pays evm_to_xmr out.
+# Treat 127.0.0.1:18083 as a key — anyone who can reach it can empty it — and
+# never publish that port. Laravel runs in its own container, so
+# BRIDGE_XMR_WALLET_RPC_URL there must be an address that resolves from inside
+# it (host.docker.internal:18083), not the loopback binding below.
+#
+# It is started with --wallet-file and deliberately not --wallet-dir: in this
+# mode the RPC cannot create, open or switch wallets, so the endpoint can only
+# ever operate the one wallet an operator made by hand.
+#
+# First run, once (the compose file cannot do this, and that is the point):
+#
+#   docker compose run --rm --entrypoint monero-wallet-cli wallet \
+#     --generate-new-wallet /wallet/bridge --daemon-address monerod:18081
+#
+# Write the 25-word seed down somewhere this repo will never see. Then:
+#
+#   echo 'your-wallet-password' > ./wallet/password.txt && chmod 600 ./wallet/password.txt
+#   # set --rpc-login below to a real user:password, matching Laravel's env
+#   docker compose up -d
+#   docker compose logs -f wallet
+#
+# Syncing the node takes hours to days. Until it is caught up the wallet
+# reports deposits and balances from a past block, which is exactly the kind of
+# half-truth this bridge refuses — keep BRIDGE_ROUTE_XMR_*_COMING_SOON true
+# until `docker compose exec monerod monerod status` says it is synced.
+
+services:
+  monerod:
+    image: sethsimmons/simple-monerod:v0.18.3.4
+    container_name: cyberia-monerod
+    restart: unless-stopped
+    volumes:
+      - monero_data:/home/monero/.bitmonero
+    # The image's entrypoint already prepends `--non-interactive`, and
+    # monero refuses a flag given twice, so nothing here may repeat it.
+    command:
+      # Reachable inside this compose network only: the port is not published,
+      # so "0.0.0.0" here means "the wallet container", not the internet.
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=18081
+      - --confirm-external-bind
+      - --no-igd
+      - --no-zmq
+      - --enable-dns-blocklist
+      # Pruned: a bridge needs to see its own outputs and relay its own
+      # transactions, not to serve the whole chain to anybody else.
+      - --prune-blockchain
+      - --sync-pruned-blocks
+    ports:
+      # p2p only, so the node has peers. The RPC stays inside the network.
+      - "18080:18080"
+
+  wallet:
+    image: sethsimmons/simple-monero-wallet-rpc:v0.18.3.4
+    container_name: cyberia-monero-wallet
+    restart: unless-stopped
+    # Deliberately no `depends_on`: the wallet retries its daemon on its own,
+    # and a host with no room for 60 GB of blockchain runs `docker compose up
+    # -d wallet` alone against a remote node (MONERO_DAEMON_ADDRESS below).
+    volumes:
+      - ./wallet:/wallet
+    ports:
+      # Localhost only, and that is not a preference: this endpoint can spend
+      # the wallet. Laravel reaches it over the host loopback.
+      - "127.0.0.1:18083:18083"
+    command:
+      - --wallet-file=/wallet/bridge
+      - --password-file=/wallet/password.txt
+      # The node above by default; a remote one where this host cannot hold a
+      # chain. A remote node learns which transactions you ask about and can
+      # lie about the tip — it can never spend, because the keys are here —
+      # so pair it with --untrusted-daemon.
+      - --daemon-address=${MONERO_DAEMON_ADDRESS:-monerod:18081}
+      - ${MONERO_DAEMON_TRUST:---trusted-daemon}
+      # Left to itself the wallet defaults to `autodetect` here, tries TLS
+      # against a plain-HTTP daemon and blocks — and because its RPC is
+      # single-threaded, every request queues behind that attempt until it
+      # times out minutes later. A daemon on the same host needs no TLS.
+      - --daemon-ssl=${MONERO_DAEMON_SSL:-disabled}
+      # `--rpc-bind-ip=0.0.0.0` and `--confirm-external-bind` come from the
+      # image's entrypoint; repeating either one makes monero-wallet-rpc exit
+      # with "cannot be specified more than once" before it ever binds.
+      - --rpc-bind-port=18083
+      # Listen first, sync after. Without this, monero-wallet-rpc opens the
+      # wallet, refreshes it against the daemon and only THEN binds the port —
+      # minutes against a remote node, and for all of them Laravel reads an
+      # unreachable wallet and hides the corridor, which is the one failure
+      # mode that looks like a bug in the bridge rather than a wallet catching
+      # up. Bound and behind is legible; absent is not.
+      - --no-initial-sync
+      # HTTP digest auth, which is what monero-wallet-rpc speaks — Laravel's
+      # BRIDGE_XMR_WALLET_RPC_USER/PASSWORD must match this exactly. Kept in
+      # ./.env (gitignored) beside this file, never in the repo.
+      - --rpc-login=${MONERO_RPC_LOGIN:?set MONERO_RPC_LOGIN in services/monero/.env}
+
+volumes:
+  monero_data:

@@ -65,7 +65,7 @@ import type { UtxoNetwork } from '@/lib/wallet/utxo';
  * One BIP-39 seed feeds every chain here; each adapter owns the part that is
  * genuinely chain-specific — derivation path, curve, address format, and what
  * the chain can actually do from a browser. Adding a chain means adding one
- * entry to WALLET_CHAINS, nothing else: the composable and the page render
+ * entry to SHIPPED_CHAINS, nothing else: the composable and the page render
  * whatever the registry declares.
  *
  * Secrets never escape an adapter. `derive()` hands back an address and
@@ -84,7 +84,7 @@ export type WalletBuiltinChainId =
     | 'litecoin';
 
 /**
- * A network's id. The built-in ones are known at build time; a network the
+ * A network's id. The shipped ones are known at build time; a network the
  * user adds gets an id derived from what they typed, so the type stays open —
  * `(string & {})` keeps the literals in autocomplete without closing the set.
  */
@@ -195,7 +195,7 @@ export type WalletChain = {
      * The host this network is actually read through.
      *
      * On a user-added network it is what the row that offers to remove it
-     * forgets. On a built-in one it is there for the routing screen, which
+     * forgets. On a shipped one it is there for the routing screen, which
      * cannot honestly say what carries a request without naming it — and the
      * answer differs per family: an EVM chain talks to an RPC, Solana talks to
      * this site's own relay, and Monero talks to nobody at all.
@@ -938,7 +938,19 @@ const BITCOIN_NETWORK: Omit<UtxoNetwork, 'coinType' | 'api' | 'explorer'> = {
 };
 
 /** The networks that ship with the wallet, in the order the portfolio lists them. */
-const BUILTIN_CHAINS: readonly WalletChain[] = [
+/**
+ * The networks this wallet ships knowing about and switched on.
+ *
+ * "Shipped on" is a default and not a rank. Every network here is made by the
+ * same factories, read through the same adapters and drawn by the same rules as
+ * the hundred and twenty in the catalogue; the only thing this list decides is
+ * which ones a wallet has on its first day, and that decision is about how many
+ * balances a refresh should read, not about which chains matter.
+ *
+ * Cyberia is the exception, and the only one: it is the chain this wallet is
+ * for, so it has no switch.
+ */
+const SHIPPED_CHAINS: readonly WalletChain[] = [
     evmChain({
         id: 'cyberia',
         chainId: CYBERIA_CHAIN_ID,
@@ -1121,16 +1133,31 @@ const BUILTIN_CHAINS: readonly WalletChain[] = [
     }),
 ];
 
-export const WALLET_CHAINS = BUILTIN_CHAINS;
+/** The chain this wallet is for. Always on, and the one network with no switch. */
+export const HOME_CHAIN: WalletChainId = 'cyberia';
+
+/** Every network that ships switched on, whether or not it currently is. */
+export const shippedChains = (): readonly WalletChain[] => SHIPPED_CHAINS;
 
 /**
- * Networks the user added themselves, layered over the built-in registry.
+ * Networks the user added themselves, layered over the shipped registry.
  *
  * Module state rather than a ref, mirroring how the vault holds the decrypted
  * phrase: the registry is a process-wide fact, and every adapter lookup has to
  * see the same one whether it happens inside a component or inside `send()`.
  */
 let customChains: readonly WalletChain[] = [];
+
+/**
+ * The shipped networks that are currently switched on.
+ *
+ * A slot rather than the constant itself, because these are switchable now:
+ * whichever of them the user has left on is what the portfolio draws, and
+ * anything switched off has to leave nothing behind that could still answer a
+ * balance read. Until the composable says otherwise every one of them is on,
+ * which is the state a wallet opens in.
+ */
+let shippedOn: readonly WalletChain[] = SHIPPED_CHAINS;
 
 /**
  * Networks switched on from the shipped catalogue.
@@ -1148,6 +1175,12 @@ export const setCustomWalletChains = (chains: readonly WalletChain[]): void => {
     customChains = chains;
 };
 
+export const setShippedWalletChains = (
+    chains: readonly WalletChain[],
+): void => {
+    shippedOn = chains;
+};
+
 export const setCatalogueWalletChains = (
     chains: readonly WalletChain[],
 ): void => {
@@ -1155,12 +1188,17 @@ export const setCatalogueWalletChains = (
 };
 
 /**
- * Every network this wallet currently knows, in the order the portfolio lists
- * them: what ships switched on, then what was switched on from the catalogue,
- * then what the user described themselves.
+ * Every network this wallet currently has switched on, in the order the
+ * portfolio lists them: the shipped ones still on, then the catalogue ones
+ * switched on, then the ones the user described themselves.
+ *
+ * The three groups are an ordering and not a hierarchy — a shipped network and
+ * a catalogue one are the same kind of thing in every way that reaches a
+ * balance or a signature. What still separates the last group is the one real
+ * difference: nobody vetted the endpoint the user typed in.
  */
 export const walletChains = (): readonly WalletChain[] => [
-    ...BUILTIN_CHAINS,
+    ...shippedOn,
     ...catalogueChains,
     ...customChains,
 ];

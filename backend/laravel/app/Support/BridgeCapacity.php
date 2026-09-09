@@ -18,10 +18,12 @@ namespace App\Support;
  *                 destination. There is no inventory to run out of.
  *   available   — a known, finite amount, held as a RAW integer string in the
  *                 destination entry's own decimals. Never a float.
- *   unmeasured  — this destination's inventory is declared unreadable in
- *                 config (manual reserves: Yenten, BTC, LTC, XMR). Not an
- *                 error and not a promise — the corridor is simply not
- *                 admission-controlled and says so.
+ *   unmeasured  — this destination's inventory is not read by this server
+ *                 (manual reserves: Yenten, BTC, LTC — and Monero while no
+ *                 wallet is attached to it). Not an error and not a promise:
+ *                 the corridor is simply not admission-controlled and says
+ *                 so. A chain can move out of this state by giving the server
+ *                 something to read, which is what a Monero wallet does.
  *   unavailable — we tried and failed: RPC error, malformed answer, missing
  *                 config. FAIL-CLOSED: this covers nothing.
  */

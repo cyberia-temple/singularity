@@ -6,7 +6,6 @@ import {
     ExternalLink,
     Images,
     Landmark,
-    Languages,
     Lock,
     MessageCircle,
     Newspaper,
@@ -26,6 +25,7 @@ import WalletChart from '@/components/wallet/WalletChart.vue';
 import WalletChat from '@/components/wallet/WalletChat.vue';
 import WalletContextBar from '@/components/wallet/WalletContextBar.vue';
 import WalletCrossSwap from '@/components/wallet/WalletCrossSwap.vue';
+import WalletDaily from '@/components/wallet/WalletDaily.vue';
 import WalletDao from '@/components/wallet/WalletDao.vue';
 import WalletEarn from '@/components/wallet/WalletEarn.vue';
 import WalletFeed from '@/components/wallet/WalletFeed.vue';
@@ -71,6 +71,7 @@ import {
 import { formatUnits, unreadChatCount, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
 import type { BridgeConfig } from '@/lib/wallet/bridge';
+import type { QuestDestination } from '@/lib/wallet/daily';
 import type { Market } from '@/lib/wallet/markets';
 import { announceWalletEvent } from '@/lib/wallet/notifications';
 import type { PlayerTrack } from '@/lib/wallet/player';
@@ -124,7 +125,7 @@ const props = defineProps<{
     };
 }>();
 
-const { nextTag, toggleLocale, t } = useLocale(walletMessages);
+const { t } = useLocale(walletMessages);
 const { t: arenaT } = useLocale(arenaMessages);
 
 // Only Solana takes an override: the server picks that endpoint, while every
@@ -181,6 +182,7 @@ type Section =
     | 'bridge'
     | 'crosschain'
     | 'arena'
+    | 'daily'
     | 'browse';
 type Overlay = 'send' | 'receive' | 'swap' | 'addNetwork';
 
@@ -239,6 +241,7 @@ const SECTIONS: { id: Section; label: () => string }[] = [
     { id: 'crosschain', label: () => t('crossTile') },
     { id: 'earn', label: () => t('earnTitle') },
     { id: 'arena', label: () => arenaT('nav') },
+    { id: 'daily', label: () => t('dailyTitle') },
     { id: 'browse', label: () => t('browseTitle') },
     { id: 'feed', label: () => t('feed') },
     { id: 'launchpad', label: () => t('launchpad') },
@@ -303,6 +306,7 @@ const TAB_OF: Record<Section, Section> = {
     bridge: 'portfolio',
     crosschain: 'portfolio',
     arena: 'portfolio',
+    daily: 'portfolio',
     browse: 'browse',
     feed: 'feed',
     profile: 'feed',
@@ -380,6 +384,7 @@ const PARENTS: Partial<Record<Section, Section>> = {
     earn: 'portfolio',
     bridge: 'portfolio',
     crosschain: 'portfolio',
+    daily: 'portfolio',
     profile: 'feed',
     nftMint: 'nft',
     ipfs: 'nft',
@@ -432,6 +437,35 @@ const openSwap = (token?: WalletTokenBalance): void => {
     swapToken.value = token ?? null;
     swapContract.value = null;
     overlay.value = 'swap';
+};
+
+/**
+ * Go and do what a quest asks for.
+ *
+ * The daily board decides *what* the destination is — it reads the quest's
+ * actions, which travel with it from the server — and this decides how to get
+ * there, which is the shell's business: a screen, the swap composer, or a page
+ * on the site for the parts of Cyberia the wallet does not carry. A quest with
+ * no destination never reaches here; its row draws no button at all.
+ */
+const openQuest = (destination: QuestDestination): void => {
+    if (destination === null) {
+        return;
+    }
+
+    if (destination.kind === 'overlay') {
+        openSwap();
+
+        return;
+    }
+
+    if (destination.kind === 'section') {
+        openSection(destination.section as Section);
+
+        return;
+    }
+
+    window.location.href = destination.href;
 };
 
 /**
@@ -986,17 +1020,30 @@ watch(
 <template>
     <Head :title="t('wallet')" />
 
+    <!--
+      `flex flex-col` is load-bearing and not decoration: `.cw-frame` hands the
+      shell `flex: 1; min-height: 0`, which does nothing at all unless this
+      element is the flex container. Dropped once, and the rail and the screen
+      body grew to their content and took the document with them — a 1585px
+      shell inside a 900px frame, scrolling as a page again.
+    -->
     <div
-        class="cw"
+        class="cw cw-frame flex flex-col"
         :data-cw-theme="scheme"
-        :class="
-            native
-                ? 'flex min-h-0 flex-1 flex-col p-3 sm:p-4'
-                : 'cw-page flex flex-col p-4 sm:p-6'
-        "
+        :class="native ? 'p-3 sm:p-4' : 'p-3 sm:p-5'"
     >
-        <!-- Masthead -->
-        <header class="cw-masthead">
+        <!--
+          The masthead, and only where a window needs one.
+
+          In the desktop shell it is the title bar of a frameless window — the
+          drag region, the app's name and the one link back to the rest of
+          Cyberia, none of which a browser tab is missing. In a browser it was
+          a second heading over a screen that already says what it is, beside a
+          language button nobody changes twice, on top of a site header that is
+          now gone as well. Language and theme moved to Preferences, where a
+          setting belongs.
+        -->
+        <header v-if="native" class="cw-masthead">
             <div style="display: flex; align-items: center; gap: 12px">
                 <span
                     style="
@@ -1028,21 +1075,13 @@ watch(
             </div>
             <span class="cw-masthead-rule" />
             <span class="cw-label cw-masthead-tag">{{ t('subtitle') }}</span>
-            <button type="button" class="cw-ghost" @click="toggleLocale">
-                <Languages :size="14" aria-hidden="true" />
-                {{ nextTag }}
-            </button>
             <!--
               The app is the wallet, not only the wallet: without this the rest
               of Cyberia — bridge, swap, DAO — would be unreachable from inside
-              the shell, which the site header handles in a browser.
+              the shell. In a browser the same link is on the Preferences
+              screen, since a tab still has its own history.
             -->
-            <a
-                v-if="native"
-                href="/"
-                class="cw-ghost"
-                style="text-decoration: none"
-            >
+            <a href="/" class="cw-ghost" style="text-decoration: none">
                 <ExternalLink :size="14" aria-hidden="true" />
                 {{ t('openSite') }}
             </a>
@@ -1274,6 +1313,8 @@ watch(
                         @back="overlay = null"
                         @pick="chain = $event"
                         @swapped="load()"
+                        @markets="openSection('markets')"
+                        @daily="openSection('daily')"
                     />
 
                     <WalletReceive
@@ -1315,6 +1356,7 @@ watch(
                             @add-network="openSection('networks')"
                             @tokens="openSection('tokens')"
                             @markets="openSection('markets')"
+                            @daily="openSection('daily')"
                             @analytics="openSection('analytics')"
                             @accounts="openSection('accounts')"
                             @security="openSection('security')"
@@ -1457,6 +1499,20 @@ watch(
                         :chain="chain"
                         @back="openSection('portfolio')"
                         @networks="openSection('networks')"
+                    />
+
+                    <!--
+                      What today pays. The one wallet screen whose subject is
+                      an account rather than an address: experience belongs to
+                      a person, so the screen says so and offers the wallet's
+                      own key as the proof instead of drawing an empty score.
+                    -->
+                    <WalletDaily
+                        v-else-if="section === 'daily'"
+                        :wallet="wallet"
+                        @back="openSection('portfolio')"
+                        @gas="openSection('gas')"
+                        @go="openQuest"
                     />
 
                     <!--
@@ -1692,6 +1748,8 @@ watch(
                     @back="overlay = null"
                     @pick="chain = $event"
                     @swapped="load()"
+                    @markets="openSection('markets')"
+                    @daily="openSection('daily')"
                 />
                 <WalletReceive
                     v-else

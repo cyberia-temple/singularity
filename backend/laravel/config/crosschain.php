@@ -40,6 +40,12 @@ return [
     /**
      * Who is asking, as the router records it. Not a credential and not a
      * fee: it is how this app shows up in the router's own analytics.
+     *
+     * Read by nothing at the moment. Relay put referrer attribution behind an
+     * API key and now answers a quote carrying one with `UNAUTHORIZED_QUOTE`,
+     * so `CrosschainRouter::quote()` stopped sending it — see the note there.
+     * The value is kept because the name is still ours to claim the day this
+     * host has a key.
      */
     'referrer' => (string) env('CROSSCHAIN_REFERRER', 'cyberia.church'),
 

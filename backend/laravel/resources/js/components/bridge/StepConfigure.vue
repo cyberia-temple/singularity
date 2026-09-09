@@ -34,10 +34,12 @@ const props = defineProps<{
     /** Destination chain label (e.g. "Base") for the capacity hint. */
     destinationLabel: string | null;
     sourceDepositAddress: string | null;
-    /** One-time deposit address returned by /bridge/prepare (Yenten). */
+    /** One-time deposit address returned by /bridge/prepare. */
     preparedDepositAddress: string | null;
     /** When the deposit address stops being monitored (ISO timestamp). */
     depositExpiresAt: string | null;
+    /** Confirmations the source chain needs before the deposit is credited. */
+    depositConfirmations: number | null;
     preparing: boolean;
     recent: RecentDestination[];
     /** The signed-in user's saved native Monero payout address, if any. */
@@ -108,15 +110,23 @@ const manualReviewRoute = computed(
     () => manualRoute.value && !route.value.autoProcess,
 );
 
-// Yenten uses a two-phase one-time-address flow (prepare → claim): the deposit
-// address is unique per request and the recipient is committed at prepare time.
-// Other manual routes (TON) keep the shared-address flow for now.
-const oneTimeDepositRoute = computed(() => route.value.source === 'yenten');
+// Two chains hand out an address instead of taking a transaction hash
+// (prepare → claim): the address belongs to one request and the recipient is
+// committed before a coin moves. Yenten because a light wallet's hash is not
+// something a person can reliably copy; Monero because nobody outside the
+// receiving wallet can look a transaction up at all, so the address is the
+// only thing that can attribute a deposit. Other manual routes (TON) keep the
+// shared-address flow.
+const oneTimeDepositRoute = computed(() =>
+    ['yenten', 'monero'].includes(route.value.source),
+);
 
 const prepared = computed(() => props.preparedDepositAddress !== null);
 
 // Inputs are locked once the deposit address is committed.
-const inputsLocked = computed(() => oneTimeDepositRoute.value && prepared.value);
+const inputsLocked = computed(
+    () => oneTimeDepositRoute.value && prepared.value,
+);
 
 const copied = ref(false);
 
@@ -127,9 +137,37 @@ const depositDeadline = computed(() => {
 
     const parsed = new Date(props.depositExpiresAt);
 
-    return Number.isNaN(parsed.getTime())
-        ? null
-        : parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (Number.isNaN(parsed.getTime())) {
+        return null;
+    }
+
+    // A Monero window is a day wide, so a bare clock time would read as an
+    // hour from now and send somebody's deposit to a closed address.
+    const sameDay = parsed.toDateString() === new Date().toDateString();
+
+    return sameDay
+        ? parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : parsed.toLocaleString([], {
+              day: '2-digit',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+          });
+});
+
+/**
+ * How deep the deposit has to go before it is credited. Said out loud because
+ * it is the difference between a minute of waiting and twenty, and a person
+ * who does not know which one they are in writes to support.
+ */
+const depositWait = computed(() => {
+    const blocks = props.depositConfirmations;
+
+    if (!blocks) {
+        return 'network confirmations';
+    }
+
+    return `${blocks} ${route.value.sourceLabel} confirmation${blocks === 1 ? '' : 's'}`;
 });
 
 const copyDepositAddress = async () => {
@@ -199,8 +237,18 @@ const sourceWalletUrl = computed(() => {
         return 'https://wallet.yentencoin.info/';
     }
 
+    if (route.value.source === 'monero') {
+        return 'https://www.getmonero.org/downloads/';
+    }
+
     return null;
 });
+
+const sourceWalletLabel = computed(() =>
+    route.value.source === 'monero'
+        ? 'Get a Monero wallet'
+        : `Open ${route.value.sourceLabel} web wallet`,
+);
 
 const amountNum = computed(() => parseFloat(localAmount.value));
 
@@ -281,9 +329,7 @@ const canProceed = computed(
 
 // Phase A: only the destination is needed to reserve a deposit address —
 // the amount is whatever the user later deposits.
-const canPrepare = computed(
-    () => validation.value.valid && !props.preparing,
-);
+const canPrepare = computed(() => validation.value.valid && !props.preparing);
 
 const useRecent = (entry: RecentDestination) => {
     localDestination.value = entry.address;
@@ -371,32 +417,35 @@ const formatRelative = (ts: number): string => {
             </span>
         </div>
 
-        <!-- Yenten one-time deposit address (phase B: after prepare) -->
+        <!-- One-time deposit address (phase B: after prepare) -->
         <div
             v-if="oneTimeDepositRoute && prepared"
             class="rounded-lg border border-[#19140035] p-4 dark:border-[#3E3E3A]"
         >
             <p class="mb-3 text-xs text-[#706f6c] dark:text-[#A1A09A]">
-                Send any amount of YTN to your unique deposit address below —
-                whatever you deposit is bridged to your destination. This
-                address belongs only to this transfer. Once you've sent it, hit
-                the button and the relayer credits your Cyberia address.
+                Send any amount of {{ token }} to the address below — whatever
+                arrives is what gets bridged. The address belongs to this
+                transfer alone, so send to it once. It is credited after
+                {{ depositWait }}, on its own: this page checks while it is
+                open, and the bridge keeps checking after you close it.
             </p>
             <p
                 class="mb-3 rounded border border-yellow-500/30 bg-yellow-500/10 p-2 text-xs text-yellow-700 dark:text-yellow-300"
             >
-                Your deposit is expected within the next hour<template
-                    v-if="depositDeadline"
-                >
-                    (until {{ depositDeadline }})</template
-                >. After that the address is no longer monitored — don't send
-                to it later.
+                <template v-if="depositDeadline">
+                    The address is watched until {{ depositDeadline }}. After
+                    that it is no longer monitored — don't send to it later.
+                </template>
+                <template v-else>
+                    The address is watched for a limited time — don't send to it
+                    later.
+                </template>
             </p>
             <div
                 class="rounded border border-[#19140020] bg-[#19140008] p-3 dark:border-[#3E3E3A] dark:bg-[#ffffff08]"
             >
                 <p class="mb-1 text-xs text-[#706f6c] dark:text-[#A1A09A]">
-                    Your Yenten deposit address
+                    Your {{ sourceLabel }} deposit address
                 </p>
                 <div class="flex items-start justify-between gap-2">
                     <code
@@ -413,12 +462,13 @@ const formatRelative = (ts: number): string => {
                     </button>
                 </div>
                 <a
-                    href="https://wallet.yentencoin.info/"
+                    v-if="sourceWalletUrl"
+                    :href="sourceWalletUrl"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="mt-2 block text-xs underline"
                 >
-                    Open Yenten web wallet
+                    {{ sourceWalletLabel }}
                 </a>
             </div>
         </div>
@@ -726,7 +776,7 @@ const formatRelative = (ts: number): string => {
             </div>
         </div>
 
-        <!-- Yenten one-time flow: prepare (phase A) then claim (phase B). -->
+        <!-- One-time-address flow: prepare (phase A) then claim (phase B). -->
         <button
             v-if="oneTimeDepositRoute && !prepared"
             type="button"
@@ -744,7 +794,7 @@ const formatRelative = (ts: number): string => {
             class="w-full rounded-lg bg-[#1b1b18] py-3 text-sm font-medium text-white transition-colors hover:bg-[#2d2d2a] disabled:opacity-50 dark:bg-[#EDEDEC] dark:text-[#0a0a0a] dark:hover:bg-[#d4d4d0]"
             @click="$emit('claim')"
         >
-            I've deposited — check
+            I've deposited — check now
         </button>
         <button
             v-else

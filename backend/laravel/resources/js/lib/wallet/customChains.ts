@@ -129,7 +129,7 @@ const EVM_TIER_MULTIPLIER: Record<WalletFeeTier, [bigint, bigint]> = {
 /**
  * A user-added EVM chain.
  *
- * Deliberately not routed through the built-in `evmChain()`: that one reads its
+ * Deliberately not routed through the shipped `evmChain()`: that one reads its
  * parameters from `lib/evmChains.ts`, the registry of networks Cyberia ships
  * and stands behind. A chain typed into a form has no entry there and must not
  * borrow the credibility of one.
