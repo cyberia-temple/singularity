@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BridgeRequest;
+use App\Services\Monero\MoneroWalletRpc;
 use App\Support\BridgeCapacity;
 use App\Support\Environment;
 use App\Support\TokenAmount;
@@ -962,10 +963,10 @@ class BridgeService
             'ton' => $this->verifyTonDeposit($request, $chain, $tokenEntry),
             // Whatever the user deposited to THIS request's one-time address is
             // what gets minted — the address binds the deposit to this request
-            // and its committed recipient. No amount or tx hash needed.
-            'yenten' => $request->deposit_address
-                ? app(YentenApiService::class)->addressBalance((string) $request->deposit_address)
-                : null,
+            // and its committed recipient. No amount or tx hash needed, which
+            // is the only shape a Monero deposit can have at all: nobody
+            // outside this wallet can look one up.
+            'yenten', 'monero' => app(BridgeDepositWatcher::class)->confirmedBalance($request, $chain),
             default => null,
         };
     }
@@ -1067,6 +1068,7 @@ class BridgeService
             'solana' => $this->payoutSolana($request, $chain, $tokenEntry, $netAmount),
             'ton' => $this->payoutTon($request, $chain, $tokenEntry, $netAmount),
             'yenten' => $this->payoutYenten($request, $chain, $tokenEntry, $netAmount),
+            'monero' => $this->payoutMonero($request, $tokenEntry, $netAmount),
             default => tap(false, fn () => $request->markFailed("No payout strategy for chain type '{$chain['type']}'")),
         };
     }
@@ -1084,6 +1086,9 @@ class BridgeService
         return match ($chain['type'] ?? '') {
             'evm' => $this->evmTxSucceeded((string) $chain['rpc_url'], $txHash),
             'solana' => $this->solanaTxSucceeded((string) $chain['rpc_url'], $txHash),
+            // The wallet that sent it is the only thing that can be asked
+            // about a Monero transaction, and it is right here.
+            'monero' => app(MoneroWalletRpc::class)->payoutSucceeded($txHash),
             // TON and Yenten payouts carry a query_id / request id and their
             // relay scripts reconcile a lost broadcast themselves; we cannot
             // add a cheaper check here than re-running them, so an unknown
@@ -1505,6 +1510,102 @@ class BridgeService
         }
 
         return array_values(array_unique($wifs));
+    }
+
+    /**
+     * Send real Monero, once.
+     *
+     * There is no relay script and no subprocess here: `monero-wallet-rpc`
+     * builds, signs and relays inside one HTTP call, so the whole payout is
+     * that call plus the two questions around it.
+     *
+     * Those two questions are the entire design. A Monero transaction has no
+     * client-chosen id to make the send idempotent, so the failure that
+     * matters is not a refused payout — it is a `transfer` that went through
+     * and whose *answer* was lost, leaving nothing on the row to stop a retry
+     * from sending a second one. So: before spending, ask the wallet what it
+     * has already sent for this request; mark the intent durably; send; and if
+     * the answer does not come back, ask again with the amount match enabled,
+     * because by then "possibly already paid" outranks "possibly pay twice".
+     *
+     * @param  array<string, mixed>  $tokenEntry
+     */
+    private function payoutMonero(BridgeRequest $request, array $tokenEntry, string $netAmount): bool
+    {
+        $wallet = app(MoneroWalletRpc::class);
+
+        if (! $wallet->configured()) {
+            $request->markFailed('Monero payouts need a wallet on this server (BRIDGE_XMR_WALLET_RPC_URL)');
+
+            return false;
+        }
+
+        $recipient = (string) $request->recipient_address;
+        $amountRaw = TokenAmount::toRaw($netAmount, (int) $tokenEntry['decimals']);
+        $note = "bridge:{$request->id}";
+        // `payout_broadcast_at` with no hash beside it is this corridor's
+        // record that a transfer was already handed to the wallet and never
+        // reported back. The status cannot carry that — the relay sets it to
+        // PROCESSING on the way in — so the timestamp is the marker, stamped
+        // below before the money moves and cleared only where a payout is
+        // proven on chain to have failed.
+        $attempted = $request->payout_broadcast_at !== null;
+
+        $already = $wallet->payoutFor(
+            $note,
+            $attempted ? $recipient : null,
+            $attempted ? $amountRaw : null,
+        );
+
+        if ($already !== null) {
+            Log::warning('Bridge: adopting an existing Monero payout instead of sending a second', [
+                'id' => $request->id,
+                'tx' => $already,
+            ]);
+            $this->recordBroadcast($request, $already);
+
+            return true;
+        }
+
+        // The intent, written before the money moves. Nothing else on this row
+        // can say "a transfer was attempted" until a hash exists.
+        $request->update([
+            'status' => BridgeRequest::PAYING_OUT,
+            'payout_broadcast_at' => now(),
+        ]);
+
+        $sent = $wallet->transfer($recipient, $amountRaw, $note);
+
+        if ($sent === null) {
+            // No hash came back, which is NOT the same as nothing being sent.
+            $recovered = $wallet->payoutFor($note, $recipient, $amountRaw);
+
+            if ($recovered !== null) {
+                Log::warning('Bridge: Monero payout recovered after a lost response', [
+                    'id' => $request->id,
+                    'tx' => $recovered,
+                ]);
+                $this->recordBroadcast($request, $recovered);
+
+                return true;
+            }
+
+            if (! $request->hasPayout()) {
+                $request->markFailed('Monero payout failed: the wallet returned no transaction');
+            }
+
+            return false;
+        }
+
+        Log::info('Bridge relay payout monero', [
+            'id' => $request->id,
+            'tx' => $sent['tx_hash'],
+            'fee' => $sent['fee'],
+        ]);
+
+        $this->recordBroadcast($request, $sent['tx_hash']);
+
+        return true;
     }
 
     /**

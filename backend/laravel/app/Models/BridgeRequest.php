@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property string $recipient_address
  * @property string|null $deposit_address
  * @property string|null $deposit_wif
+ * @property int|null $deposit_index
  * @property bool $swept
  * @property bool $wrapper_burned
  * @property Carbon|null $source_verified_at
@@ -111,6 +112,7 @@ class BridgeRequest extends Model
         'recipient_address',
         'deposit_address',
         'deposit_wif',
+        'deposit_index',
         'swept',
         'wrapper_burned',
         'source_verified_at',
@@ -140,6 +142,7 @@ class BridgeRequest extends Model
             'convert_to_native' => 'boolean',
             'converted' => 'boolean',
             'deposit_wif' => 'encrypted',
+            'deposit_index' => 'integer',
             'swept' => 'boolean',
             'wrapper_burned' => 'boolean',
             'source_nonce' => 'integer',

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Monero\MoneroWalletRpc;
 use App\Support\BridgeCapacity;
 use App\Support\TokenAmount;
 use Illuminate\Support\Facades\Http;
@@ -64,6 +65,7 @@ class BridgeInventoryService
             'evm' => $this->evmCapacity($direction, $token, $chain, $entry),
             'solana' => $this->solanaCapacity($chain, $entry),
             'ton' => $this->tonCapacity($direction, $token, $chain, $entry),
+            'monero' => $this->moneroCapacity($entry),
             default => BridgeCapacity::unavailable("no inventory reader for chain type '{$type}'", $decimals),
         };
     }
@@ -328,6 +330,51 @@ class BridgeInventoryService
         return $jetton === null
             ? BridgeCapacity::unavailable('jetton balance could not be read', $decimals)
             : BridgeCapacity::available($jetton, $decimals);
+    }
+
+    /**
+     * What the bridge's own Monero wallet can actually pay out right now.
+     *
+     * Monero is the one chain here whose inventory used to be unreadable by
+     * definition — an outsider cannot see a balance, which is the point of the
+     * chain — so it was declared manual and the corridor carried no number.
+     * With a wallet attached to this server that stops being true, and the
+     * corridor becomes admission-controlled like every other measurable one.
+     * With no wallet it goes back to saying nothing, which is different from
+     * saying zero.
+     *
+     * `unlocked` and not `balance`: an output is locked for ten blocks after
+     * it arrives, so the total is a claim about the near future while the
+     * unlocked part is what a payout can spend in this minute.
+     *
+     * @param  array<string, mixed>  $entry
+     */
+    private function moneroCapacity(array $entry): BridgeCapacity
+    {
+        $decimals = (int) ($entry['decimals'] ?? 12);
+        $wallet = app(MoneroWalletRpc::class);
+
+        if (! $wallet->configured()) {
+            return BridgeCapacity::unmeasured(
+                $decimals,
+                'no Monero wallet is attached to this server; the reserve is held manually',
+            );
+        }
+
+        $unlocked = $wallet->unlockedBalance();
+
+        if ($unlocked === null) {
+            return BridgeCapacity::unavailable('Monero wallet balance could not be read', $decimals);
+        }
+
+        // A Monero transaction fee is charged to the sender on top of what it
+        // sends, so a balance that exactly covers a payout does not cover it.
+        $reserve = TokenAmount::toRaw(
+            (string) config('bridge.inventory.monero_fee_reserve_xmr', '0.01'),
+            $decimals,
+        );
+
+        return BridgeCapacity::available(bcsub($unlocked, $reserve, 0), $decimals);
     }
 
     /**

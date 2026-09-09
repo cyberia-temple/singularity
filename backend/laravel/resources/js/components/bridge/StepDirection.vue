@@ -139,9 +139,7 @@ watch(
             !list.some((route) => route.source === from.value) ||
             sourcePending(from.value)
         ) {
-            const firstOpen = list.find(
-                (route) => route.operational !== false,
-            );
+            const firstOpen = list.find((route) => route.operational !== false);
             from.value = (firstOpen ?? list[0]).source;
         }
     },
@@ -179,6 +177,17 @@ const selectedRoute = computed(
 
 const selectedRouteOperational = computed(
     () => selectedRoute.value?.operational !== false,
+);
+
+/**
+ * Corridors whose deposit is bound to an address the bridge hands out, rather
+ * than to a transaction hash the user copies. Worth saying at this step
+ * because it changes what the person is about to be asked for — and on Monero
+ * there is no hash to ask for at all, since nobody outside the receiving
+ * wallet can look one up.
+ */
+const oneTimeDepositSource = computed(() =>
+    ['yenten', 'monero'].includes(selectedRoute.value?.source ?? ''),
 );
 
 // Tokens available on the chosen route — the picker keeps a valid selection as
@@ -399,11 +408,13 @@ const proceed = () => {
                         ? selectedRoute.unavailableReason === 'Coming soon'
                             ? `${selectedRoute.sourceLabel} → ${selectedRoute.destinationLabel} is coming soon — this corridor is not open yet.`
                             : `${selectedRoute.sourceLabel} → ${selectedRoute.destinationLabel} is visible, but operator setup is not complete yet.`
-                        : selectedRoute.sourceWallet === 'manual'
-                        ? selectedRoute.autoProcess
-                            ? `Send from any ${selectedRoute.sourceLabel} wallet to the bridge address, then paste the transaction hash — verification and delivery are automatic.`
-                            : `Send from any ${selectedRoute.sourceLabel} wallet to the bridge address, then paste the transaction hash — an operator verifies and settles the request.`
-                        : `Sign with your ${selectedRoute.sourceLabel} wallet, receive on ${selectedRoute.destinationLabel}.`
+                        : oneTimeDepositSource
+                          ? `The bridge gives you an address of your own on ${selectedRoute.sourceLabel}. Send any amount to it from your own wallet — whatever arrives is what gets bridged, and there is no transaction hash to copy.`
+                          : selectedRoute.sourceWallet === 'manual'
+                            ? selectedRoute.autoProcess
+                                ? `Send from any ${selectedRoute.sourceLabel} wallet to the bridge address, then paste the transaction hash — verification and delivery are automatic.`
+                                : `Send from any ${selectedRoute.sourceLabel} wallet to the bridge address, then paste the transaction hash — an operator verifies and settles the request.`
+                            : `Sign with your ${selectedRoute.sourceLabel} wallet, receive on ${selectedRoute.destinationLabel}.`
                 }}
             </span>
         </p>

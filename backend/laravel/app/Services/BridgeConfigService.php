@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Services\Monero\MoneroWalletRpc;
+
 /**
  * Single source of truth over config/bridge.php: route/token availability
  * rules and the public-safe subsets served to the frontend as Inertia props.
@@ -347,6 +349,16 @@ class BridgeConfigService
         // coins) need a configured deposit/payout address before requests are
         // accepted. EVM/Solana chains have built-in defaults.
         foreach ([$source, $destination] as $chain) {
+            // Monero is the exception, and not by special pleading: its
+            // addresses are not configured at all. Deposits land on
+            // subaddresses the wallet mints per request and payouts are spent
+            // by that same wallet, so the wallet is the requirement — checked
+            // just below — and a config address would be a second answer to a
+            // question the wallet has already answered.
+            if (($chain['type'] ?? '') === 'monero') {
+                continue;
+            }
+
             if (in_array($chain['wallet'] ?? '', ['manual', 'ton'], true)
                 && $this->depositAddress($chain['key']) === null) {
                 return false;
@@ -356,6 +368,17 @@ class BridgeConfigService
         if (($destination['type'] ?? '') === 'ton'
             && ! config('services.bridge.ton_relayer_mnemonic')) {
             return false;
+        }
+
+        // A Monero corridor is a wallet or it is nothing: with none attached
+        // this server can neither see a deposit nor send a payout, so the
+        // route is not offered at all rather than accepting money it would
+        // then have to explain. `configured()` reads config and never the
+        // network — this runs on every page that draws the bridge.
+        if (($source['type'] ?? '') === 'monero' || ($destination['type'] ?? '') === 'monero') {
+            if (! app(MoneroWalletRpc::class)->configured()) {
+                return false;
+            }
         }
 
         if (($source['type'] ?? '') === 'yenten' || ($destination['type'] ?? '') === 'yenten') {

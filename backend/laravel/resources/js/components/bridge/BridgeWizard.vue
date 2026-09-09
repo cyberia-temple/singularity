@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { useBridge } from '@/composables/useBridge';
 import { useBridgeAnalytics } from '@/composables/useBridgeAnalytics';
@@ -780,6 +780,8 @@ const handlePrepare = async () => {
         flow.context.bridgeRequestId = br.id;
         flow.context.depositAddress = br.deposit_address;
         flow.context.depositExpiresAt = br.expires_at ?? null;
+        depositConfirmations.value = br.confirmations ?? null;
+        watchDeposit();
     } catch (err) {
         flow.markFailed(err instanceof Error ? err.message : 'Prepare failed');
     } finally {
@@ -817,6 +819,7 @@ const handleClaim = async () => {
         }
 
         const br = data.bridge_request;
+        stopWatchingDeposit();
         flow.beginTracking(br.id);
         analytics.track('tracking_started', {
             direction: flow.context.direction!,
@@ -834,6 +837,74 @@ const handleClaim = async () => {
 };
 
 const claimError = ref<string | null>(null);
+/** Confirmations the source chain wants, as the corridor answered it. */
+const depositConfirmations = ref<number | null>(null);
+const depositTimer = ref<number | null>(null);
+
+const stopWatchingDeposit = (): void => {
+    if (depositTimer.value !== null) {
+        window.clearTimeout(depositTimer.value);
+        depositTimer.value = null;
+    }
+};
+
+/**
+ * Watch a deposit that has nowhere to announce itself.
+ *
+ * Coins landing on an address raise no event a browser can hear, and on Monero
+ * they cannot even be looked up from here — only the bridge's own wallet sees
+ * them. The server sweeps every couple of minutes whether or not anybody is
+ * here; this asks the cheap question (what is this request's status) while the
+ * page is open, so somebody who IS watching sees it move rather than sitting
+ * on a screen that never changes. The "check now" button still exists for the
+ * impatient, and it is the one that actually goes and reads the chain.
+ */
+const watchDeposit = (): void => {
+    stopWatchingDeposit();
+
+    depositTimer.value = window.setTimeout(async () => {
+        const id = flow.context.bridgeRequestId;
+
+        if (!id || !flow.context.depositAddress) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/bridge/${id}/status`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+
+                if (data.status === 'expired') {
+                    claimError.value =
+                        'The deposit window closed — start a new transfer.';
+                    flow.context.bridgeRequestId = null;
+                    flow.context.depositAddress = null;
+                    flow.context.depositExpiresAt = null;
+
+                    return;
+                }
+
+                if (data.status && data.status !== 'awaiting_deposit') {
+                    // The sweep credited it. From here the tracking step owns
+                    // the polling, and it knows about payouts and burns.
+                    flow.beginTracking(id);
+
+                    return;
+                }
+            }
+        } catch {
+            // Offline or a hiccup: keep waiting rather than declaring anything.
+        }
+
+        watchDeposit();
+    }, 15000);
+};
+
+onBeforeUnmount(stopWatchingDeposit);
 
 const markBridgeSucceeded = (destinationTxHash: string | null): void => {
     if (flow.context.direction) {
@@ -852,8 +923,10 @@ const markBridgeSucceeded = (destinationTxHash: string | null): void => {
 };
 
 const handleReset = () => {
+    stopWatchingDeposit();
     flow.reset();
     claimError.value = null;
+    depositConfirmations.value = null;
 };
 
 const formatActiveRequestTime = (iso: string | null): string => {
@@ -900,7 +973,11 @@ const resumeActiveRequest = (request: ActiveBridgeRequest): void => {
 
     if (request.status !== 'awaiting_deposit') {
         flow.beginTracking(request.id);
+
+        return;
     }
+
+    watchDeposit();
 };
 </script>
 
@@ -986,6 +1063,7 @@ const resumeActiveRequest = (request: ActiveBridgeRequest): void => {
             :destination-label="destinationLabel"
             :source-deposit-address="sourceDepositAddress"
             :prepared-deposit-address="flow.context.depositAddress"
+            :deposit-confirmations="depositConfirmations"
             :deposit-expires-at="flow.context.depositExpiresAt"
             :preparing="preparing"
             :recent="flow.recentForDirection.value"

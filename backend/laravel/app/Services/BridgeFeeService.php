@@ -54,10 +54,10 @@ class BridgeFeeService
 
     /**
      * Fee retained from a native-coin payout to cover the destination network
-     * fee (EVM gas, TON message fee, Yenten transaction fee). EVM quotes use
-     * the larger of the configured gas-price floor and the live RPC price,
-     * then apply a safety multiplier for price movement; TON and Yenten use
-     * flat configured amounts.
+     * fee (EVM gas, TON message fee, Yenten transaction fee, Monero ring
+     * signature). EVM quotes use the larger of the configured gas-price floor
+     * and the live RPC price, then apply a safety multiplier for price
+     * movement; TON, Yenten and Monero use flat configured amounts.
      */
     public function nativePayoutFee(string $direction, string $token, bool $live = true): string
     {
@@ -86,6 +86,13 @@ class BridgeFeeService
 
         if (($chain['type'] ?? null) === 'ton') {
             return (string) config('bridge.fee.ton_payout_fee_ton', '0.01');
+        }
+
+        // Monero charges its fee to the sender on top of the amount sent, so
+        // the recipient gets the net figure exactly and this reserve is what
+        // pays the wallet back for the transaction that delivered it.
+        if (($chain['type'] ?? null) === 'monero') {
+            return (string) config('bridge.fee.monero_payout_fee_xmr', '0.0005');
         }
 
         // A native EVM payout: the token's destination entry is flagged native

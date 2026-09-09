@@ -22,3 +22,8 @@ frontend/ritual/.env.*
 .codex/
 services/cyberia-node/data/
 services/cyberia-node/.env
+
+# The bridge's Monero wallet. `wallet/` holds the keys themselves and `.env`
+# the RPC login that can spend them — neither has any business in a repo.
+services/monero/wallet/
+services/monero/.env
