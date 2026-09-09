@@ -95,6 +95,23 @@ def get_chat_token(chat_id: int):
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Group links hand off to a private chat: only there can Telegram show a
+    # web_app button. The payload selects a token and never authorizes a trade.
+    if context.args and context.args[0].startswith("swap_"):
+        match = re.fullmatch(r"swap_(0x[0-9a-fA-F]{40})", context.args[0])
+        if not match or len(context.args) != 1:
+            await update.message.reply_text("Некорректная ссылка обмена. Запросите /balance заново.")
+        elif not _is_private(update):
+            await update.message.reply_text("Откройте кнопку Swap из /balance в личном чате бота.")
+        else:
+            await update.message.reply_text(
+                "Обмен выбранного токена внутри Telegram Mini App.\n"
+                "Нажмите кнопку ниже — откроется кошелёк с выбранным токеном.\n"
+                f"Контракт: {match[1]}",
+                reply_markup=swap_markup(True, [("токен", match[1])]),
+            )
+        return
+
     user = update.effective_user
 
     has_wallet = False
@@ -115,6 +132,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Commands:",
         "/help - show available commands",
         "/wallet - show your linked wallet and explorer link",
+        "/rps <stake> - play rock-paper-scissors with this chat’s accrued tokens",
         "/balance - show TG, all chat tokens, and pending rewards",
         "/token - show this chat's reward token (group only)",
         "/unset_wallet - unlink your wallet (pending rewards are kept)",
@@ -166,6 +184,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/set_wallet [address] - link your wallet (asks for address if omitted)\n"
         "/unset_wallet - unlink your wallet (pending rewards are kept)\n"
         "/wallet - show your linked wallet and explorer link\n"
+        "/rps <stake> - play rock-paper-scissors with this chat’s accrued tokens\n"
         "/balance - show TG, all chat tokens, and pending rewards\n"
         "/token - show this chat's reward token (group only)\n"
         "/cancel - cancel an interactive prompt\n"
@@ -214,7 +233,7 @@ def mini_app_markup(is_private: bool) -> InlineKeyboardMarkup:
     )
 
 
-def swap_markup(is_private: bool, tokens) -> InlineKeyboardMarkup | None:
+def swap_markup(is_private: bool, tokens, bot_username: str = "cyberia_network_bot") -> InlineKeyboardMarkup | None:
     """One [Swap] button per chat token, opening the wallet on that token.
 
     The bot has no private key and must never have one, so it cannot trade on
@@ -222,10 +241,10 @@ def swap_markup(is_private: bool, tokens) -> InlineKeyboardMarkup | None:
     token already chosen — the mini app *is* the wallet, with the vault in its
     own storage, and it reads `?swap=<contract>` on the way in.
 
-    `web_app` is legal only in a private chat; Telegram rejects the whole
-    message otherwise, so a group gets ordinary links to the same page. Both
-    land in the same place and neither tells the bot anything about what
-    happens there.
+    `web_app` is legal only in a private chat. Group buttons therefore use
+    Telegram bot deep links; /start turns their validated payload into a
+    private web_app button, retaining the chosen token. This works without a
+    Main Mini App configured in BotFather.
 
     Telegram allows at most 100 buttons and a row of them stops being readable
     long before that, so this caps at a handful.
@@ -238,7 +257,7 @@ def swap_markup(is_private: bool, tokens) -> InlineKeyboardMarkup | None:
             InlineKeyboardButton(
                 f"🔄 Swap {symbol}",
                 web_app=WebAppInfo(url=url) if is_private else None,
-                url=None if is_private else url,
+                url=None if is_private else f"https://t.me/{bot_username}?start=swap_{token_address}",
             )
         ])
 
@@ -722,6 +741,7 @@ def _credit_pending_reward(chat_id: int, user_id: int, amount: int) -> None:
     if amount <= 0:
         return
     with engine.begin() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
         row = conn.execute(
             text("SELECT amount FROM pending_rewards WHERE chat_id = :c AND user_id = :u"),
             {"c": chat_id, "u": user_id},
@@ -1591,7 +1611,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "\n".join(lines),
-        reply_markup=swap_markup(_is_private(update), swappable),
+        reply_markup=swap_markup(_is_private(update), swappable, context.bot.username),
     )
 
 
