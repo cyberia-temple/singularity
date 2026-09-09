@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, nextTick, ref, watch } from 'vue';
-import ContactWays, {
-    type ContactWay,
-} from '@/components/console/ContactWays.vue';
+import type { ContactWay } from '@/components/console/ContactWays.vue';
 import Rule from '@/components/console/Rule.vue';
 import Spark from '@/components/console/Spark.vue';
 import { useConsoleLive } from '@/composables/useConsolePulse';
@@ -17,6 +15,8 @@ import {
     toneColor,
 } from '@/lib/console';
 import { consoleMessages } from '@/lib/consoleMessages';
+import { show as showPerson } from '@/routes/crm';
+import { show as showTask } from '@/routes/crm/tasks';
 
 /**
  * "Лиды" — contacts read as what happened to them.
@@ -56,6 +56,17 @@ type Row = {
     /* When the record was written down; shown when the list is sorted by it. */
     added: string | null;
     signal: Signal;
+    next: {
+        kind: string;
+        last_at: string | null;
+        direction: string | null;
+        task: {
+            id: number;
+            title: string;
+            due_at: string | null;
+            assignee: string | null;
+        } | null;
+    };
     spark: number[];
     /* Where a message to this person would go, or null when nowhere does. */
     write: string | null;
@@ -155,7 +166,7 @@ watch(
  * it. The search box and the composer are local state and survive the
  * re-read: this replaces the row, never what somebody is typing.
  */
-useConsoleLive('people', () =>
+useConsoleLive(['people', 'messages', 'tasks'], () =>
     router.reload({
         only: ['segments', 'rows', 'total', 'shown', 'more', 'sync', 'console'],
     }),
@@ -402,7 +413,7 @@ function more40() {
 }
 
 function open(row: Row) {
-    router.visit(`/crm/${row.id}`);
+    router.visit(showPerson.url(row.id));
 }
 
 function ago(iso: string | null): string {
@@ -913,13 +924,41 @@ const currentSegment = computed(
                             class="mk-clip"
                             style="font-size: 13px; color: var(--mk-body)"
                         >
-                            {{ signalText(row.signal) }}
+                            {{ t(`people.next.${row.next.kind}`) }}
+                            <template v-if="row.next.task">
+                                · {{ row.next.task.title }}</template
+                            >
                         </div>
                         <div
                             class="mk-t3"
                             style="margin-top: 2px; font-size: 11.5px"
                         >
-                            {{ ago(row.signal.at) }}
+                            <template v-if="row.next.task">
+                                {{
+                                    row.next.task.due_at
+                                        ? dateTime(row.next.task.due_at, tag)
+                                        : t('people.noDate')
+                                }}
+                                ·
+                                {{
+                                    row.next.task.assignee ??
+                                    t('people.noOwner')
+                                }}
+                            </template>
+                            <template v-else-if="row.next.last_at">
+                                {{
+                                    t(
+                                        row.next.direction === 'in'
+                                            ? 'people.lastIn'
+                                            : 'people.lastOut',
+                                    )
+                                }}
+                                · {{ ago(row.next.last_at) }}
+                            </template>
+                            <template v-else
+                                >{{ signalText(row.signal) }} ·
+                                {{ ago(row.signal.at) }}</template
+                            >
                             <!-- Reading by when somebody was written down: say
                                  the date being sorted on, or the order looks
                                  arbitrary against a column of signals. -->
@@ -982,14 +1021,28 @@ const currentSegment = computed(
                             {{ t('people.sold') }}
                         </button>
                     </div>
-                    <ContactWays
-                        v-if="row.write_ways.length"
-                        :ways="row.write_ways"
-                        :label="t('person.write')"
-                    />
-                    <span v-else class="mk-btn" style="width: 108px">{{
-                        t('action.openPerson')
-                    }}</span>
+                    <Link
+                        class="mk-btn"
+                        :href="
+                            row.next.task &&
+                            ['overdue', 'planned'].includes(row.next.kind)
+                                ? showTask.url(row.next.task.id)
+                                : showPerson.url(row.id, {
+                                      query: { pane: 'thread' },
+                                  }) + '#conversation'
+                        "
+                        @click.stop
+                        >{{
+                            t(
+                                row.next.task &&
+                                    ['overdue', 'planned'].includes(
+                                        row.next.kind,
+                                    )
+                                    ? 'people.doTask'
+                                    : 'people.workLead',
+                            )
+                        }}</Link
+                    >
                 </div>
             </div>
             <p v-else class="mk-t3" style="font-size: 13px">

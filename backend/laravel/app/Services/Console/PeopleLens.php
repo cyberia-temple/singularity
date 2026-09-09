@@ -77,6 +77,21 @@ class PeopleLens
                 'tone' => 'plain',
                 'apply' => function (Builder $query): void {},
             ],
+            'first_contact' => [
+                'tone' => 'plain',
+                'apply' => fn (Builder $query) => $query
+                    ->where('type', 'lead')->where('status', 'new')->whereDoesntHave('messages'),
+            ],
+            'needs_reply' => [
+                'tone' => 'warning',
+                'apply' => fn (Builder $query) => $query->where('status', '!=', 'lost')
+                    ->whereHas('latestMessage', fn ($messages) => $messages->where('direction', 'in')),
+            ],
+            'no_next_step' => [
+                'tone' => 'warning',
+                'apply' => fn (Builder $query) => $query->where('status', '!=', 'lost')
+                    ->whereHas('messages')->whereDoesntHave('tasks', fn ($tasks) => $tasks->active()),
+            ],
             'partners' => [
                 'tone' => 'accent',
                 'apply' => fn (Builder $query) => $query->where('type', 'partner'),
@@ -233,7 +248,7 @@ class PeopleLens
         $tasks = $this->openTasks($contacts);
         $transfers = $this->transfers($contacts);
         $price = $this->prices->quotes()['prices']['cyberia'] ?? null;
-        $contacts->loadMissing('contactLinks');
+        $contacts->loadMissing(['contactLinks', 'latestMessage']);
 
         $rows = $contacts->map(function (CrmContact $contact) use ($notes, $tasks, $transfers, $price): array {
             $signal = $this->signal($contact, $notes, $tasks, $transfers);
@@ -262,6 +277,7 @@ class PeopleLens
                 // operator uses to find somebody they entered yesterday.
                 'added' => $contact->created_at?->toIso8601String(),
                 'signal' => $signal,
+                'next' => $this->nextStep($contact, $tasks->get($contact->id)),
                 'spark' => $transfers['weekly'][$contact->id] ?? array_fill(0, self::WEEKS, 0),
                 'write' => $writeWays[0]['url'] ?? null,
                 'write_ways' => $writeWays,
@@ -341,6 +357,33 @@ class PeopleLens
         };
     }
 
+    /** @return array<string, mixed> */
+    private function nextStep(CrmContact $contact, ?CrmTask $task): array
+    {
+        $last = $contact->latestMessage;
+        $kind = match (true) {
+            $contact->status === 'lost' => 'closed',
+            $task?->isOverdue() === true => 'overdue',
+            $last?->direction === 'in' => 'reply',
+            $task !== null => 'planned',
+            $last !== null => 'plan',
+            $contact->status === 'new' => 'first',
+            default => 'plan',
+        };
+
+        return [
+            'kind' => $kind,
+            'last_at' => $last?->sent_at?->toIso8601String(),
+            'direction' => $last?->direction,
+            'task' => $task === null ? null : [
+                'id' => $task->id,
+                'title' => $task->title,
+                'due_at' => $task->due_at?->toIso8601String(),
+                'assignee' => $task->assignee?->name,
+            ],
+        ];
+    }
+
     /**
      * What happened to this person, most recent first.
      *
@@ -355,7 +398,13 @@ class PeopleLens
      */
     private function signal(CrmContact $contact, Collection $notes, Collection $tasks, array $transfers): array
     {
-        $candidates = [];
+        $last = $contact->latestMessage;
+        $candidates = $last === null ? [] : [[
+            'key' => $last->direction === 'in' ? 'people.lastIn' : 'people.lastOut',
+            'at' => $last->sent_at?->toIso8601String(),
+            'params' => [],
+            'tone' => $last->direction === 'in' ? 'warning' : 'plain',
+        ]];
 
         $note = $notes->get($contact->id);
 
@@ -454,8 +503,10 @@ class PeopleLens
         return CrmTask::query()
             ->active()
             ->whereIn('crm_contact_id', $contacts->pluck('id'))
-            ->byDueDate()
+            ->with('assignee:id,name')
+            ->orderByRaw('due_at is null')->orderBy('due_at')->orderBy('id')
             ->get()
+            ->unique('crm_contact_id')
             ->keyBy('crm_contact_id');
     }
 

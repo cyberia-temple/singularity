@@ -68,13 +68,13 @@ test('the people lens lists every segment with its count', function () {
             ->has('rows', 2)
             // A segment is a saved question, so the whole list travels with
             // its counts — an operator picks a question, not a filter.
-            ->has('segments', 10)
+            ->has('segments', 13)
             ->where('segments.0.key', 'all')
             ->where('segments.0.count', 2)
-            ->where('segments.1.key', 'partners')
-            ->where('segments.1.count', 0)
-            ->where('segments.2.key', 'whales')
-            ->where('segments.2.count', 1)
+            ->where('segments.4.key', 'partners')
+            ->where('segments.4.count', 0)
+            ->where('segments.5.key', 'whales')
+            ->where('segments.5.count', 1)
         );
 });
 
