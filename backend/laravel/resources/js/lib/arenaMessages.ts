@@ -25,6 +25,25 @@ export const arenaMessages: Messages = {
         inviteCopied: 'Invitation link copied.',
         invalidGameId: 'Enter a positive game number.',
         deadline: 'Phase deadline',
+        state6: 'Waiting for both players to be ready',
+        action_ready: 'Confirm readiness',
+        ready: 'HOLD TO CONFIRM READINESS',
+        readyHint:
+            'Readiness is valid for 10 minutes. The match starts when both confirmations are valid. After the start you have 10 minutes for each commit/reveal phase; missing a phase sends your stake to the treasury.',
+        readyWaiting:
+            'Waiting for your opponent. Your readiness expires in {time}, without penalty.',
+        asyncRules:
+            'The challenge has no expiry. Either player can cancel before both are ready, refunding deposited stakes. Once started, each commit/reveal phase lasts 10 minutes. Each inactive player forfeits their own stake to the Arena treasury; an active opponent receives their own stake back.',
+        legacyRules:
+            'This contract uses the original rules: {minutes} minutes per phase, including waiting for an opponent. A lone active player wins the pot; if both are inactive their stakes are refunded.',
+        treasury: 'Arena treasury',
+        cancelBeforeStart: 'HOLD TO CANCEL BEFORE START',
+        cancelHint:
+            'Cancel before the match starts. Each deposited stake becomes available for its owner to claim; no penalty.',
+        timeoutHint:
+            'Settle the expired phase: inactive stakes go to the treasury, an active player gets their own stake back. If both moves were revealed, settle the normal result.',
+        timeoutResult:
+            'Match ended due to inactivity. Each inactive stake was credited to the treasury; an active player can claim their own stake back.',
         action_join: 'Join',
         action_commit: 'Choose a move',
         action_reveal: 'Reveal now',
@@ -40,7 +59,7 @@ export const arenaMessages: Messages = {
         rpsDesc:
             'A trustless two-player duel. Seal a move, reveal it after your rival commits, and let Cyberia settle the outcome.',
         players: '2 players',
-        minutes: '2–5 min',
+        minutes: 'COMMIT / REVEAL',
         update: 'Latest update',
         updateText:
             'Wallet-native commit–reveal matches, CYBER stakes and timeout settlement are ready for testing.',
@@ -83,7 +102,7 @@ export const arenaMessages: Messages = {
         state4: 'Resolved',
         state5: 'Cancelled',
         created: 'Game created. Share its number with an opponent.',
-        joined: 'Joined. Both players can now seal a move.',
+        joined: 'Joined. Check the match for your next action.',
         sealed: 'Move sealed on Cyberia; its reveal secret remains encrypted in this vault.',
         revealed: 'Move revealed.',
         settled: 'Game settled.',
@@ -127,6 +146,25 @@ export const arenaMessages: Messages = {
         inviteCopied: 'Ссылка-приглашение скопирована.',
         invalidGameId: 'Введите положительный номер игры.',
         deadline: 'До конца фазы',
+        state6: 'Ожидание готовности обоих игроков',
+        action_ready: 'Подтвердить готовность',
+        ready: 'УДЕРЖИВАЙТЕ ДЛЯ ПОДТВЕРЖДЕНИЯ ГОТОВНОСТИ',
+        readyHint:
+            'Готовность действует 10 минут. Матч стартует, когда оба подтверждения действительны. После старта на каждую фазу скрытия/раскрытия — 10 минут; пропуск фазы передаёт вашу ставку казне.',
+        readyWaiting:
+            'Ждём соперника. Ваша готовность истекает через {time}, без штрафа.',
+        asyncRules:
+            'Вызов бессрочный. До готовности обоих любой участник может отменить матч с возвратом внесённых ставок. После старта на каждую фазу скрытия/раскрытия — 10 минут. Ставка каждого неактивного игрока уходит в казну Arena; активному сопернику возвращается его собственная ставка.',
+        legacyRules:
+            'На этом контракте действуют прежние правила: {minutes} минут на фазу, включая ожидание соперника. Единственный активный игрок получает банк; при бездействии обоих ставки возвращаются.',
+        treasury: 'Казна Arena',
+        cancelBeforeStart: 'УДЕРЖИВАЙТЕ ДЛЯ ОТМЕНЫ ДО СТАРТА',
+        cancelHint:
+            'Отмена до начала матча. Каждая внесённая ставка станет доступна владельцу для получения; штрафа нет.',
+        timeoutHint:
+            'Завершение просроченной фазы: ставки неактивных игроков идут в казну, активному возвращается его ставка. Если оба хода раскрыты — определяется обычный результат.',
+        timeoutResult:
+            'Матч завершён из-за бездействия. Каждая ставка неактивного игрока зачислена казне; активный игрок может забрать собственную ставку.',
         action_join: 'Войти',
         action_commit: 'Выбрать ход',
         action_reveal: 'Раскрыть сейчас',
@@ -142,7 +180,7 @@ export const arenaMessages: Messages = {
         rpsDesc:
             'Честная дуэль двух игроков. Спрячьте ход, раскройте его после ставки соперника — исход определит Cyberia.',
         players: '2 игрока',
-        minutes: '2–5 мин',
+        minutes: 'СКРЫТИЕ / РАСКРЫТИЕ',
         update: 'Последнее обновление',
         updateText:
             'Матчи commit–reveal в кошельке, ставки CYBER и завершение по таймауту готовы к тестированию.',
@@ -186,7 +224,7 @@ export const arenaMessages: Messages = {
         state4: 'Завершена',
         state5: 'Отменена',
         created: 'Игра создана. Передайте её номер сопернику.',
-        joined: 'Вы вошли. Теперь оба игрока могут скрыть ход.',
+        joined: 'Вы вошли. Проверьте следующее действие в матче.',
         sealed: 'Ход зафиксирован в Cyberia; секрет раскрытия зашифрован в кошельке.',
         revealed: 'Ход раскрыт.',
         settled: 'Игра завершена.',
@@ -228,6 +266,25 @@ export const arenaMessages: Messages = {
         inviteCopied: '邀请链接已复制。',
         invalidGameId: '请输入正整数游戏编号。',
         deadline: '阶段剩余时间',
+        state6: '等待双方准备就绪',
+        action_ready: '确认准备就绪',
+        ready: '按住确认准备就绪',
+        readyHint:
+            '准备确认有效期为10分钟。双方确认均有效时对局开始。开始后每个提交或揭示阶段限时10分钟；未完成阶段将使你的下注归入金库。',
+        readyWaiting:
+            '等待对手。你的准备确认将在 {time} 后失效，不会受到处罚。',
+        asyncRules:
+            '挑战不会过期。双方准备就绪前，任一玩家均可取消并退回已存入的下注。开始后每个提交或揭示阶段限时10分钟。每位未行动玩家的下注归入 Arena 金库；已行动的对手取回自己的下注。',
+        legacyRules:
+            '此合约使用旧规则：每个阶段限时 {minutes} 分钟，包括等待对手。仅一人行动时该玩家赢得全部下注；双方均未行动则退款。',
+        treasury: 'Arena 金库',
+        cancelBeforeStart: '按住在开始前取消',
+        cancelHint:
+            '在对局开始前取消。每笔已存入的下注均可由其所有者领取，不收取罚金。',
+        timeoutHint:
+            '结算超时阶段：未行动玩家的下注归入金库，已行动玩家取回自己的下注。若双方均已揭示，则按正常结果结算。',
+        timeoutResult:
+            '对局因未行动而结束。未行动玩家的下注已计入金库；已行动玩家可领取自己的下注。',
         action_join: '加入',
         action_commit: '选择出招',
         action_reveal: '立即揭示',
@@ -243,7 +300,7 @@ export const arenaMessages: Messages = {
         rpsDesc:
             '无需信任的双人对决。封存选择，等待对手提交后揭示，由 Cyberia 结算结果。',
         players: '2 名玩家',
-        minutes: '2–5 分钟',
+        minutes: '提交 / 揭示',
         update: '最新更新',
         updateText:
             '钱包内 commit–reveal 对局、CYBER 下注和超时结算现已可测试。',
@@ -283,7 +340,7 @@ export const arenaMessages: Messages = {
         state4: '已结算',
         state5: '已取消',
         created: '游戏已创建，请把编号分享给对手。',
-        joined: '已加入，双方现在可以封存选择。',
+        joined: '已加入，请查看对局中的下一步操作。',
         sealed: '选择已记录在 Cyberia，揭示密钥加密保存在钱包中。',
         revealed: '选择已揭示。',
         settled: '游戏已结算。',

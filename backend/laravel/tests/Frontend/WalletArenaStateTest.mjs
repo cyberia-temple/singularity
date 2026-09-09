@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     arenaAction,
+    arenaCanCancel,
+    arenaPhaseExpired,
     arenaGameLists,
     arenaNeedsAction,
     arenaRole,
@@ -24,7 +26,36 @@ const game = (changes = {}) => ({
     playerOneMove: 0,
     playerTwoMove: 0,
     payout: 0n,
+    rules: { version: 1, phaseDuration: 300, treasury: null },
+    playerOneReadyUntil: 0,
+    playerTwoReadyUntil: 0,
     ...changes,
+});
+
+test('async challenges never expire; readiness belongs in active and action queues', () => {
+    const waiting = game({ state: 1, deadline: 0, rules: { version: 2 } });
+    assert.equal(arenaAction(waiting, outsider, 999999), 'join');
+    assert.equal(arenaAction(waiting, one, 999999), 'wait');
+    assert.equal(arenaCanCancel(waiting, one), true);
+    assert.equal(arenaCanCancel(waiting, outsider), false);
+    const ready = game({
+        state: 6,
+        deadline: 0,
+        rules: { version: 2 },
+        playerOneReadyUntil: 150,
+    });
+    assert.equal(arenaAction(ready, one, 100), 'wait');
+    assert.equal(arenaAction(ready, two, 100), 'ready');
+    assert.equal(arenaAction(ready, one, 151), 'ready');
+    assert.equal(arenaAction(ready, outsider, 100), 'wait');
+    assert.equal(arenaCanCancel(ready, two), true);
+    assert.equal(arenaCanCancel(game({ rules: { version: 2 } }), one), false);
+    const lists = arenaGameLists([ready], two, 100);
+    assert.equal(lists.mine.length, 1);
+    assert.equal(lists.attention.length, 1);
+    assert.equal(lists.complete.length, 0);
+    assert.equal(arenaPhaseExpired(game(), 200.9), false);
+    assert.equal(arenaPhaseExpired(game(), 201), true);
 });
 
 test('Arena roles compare EVM addresses without checksum casing', () => {

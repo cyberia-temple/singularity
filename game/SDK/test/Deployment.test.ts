@@ -14,6 +14,44 @@ async function deployed() {
 }
 
 describe("Arena deployment verification", function () {
+  it("verifies asynchronous bytecode, the fixed ten-minute duration and treasury", async function () {
+    const [, treasury, wrong] = await ethers.getSigners();
+    const arena = await ethers.deployContract("RockPaperScissorsAsync", [
+      treasury.address,
+    ]);
+    await arena.waitForDeployment();
+    const artifact = await artifacts.readArtifact("RockPaperScissorsAsync");
+    const hash = arena.deploymentTransaction()!.hash;
+    const manifest = await inspectDeployment(
+      ethers.provider,
+      hash,
+      artifact.bytecode,
+      600n,
+      treasury.address,
+    );
+    expect(manifest.contract).to.equal("RockPaperScissorsAsync");
+    expect(manifest.treasury).to.equal(treasury.address);
+    await rejects(
+      inspectDeployment(
+        ethers.provider,
+        hash,
+        artifact.bytecode,
+        600n,
+        wrong.address,
+      ),
+      /Deployment input does not match/,
+    );
+    await rejects(
+      inspectDeployment(
+        ethers.provider,
+        hash,
+        artifact.bytecode,
+        300n,
+        treasury.address,
+      ),
+      /phase duration does not match/,
+    );
+  });
   it("records a mined deployment only when the build and constructor match", async function () {
     const { arena, hash, artifact } = await deployed();
     const manifest = await inspectDeployment(

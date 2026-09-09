@@ -39,7 +39,7 @@ before waiting for confirmation. To recover a manifest after an interrupted
 run (no signing required):
 
 ```bash
-ARENA_DEPLOYMENT_TX=0x... ARENA_PHASE_DURATION=300 npm run verify:deployment
+ARENA_RULES_VERSION=1 ARENA_DEPLOYMENT_TX=0x... ARENA_PHASE_DURATION=300 npm run verify:deployment
 ```
 
 This checks chain ID, receipt success, exact creation bytecode and constructor,
@@ -48,3 +48,38 @@ an existing manifest. Preserve the printed transaction hash if any later step
 fails; recover that deployment instead of deploying another contract.
 This check does not publish source code to the explorer or prove the UI smoke
 match. Keep those release checks separate.
+
+## Asynchronous challenges (new deployment)
+
+`RockPaperScissorsAsync` implements the revised single-round rules. Challenges
+wait indefinitely. Acceptance escrows the second stake but does not start play.
+Both players must confirm readiness; each acknowledgement is valid for ten
+minutes without a penalty for expiry. Until both are ready, either participant
+may cancel and both deposits become claimable. Once started, commit and reveal
+each have a fixed 600-second deadline.
+
+On timeout, each inactive player's own stake accrues to the immutable Arena
+treasury; an active player gets their own stake back. If neither acts, both
+stakes accrue to the treasury. Normal outcomes and draws are unchanged. Timeout
+settlement and `claimTreasury(gameId)` are permissionless transactions; they do
+not run automatically, and a treasury transfer cannot block settlement or a
+player's separate refund.
+
+Set `ARENA_TREASURY_ADDRESS` explicitly before `npm run deploy:cyberia`. There is
+no default treasury. The command now deploys the asynchronous contract;
+`deploy:legacy` retains the original script. Recover a new manifest using
+`ARENA_RULES_VERSION=2`, `ARENA_TREASURY_ADDRESS` and `ARENA_DEPLOYMENT_TX` with
+`npm run verify:deployment`. The new contract is not deployed by this code change.
+
+The wallet reads the rules from the configured contract before enabling creation.
+Changing `ARENA_CONTRACT_ADDRESS` selects the new deployment after verification.
+New invitation links include its address; links without an address still resolve
+to the original deployed MVP. Only the configured and original addresses are
+accepted from invitations. Both versions retain their own encrypted secrets,
+game IDs and payout paths. The current 50-game discovery window remains bounded:
+older challenges can still be opened by invitation or ID but need an indexer
+to stay discoverable in a growing feed.
+
+Spectator bets, token conversion, stake changes between rounds, scheduled duels
+and background notifications are separate future features, not part of these
+revised timeout rules.

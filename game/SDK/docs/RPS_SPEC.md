@@ -3,6 +3,31 @@
 `contracts/RockPaperScissors.sol` is the first Cyberia Arcade reference game.
 It is a two-player native-CYBER escrow with no protocol fee.
 
+## Revised asynchronous rules
+
+`contracts/RockPaperScissorsAsync.sol` is a separate, single-round deployment
+with `rulesVersion = 2`; it does not alter the deployed v1 or implement the
+future 12-card series. The game tuple and states 1–5 are preserved. State 6 is
+`WaitingForReady`, reached on acceptance. Waiting states have `deadline = 0`.
+The creator can cancel an unaccepted challenge; either player can cancel while
+waiting for readiness, returning all deposits through `pendingPayout`.
+
+`confirmReady` records a ten-minute acknowledgement. Two currently valid
+acknowledgements atomically start commit with a full 600 seconds. An expired
+acknowledgement costs nothing and must be renewed to start. Two commits start
+a fresh 600-second reveal phase. Actions at the deadline remain valid; timeout
+settlement starts in the following second.
+
+Every missing commit or reveal forfeits that player's stake to `pendingTreasury`.
+An active player's own stake becomes claimable. Both missing means both stakes
+go to the treasury. This is `Cancelled` with result `TimedOut = 4`, not a win or
+draw. Two completed reveals always settle normally, even if settlement is late.
+`claimTreasury` can be called by anyone and pays only the constructor's immutable
+treasury address, separately from player claims. No transfer occurs during
+settlement. All these operations need transactions, not a server timer.
+
+The sections below document the original deployed v1 rules.
+
 ## Lifecycle
 
 ```text

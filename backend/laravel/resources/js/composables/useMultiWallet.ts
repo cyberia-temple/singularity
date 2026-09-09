@@ -68,7 +68,11 @@ import type {
     WalletTokenBalance,
     WalletTx,
 } from '@/lib/wallet';
-import type { ArenaMove, ArenaSecretRecord } from '@/lib/wallet';
+import type {
+    ArenaMove,
+    ArenaSecretRecord,
+    ArenaSettlement,
+} from '@/lib/wallet';
 import { lockOnEvm } from '@/lib/wallet/bridge';
 import type { BridgeLock } from '@/lib/wallet/bridge';
 import { executeCrossSwap } from '@/lib/wallet/crosschain';
@@ -1541,6 +1545,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
 
         const existing = arenaSecret(contract, gameId, player);
+
         if (existing && existing.move !== move) {
             throw new Error('A different move is already sealed for this game');
         }
@@ -1553,6 +1558,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
             secret: createArenaSecret(),
             createdAt: new Date().toISOString(),
         };
+
         if (!existing) {
             await commit({ arenaSecrets: [...vault.arenaSecrets, record] });
         }
@@ -1627,7 +1633,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     const arenaSettle = async (
         contract: string,
         gameId: bigint,
-        method: 'resolveGame' | 'cancelExpiredGame' | 'claimPayout',
+        method: ArenaSettlement,
     ): Promise<string> => {
         busy.value = true;
 

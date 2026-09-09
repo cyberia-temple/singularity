@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "hardhat clean",
     "verify:deployment": "hardhat run scripts/verify.ts --network cyberia --build-profile production",
-    "deploy:cyberia": "hardhat run scripts/deploy.ts --network cyberia --build-profile production"
+    "deploy:cyberia": "hardhat run scripts/deploy-async.ts --network cyberia --build-profile production",
+    "deploy:legacy": "hardhat run scripts/deploy.ts --network cyberia --build-profile production"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

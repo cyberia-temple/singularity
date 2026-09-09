@@ -8,19 +8,30 @@ import { arenaCatalogueGame } from '@/lib/arenaCatalogue';
 import { arenaMessages } from '@/lib/arenaMessages';
 import {
     arenaAction,
+    arenaCanCancel,
+    arenaComplete,
+    arenaContractForLink,
     arenaErrorCode,
     arenaGameLists,
     arenaHasOpponent,
     arenaMatchPath,
+    arenaPhaseExpired,
+    arenaReadyUntil,
     arenaShareUrl,
     arenaSecondsRemaining,
     arenaTransactionUrl,
     formatArenaCountdown,
     parseArenaGameId,
     readArenaGame,
+    readArenaRules,
     readRecentArenaGames,
 } from '@/lib/wallet';
-import type { ArenaGame, ArenaMove } from '@/lib/wallet';
+import type {
+    ArenaGame,
+    ArenaMove,
+    ArenaRules,
+    ArenaSettlement,
+} from '@/lib/wallet';
 
 const props = defineProps<{
     wallet: MultiWallet;
@@ -36,8 +47,17 @@ const product = arenaCatalogueGame('rps')!;
 
 const query = new URLSearchParams(window.location.search);
 const linkedGameId = parseArenaGameId(query.get('game'));
+const contractAddress =
+    arenaContractForLink(
+        props.config.contractAddress,
+        linkedGameId,
+        query.get('contract'),
+    ) ?? '';
+const arenaEnabled = !!contractAddress && props.config.enabled;
 const selectedGame = ref(linkedGameId !== null);
-const tab = ref<'about' | 'play' | 'community'>('about');
+const tab = ref<'about' | 'play' | 'community'>(
+    linkedGameId ? 'play' : 'about',
+);
 const feedback = ref('');
 const savedFeedback = ref<string[]>(
     JSON.parse(localStorage.getItem('cyberia-arena-feedback') ?? '[]'),
@@ -60,6 +80,7 @@ const gameId = ref(linkedGameId?.toString() ?? '');
 const stake = ref('0.01');
 const move = ref<ArenaMove>(1);
 const game = ref<ArenaGame | null>(null);
+const rules = ref<ArenaRules | null>(null);
 const message = ref('');
 const lastTransactionHash = ref('');
 const transactionUrl = computed(() =>
@@ -76,7 +97,14 @@ const account = computed(
             ?.address ?? '',
 );
 const me = computed(() => account.value.toLowerCase());
-const lists = computed(() => arenaGameLists(recentGames.value, account.value));
+const lists = computed(() =>
+    arenaGameLists(recentGames.value, account.value, nowSeconds.value),
+);
+const selectedAction = computed(() =>
+    game.value
+        ? arenaAction(game.value, account.value, nowSeconds.value)
+        : 'wait',
+);
 const isPlayer = computed(
     () =>
         game.value &&
@@ -99,7 +127,7 @@ const revealed = computed(
             : game.value.playerTwoMove) !== 0,
 );
 const expired = computed(
-    () => !!game.value && nowSeconds.value > game.value.deadline,
+    () => !!game.value && arenaPhaseExpired(game.value, nowSeconds.value),
 );
 const countdown = computed(() =>
     game.value
@@ -115,6 +143,7 @@ const states = computed(() => [
     t('state3'),
     t('state4'),
     t('state5'),
+    t('state6'),
 ]);
 const moves = computed<{ id: ArenaMove; glyph: string; name: string }[]>(() => [
     { id: 1, glyph: '◆', name: t('rock') },
@@ -125,7 +154,7 @@ const moves = computed<{ id: ArenaMove; glyph: string; name: string }[]>(() => [
 const refresh = async (): Promise<void> => {
     const parsedGameId = parseArenaGameId(gameId.value);
 
-    if (!props.config.enabled || parsedGameId === null || !account.value) {
+    if (!arenaEnabled || parsedGameId === null || !account.value) {
         return;
     }
 
@@ -133,7 +162,7 @@ const refresh = async (): Promise<void> => {
 
     try {
         game.value = await readArenaGame(
-            props.config.contractAddress,
+            contractAddress,
             parsedGameId,
             account.value,
             props.config.rpcUrl,
@@ -146,7 +175,7 @@ const refresh = async (): Promise<void> => {
     }
 };
 const refreshCatalogue = async (): Promise<void> => {
-    if (!props.config.enabled || !account.value) {
+    if (!arenaEnabled || !account.value) {
         return;
     }
 
@@ -154,12 +183,17 @@ const refreshCatalogue = async (): Promise<void> => {
     catalogueError.value = '';
 
     try {
+        rules.value = await readArenaRules(
+            contractAddress,
+            props.config.rpcUrl,
+        );
         recentGames.value = await readRecentArenaGames(
-            props.config.contractAddress,
+            contractAddress,
             account.value,
             props.config.rpcUrl,
         );
     } catch {
+        rules.value = null;
         catalogueError.value = t('matchesError');
     } finally {
         catalogueLoading.value = false;
@@ -170,7 +204,8 @@ const openMatch = (match: ArenaGame): void => {
     gameId.value = match.id.toString();
     selectedGame.value = true;
     tab.value = 'play';
-    history.replaceState({}, '', arenaMatchPath(match.id));
+    history.replaceState({}, '', arenaMatchPath(match.id, contractAddress));
+    void refresh();
 };
 const requiredGameId = (): bigint => {
     const parsed = parseArenaGameId(gameId.value);
@@ -183,7 +218,7 @@ const requiredGameId = (): bigint => {
 };
 const shareMatch = async (): Promise<void> => {
     const parsed = requiredGameId();
-    const url = arenaShareUrl(window.location.origin, parsed);
+    const url = arenaShareUrl(window.location.origin, parsed, contractAddress);
 
     if (navigator.share) {
         await navigator.share({ title: t('rps'), url });
@@ -229,13 +264,17 @@ const run = async (
 const create = () =>
     run(async () => {
         const result = await props.wallet.arenaCreate(
-            props.config.contractAddress,
+            contractAddress,
             parseEther(stake.value),
         );
 
         if (result.gameId) {
             gameId.value = result.gameId.toString();
-            history.replaceState({}, '', arenaMatchPath(result.gameId));
+            history.replaceState(
+                {},
+                '',
+                arenaMatchPath(result.gameId, contractAddress),
+            );
         }
 
         return result;
@@ -244,7 +283,7 @@ const join = () =>
     run(
         () =>
             props.wallet.arenaJoin(
-                props.config.contractAddress,
+                contractAddress,
                 requiredGameId(),
                 game.value!.stake,
             ),
@@ -254,7 +293,7 @@ const commit = () =>
     run(
         () =>
             props.wallet.arenaCommit(
-                props.config.contractAddress,
+                contractAddress,
                 requiredGameId(),
                 account.value,
                 move.value,
@@ -265,20 +304,16 @@ const reveal = () =>
     run(
         () =>
             props.wallet.arenaReveal(
-                props.config.contractAddress,
+                contractAddress,
                 requiredGameId(),
                 account.value,
             ),
         t('revealed'),
     );
-const settle = (method: 'resolveGame' | 'cancelExpiredGame' | 'claimPayout') =>
+const settle = (method: ArenaSettlement) =>
     run(
         () =>
-            props.wallet.arenaSettle(
-                props.config.contractAddress,
-                requiredGameId(),
-                method,
-            ),
+            props.wallet.arenaSettle(contractAddress, requiredGameId(), method),
         method === 'claimPayout' ? t('claimed') : t('settled'),
     );
 let timer = 0;
@@ -359,7 +394,7 @@ onBeforeUnmount(() => {
                     <p class="cw-note">{{ t('localOnly') }}</p>
                 </article>
             </div>
-            <section v-if="config.enabled" class="arena-matches">
+            <section v-if="arenaEnabled" class="arena-matches">
                 <div class="cw-row">
                     <p class="cw-label">{{ t('matches') }}</p>
                     <button
@@ -485,7 +520,7 @@ onBeforeUnmount(() => {
             >
             <template v-else>
                 <div
-                    v-if="!config.enabled"
+                    v-if="!arenaEnabled"
                     class="cw-card"
                     style="margin-top: 20px; padding: 18px"
                 >
@@ -518,8 +553,27 @@ onBeforeUnmount(() => {
                                     >{{ formatEther(game.stake) }} CYBER</span
                                 >
                             </div>
-                            <p v-if="game.state < 4" class="cw-label">
+                            <p
+                                v-if="game.deadline > 0 && !arenaComplete(game)"
+                                class="cw-label"
+                            >
                                 {{ t('deadline') }} · {{ countdown }}
+                            </p>
+                            <p v-if="game.rules.version === 2" class="cw-note">
+                                {{ t('asyncRules') }}
+                            </p>
+                            <p v-else class="cw-note">
+                                {{
+                                    t('legacyRules', {
+                                        minutes: game.rules.phaseDuration / 60,
+                                    })
+                                }}
+                            </p>
+                            <p v-if="game.rules.treasury" class="cw-note">
+                                {{ t('treasury') }}: {{ game.rules.treasury }}
+                            </p>
+                            <p v-if="game.result === 4" class="cw-note">
+                                {{ t('timeoutResult') }}
                             </p>
                             <p class="cw-note">
                                 P1 {{ game.playerOne }}<br />P2
@@ -554,9 +608,21 @@ onBeforeUnmount(() => {
                         <p class="cw-note">
                             {{ t('createHint', { stake }) }}
                         </p>
+                        <p v-if="rules" class="cw-note">
+                            {{
+                                rules.version === 2
+                                    ? t('asyncRules')
+                                    : t('legacyRules', {
+                                          minutes: rules.phaseDuration / 60,
+                                      })
+                            }}
+                        </p>
+                        <p v-else class="cw-note">
+                            {{ catalogueError || t('loadingMatches') }}
+                        </p>
                         <HoldButton
                             :label="t('create')"
-                            :disabled="loading"
+                            :disabled="loading || !rules"
                             @complete="create"
                         />
                     </div>
@@ -575,8 +641,33 @@ onBeforeUnmount(() => {
                         </p>
                         <HoldButton
                             :label="t('join')"
-                            :disabled="loading"
+                            :disabled="loading || selectedAction !== 'join'"
                             @complete="join"
+                        />
+                    </div>
+
+                    <div
+                        v-else-if="game.state === 6 && isPlayer"
+                        class="cw-card"
+                        style="margin-top: 10px; padding: 18px"
+                    >
+                        <p class="cw-note">{{ t('readyHint') }}</p>
+                        <p v-if="selectedAction === 'wait'" class="cw-note">
+                            {{
+                                t('readyWaiting', {
+                                    time: formatArenaCountdown(
+                                        arenaSecondsRemaining(
+                                            arenaReadyUntil(game, account),
+                                            nowSeconds,
+                                        ),
+                                    ),
+                                })
+                            }}
+                        </p>
+                        <HoldButton
+                            :label="t('ready')"
+                            :disabled="loading || selectedAction !== 'ready'"
+                            @complete="settle('confirmReady')"
                         />
                     </div>
 
@@ -617,7 +708,7 @@ onBeforeUnmount(() => {
                         </p>
                         <HoldButton
                             :label="t('seal')"
-                            :disabled="loading || !!committed"
+                            :disabled="loading || !!committed || expired"
                             @complete="commit"
                         />
                     </div>
@@ -632,7 +723,7 @@ onBeforeUnmount(() => {
                         </p>
                         <HoldButton
                             :label="t('reveal')"
-                            :disabled="loading || !!revealed"
+                            :disabled="loading || !!revealed || expired"
                             @complete="reveal"
                         />
                         <button
@@ -644,14 +735,39 @@ onBeforeUnmount(() => {
                             {{ t('resolve') }}
                         </button>
                     </div>
-                    <button
-                        v-if="expired && (game?.state ?? 5) < 4"
-                        class="cw-btn cw-btn-secondary"
-                        style="margin-top: 10px; width: 100%"
-                        @click="settle('cancelExpiredGame')"
+                    <div
+                        v-if="game && arenaCanCancel(game, account)"
+                        class="cw-card"
+                        style="margin-top: 10px; padding: 18px"
                     >
-                        {{ t('expire') }}
-                    </button>
+                        <p class="cw-note">{{ t('cancelHint') }}</p>
+                        <HoldButton
+                            :label="t('cancelBeforeStart')"
+                            :disabled="loading"
+                            @complete="settle('cancelBeforeStart')"
+                        />
+                    </div>
+                    <div
+                        v-if="expired"
+                        class="cw-card"
+                        style="margin-top: 10px; padding: 18px"
+                    >
+                        <p class="cw-note">
+                            {{
+                                game?.rules.version === 2
+                                    ? t('timeoutHint')
+                                    : t('legacyRules', {
+                                          minutes:
+                                              game!.rules.phaseDuration / 60,
+                                      })
+                            }}
+                        </p>
+                        <HoldButton
+                            :label="t('expire')"
+                            :disabled="loading"
+                            @complete="settle('cancelExpiredGame')"
+                        />
+                    </div>
                     <div
                         v-if="(game?.payout ?? 0n) > 0n"
                         class="cw-card"

@@ -264,11 +264,14 @@ export {
     joinArenaGame,
     mapArenaConcurrently,
     readArenaGame,
+    readArenaRules,
     readRecentArenaGames,
     revealArenaMove,
     settleArenaGame,
 } from '@/lib/wallet/arena';
 export {
+    ARENA_LEGACY_CONTRACT,
+    arenaContractForLink,
     arenaMatchPath,
     arenaShareUrl,
     parseArenaGameId,
@@ -284,6 +287,10 @@ export {
 export type { ArenaErrorCode } from '@/lib/wallet/arenaPresentation';
 export {
     arenaAction,
+    arenaCanCancel,
+    arenaComplete,
+    arenaPhaseExpired,
+    arenaReadyUntil,
     arenaGameLists,
     arenaNeedsAction,
     arenaRole,
@@ -297,6 +304,8 @@ export type {
     ArenaGame,
     ArenaMove,
     ArenaResult,
+    ArenaRules,
+    ArenaSettlement,
     ArenaState,
 } from '@/lib/wallet/arena';
 export {

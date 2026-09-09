@@ -8,6 +8,7 @@ export type ArenaAction =
     | 'resolve'
     | 'settleTimeout'
     | 'claim'
+    | 'ready'
     | 'wait'
     | 'complete';
 
@@ -21,6 +22,29 @@ export const arenaRole = (game: ArenaGame, address: string): ArenaRole =>
           ? 'playerTwo'
           : 'spectator';
 
+export const arenaComplete = (game: ArenaGame): boolean =>
+    game.state === 4 || game.state === 5;
+export const arenaPhaseExpired = (
+    game: ArenaGame,
+    nowSeconds: number,
+): boolean =>
+    !arenaComplete(game) &&
+    game.deadline > 0 &&
+    Math.floor(nowSeconds) > game.deadline;
+export const arenaCanCancel = (game: ArenaGame, address: string): boolean =>
+    game.rules?.version === 2 &&
+    (game.state === 1 || game.state === 6) &&
+    arenaRole(game, address) !== 'spectator';
+export const arenaReadyUntil = (game: ArenaGame, address: string): number => {
+    const role = arenaRole(game, address);
+
+    return role === 'playerOne'
+        ? game.playerOneReadyUntil
+        : role === 'playerTwo'
+          ? game.playerTwoReadyUntil
+          : 0;
+};
+
 export const arenaAction = (
     game: ArenaGame,
     address: string,
@@ -30,11 +54,11 @@ export const arenaAction = (
         return 'claim';
     }
 
-    if (game.state >= 4) {
+    if (arenaComplete(game)) {
         return 'complete';
     }
 
-    if (nowSeconds > game.deadline) {
+    if (arenaPhaseExpired(game, nowSeconds)) {
         return 'settleTimeout';
     }
 
@@ -46,6 +70,12 @@ export const arenaAction = (
 
     if (role === 'spectator') {
         return 'wait';
+    }
+
+    if (game.state === 6) {
+        return arenaReadyUntil(game, address) >= Math.floor(nowSeconds)
+            ? 'wait'
+            : 'ready';
     }
 
     const isOne = role === 'playerOne';
@@ -92,12 +122,14 @@ export const arenaGameLists = (
             arenaNeedsAction(arenaAction(game, address, nowSeconds)),
     ),
     mine: games.filter(
-        (game) => arenaRole(game, address) !== 'spectator' && game.state < 4,
+        (game) =>
+            arenaRole(game, address) !== 'spectator' && !arenaComplete(game),
     ),
     open: games.filter(
         (game) => game.state === 1 && arenaRole(game, address) === 'spectator',
     ),
     complete: games.filter(
-        (game) => arenaRole(game, address) !== 'spectator' && game.state >= 4,
+        (game) =>
+            arenaRole(game, address) !== 'spectator' && arenaComplete(game),
     ),
 });
