@@ -40,6 +40,7 @@ import {
 } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
 import { MONERO_PATH, moneroAccountAddress } from '@/lib/wallet/moneroKeys';
+import { explorerFailure } from '@/lib/wallet/readError';
 import {
     buildP2wpkhTransaction,
     decodeWif,
@@ -151,12 +152,26 @@ export const WALLET_FEE_TIERS: readonly WalletFeeTier[] = [
     'fast',
 ];
 
+/**
+ * How a fee was arrived at, as something a dictionary can translate.
+ *
+ * It used to be a finished English sentence — `network price × 1.25` — built
+ * where the quote was, which meant the send form printed English under a
+ * Russian interface for every chain in the wallet. A key and its numbers are
+ * the same information without the language baked in.
+ */
+export type WalletFeeBasis = {
+    /** Key in `walletMessages`. */
+    key: string;
+    params?: Record<string, string | number>;
+};
+
 export type WalletFeeQuote = {
     tier: WalletFeeTier;
     /** Worst-case cost of the transfer, in the chain's smallest unit. */
     fee: bigint;
-    /** What the tier does to the live network price, e.g. "base × 1.25". */
-    basis: string;
+    /** What the tier does to the live network price. */
+    basis: WalletFeeBasis;
 };
 
 export type WalletTxStatus = 'confirmed' | 'pending' | 'failed';
@@ -227,6 +242,14 @@ export type WalletChain = {
      */
     importKey?: (secret: string) => string;
     isValidAddress: (address: string) => boolean;
+    /**
+     * The shape of an address on this chain, as a literal example — `0x…`,
+     * `bc1…`, a base58 run. Not translated, because a prefix is a prefix in
+     * every language, and shown as the recipient field's placeholder: the
+     * network chip above it names the network, and the field is where somebody
+     * finds out they pasted a Bitcoin address into an EVM form.
+     */
+    addressHint: string;
     explorerAddressUrl: (address: string) => string | null;
     explorerTxUrl: (hash: string) => string | null;
     /** Smallest-unit balance, or null when the chain cannot be read here. */
@@ -384,6 +407,23 @@ const EVM_TIER_MULTIPLIER: Record<WalletFeeTier, [bigint, bigint]> = {
 };
 
 /**
+ * How an EVM tier's price was arrived at. Exported because a user-added
+ * network prices a transfer exactly the same way, and the two used to build
+ * the same sentence twice — in English, in two files.
+ */
+export const evmFeeBasis = (
+    tier: WalletFeeTier,
+    gas: bigint | null,
+): WalletFeeBasis => {
+    const [numerator, denominator] = EVM_TIER_MULTIPLIER[tier];
+    const mult = Number(numerator) / Number(denominator);
+
+    return gas === null
+        ? { key: 'feeBasisEvm', params: { mult } }
+        : { key: 'feeBasisEvmGas', params: { mult, gas: gas.toString() } };
+};
+
+/**
  * Recent transfers from a Blockscout instance. Only value-bearing transfers
  * are kept: contract calls belong in the explorer, not in a list whose whole
  * job is "where did my coins go".
@@ -407,7 +447,7 @@ const blockscoutHistory = async (
     const response = await fetch(`${apiUrl}?${query}`);
 
     if (!response.ok) {
-        throw new Error(`Explorer returned ${response.status}`);
+        throw explorerFailure(response.status);
     }
 
     const body = (await response.json()) as {
@@ -572,6 +612,7 @@ export const evmChain = (spec: EvmSpec): WalletChain => {
         derive: (source) => evmSigner(source).address,
         importKey: evmAddressFromKey,
         isValidAddress: (address) => isAddress(address),
+        addressHint: '0x…',
         explorerAddressUrl: (address) =>
             explorer ? `${explorer}/address/${address}` : null,
         explorerTxUrl: (hash) => (explorer ? `${explorer}/tx/${hash}` : null),
@@ -603,10 +644,7 @@ export const evmChain = (spec: EvmSpec): WalletChain => {
                 WALLET_FEE_TIERS.map(async (tier) => ({
                     tier,
                     fee: (await gasPrice(tier, rpcUrl)) * gas,
-                    basis: `network price × ${
-                        Number(EVM_TIER_MULTIPLIER[tier][0]) /
-                        Number(EVM_TIER_MULTIPLIER[tier][1])
-                    }${token || toContract ? ` × ${gas} gas` : ''}`,
+                    basis: evmFeeBasis(tier, token || toContract ? gas : null),
                 })),
             );
         },
@@ -831,6 +869,9 @@ const utxoChain = (spec: {
         importKey: (secret) =>
             utxoAddress(network, new Wallet(decodeWif(network, secret))),
         isValidAddress: (address) => isValidUtxoAddress(network, address),
+        // The prefix the chain's own bech32 accounts carry, when it has one;
+        // a legacy account has no prefix to promise, only a length.
+        addressHint: network.hrp === null ? '1… / 3…' : `${network.hrp}1…`,
         explorerAddressUrl: (address) =>
             network.explorer ? `${network.explorer}/address/${address}` : null,
         explorerTxUrl: (hash) =>
@@ -860,7 +901,10 @@ const utxoChain = (spec: {
                       return WALLET_FEE_TIERS.map((tier) => ({
                           tier,
                           fee: BigInt(vsize) * BigInt(rates[tier]),
-                          basis: `${rates[tier]} sat/vB × ${vsize} vB`,
+                          basis: {
+                              key: 'feeBasisUtxo',
+                              params: { rate: rates[tier], vsize },
+                          },
                       }));
                   },
         awaitOutcome:
@@ -1005,6 +1049,7 @@ const SHIPPED_CHAINS: readonly WalletChain[] = [
                 return false;
             }
         },
+        addressHint: 'base58, 32–44',
         explorerAddressUrl: (address) =>
             `${SOLANA_EXPLORER}/account/${address}`,
         explorerTxUrl: (hash) => `${SOLANA_EXPLORER}/tx/${hash}`,
@@ -1022,8 +1067,11 @@ const SHIPPED_CHAINS: readonly WalletChain[] = [
                 fee: solanaFee(prices[tier]),
                 basis:
                     prices[tier] === 0n
-                        ? 'signature only'
-                        : `+ ${prices[tier]} µlamports/CU priority`,
+                        ? { key: 'feeBasisSignature' }
+                        : {
+                              key: 'feeBasisPriority',
+                              params: { price: prices[tier].toString() },
+                          },
             }));
         },
         fetchHistory: solanaHistory,
@@ -1101,6 +1149,7 @@ const SHIPPED_CHAINS: readonly WalletChain[] = [
             return moneroAccountAddress(source.seed, source.index);
         },
         isValidAddress: isValidMoneroAddress,
+        addressHint: '4… / 8…',
         explorerAddressUrl: () => null,
         explorerTxUrl: (hash) => `https://xmrchain.net/tx/${hash}`,
     },

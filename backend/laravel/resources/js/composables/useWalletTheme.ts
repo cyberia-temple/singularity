@@ -83,22 +83,13 @@ watch(theme, (next) => {
     }
 });
 
+/*
+ * There was a `cycleTheme()` here, for a one-button switch on the context bar.
+ * The button is gone — Preferences draws the choice as all three of its states,
+ * which is the honest shape for a setting whose middle value is "whatever the
+ * system says" — and a cycle nobody calls is not a spare part, it is a second
+ * definition of the same setting waiting to disagree with the first.
+ */
 export function useWalletTheme() {
-    /**
-     * The cycle is system → dark → light → system. It starts at whatever is
-     * stored, so a user who has never touched it goes to dark first — the
-     * wallet's own house style, and the answer to "can I get the old look
-     * back" without a settings screen.
-     */
-    const nextTheme = computed<WalletTheme>(() => {
-        const at = WALLET_THEMES.indexOf(theme.value);
-
-        return WALLET_THEMES[(at + 1) % WALLET_THEMES.length];
-    });
-
-    const cycleTheme = (): void => {
-        theme.value = nextTheme.value;
-    };
-
-    return { theme, scheme, nextTheme, cycleTheme };
+    return { theme, scheme };
 }

@@ -135,15 +135,37 @@ const vetted = computed(() =>
         .join(' · '),
 );
 
+/**
+ * Where each account's key comes from, one row per network.
+ *
+ * This used to be the subtitle of the network screen — the most looked-at line
+ * on it — where it answered nothing anybody standing there was asking. Here it
+ * answers the question this screen is for: whether this vault can be opened
+ * somewhere that is not this browser.
+ */
+const derivations = computed(() =>
+    props.wallet.accounts.value.map((account) => ({
+        chain: account.chain,
+        label: account.label,
+        path: account.path,
+        curve: account.curve,
+    })),
+);
+
 const canDelete = computed(
     () => deleteConfirmation.value.trim().toUpperCase() === t('deleteWord'),
 );
+
+/** Whether this device's vault has a password on it at all. */
+const unprotected = computed(() => props.wallet.protection.value === 'none');
 
 const reveal = async (): Promise<void> => {
     error.value = null;
 
     try {
-        phrase.value = await props.wallet.reveal(password.value);
+        phrase.value = await props.wallet.reveal(
+            unprotected.value ? null : password.value,
+        );
     } catch {
         error.value = t('wrongPassword');
     } finally {
@@ -151,8 +173,50 @@ const reveal = async (): Promise<void> => {
     }
 };
 
+/**
+ * Put the phrase away, and record that it has been out.
+ *
+ * The button says "I wrote it down", so it is taken at its word: this is the
+ * only place the skipped-backup warning can be cleared, and clearing it
+ * anywhere else would mean the wallet deciding on the owner's behalf that a
+ * phrase they never saw is safe.
+ */
 const hide = (): void => {
     phrase.value = null;
+    void props.wallet.markBackedUp();
+};
+
+/* ---------------------------------------------------- adding a password -- */
+
+const newPassword = ref('');
+const newPasswordAgain = ref('');
+const protecting = ref(false);
+const protectError = ref<string | null>(null);
+
+const newPasswordOk = computed(
+    () =>
+        newPassword.value.length >= 8 &&
+        newPassword.value === newPasswordAgain.value,
+);
+
+const protectVault = async (): Promise<void> => {
+    if (!newPasswordOk.value || protecting.value) {
+        return;
+    }
+
+    protecting.value = true;
+    protectError.value = null;
+
+    try {
+        await props.wallet.protect(newPassword.value);
+        newPassword.value = '';
+        newPasswordAgain.value = '';
+    } catch (failure) {
+        protectError.value =
+            failure instanceof Error ? failure.message : String(failure);
+    } finally {
+        protecting.value = false;
+    }
 };
 
 const forget = (): void => {
@@ -176,6 +240,86 @@ onBeforeUnmount(() => {
             {{ t('vaultSection') }}
         </div>
 
+        <!--
+          The two things somebody can decline at setup, said here for as long
+          as they are still declined. Neither is an error and neither blocks
+          anything — they are the two facts that decide whether this wallet can
+          be got back, and a wallet that stayed quiet about them would be
+          keeping a secret from its owner about their own money.
+        -->
+        <p
+            v-if="!wallet.backedUp.value"
+            class="cw-note cw-note-warn"
+            style="margin-bottom: 10px"
+        >
+            <span>{{ t('notBackedUp') }}</span>
+        </p>
+
+        <div
+            v-if="unprotected"
+            class="cw-card"
+            style="margin-bottom: 10px; padding: 16px"
+        >
+            <div
+                style="font: 400 14px/1.3 var(--cw-sans); color: var(--cw-text)"
+            >
+                {{ t('noPasswordTitle') }}
+            </div>
+            <p
+                style="
+                    margin: 6px 0 0;
+                    font: 400 11px/1.6 var(--cw-mono);
+                    color: var(--cw-dim);
+                    text-wrap: pretty;
+                "
+            >
+                {{ t('noPasswordBody') }}
+            </p>
+
+            <form
+                class="cw-stack"
+                style="gap: 8px; margin-top: 12px"
+                @submit.prevent="protectVault"
+            >
+                <input
+                    v-model="newPassword"
+                    type="password"
+                    class="cw-input"
+                    autocomplete="new-password"
+                    :aria-label="t('password')"
+                    :placeholder="t('password')"
+                />
+                <input
+                    v-model="newPasswordAgain"
+                    type="password"
+                    class="cw-input"
+                    autocomplete="new-password"
+                    :aria-label="t('passwordAgain')"
+                    :placeholder="t('passwordAgain')"
+                    :aria-invalid="
+                        newPasswordAgain.length > 0 &&
+                        newPassword !== newPasswordAgain
+                    "
+                />
+                <button
+                    type="submit"
+                    class="cw-btn cw-btn-secondary"
+                    style="height: 48px"
+                    :disabled="!newPasswordOk || protecting"
+                >
+                    {{ protecting ? t('addingPassword') : t('addPassword') }}
+                </button>
+            </form>
+
+            <p
+                v-if="protectError"
+                class="cw-note cw-note-bad"
+                style="margin-top: 10px"
+            >
+                <span>{{ protectError }}</span>
+            </p>
+        </div>
+
         <div class="cw-card" style="padding: 0">
             <!-- Seed backup, password-gated. -->
             <div style="padding: 16px; border-bottom: 1px solid var(--cw-line)">
@@ -194,15 +338,25 @@ onBeforeUnmount(() => {
                         color: var(--cw-dim);
                     "
                 >
-                    {{ t('backupSeedHint') }}
+                    {{
+                        unprotected
+                            ? t('backupSeedHintOpen')
+                            : t('backupSeedHint')
+                    }}
                 </div>
 
+                <!--
+                  No password field where there is no password: a check against
+                  nothing is a lock drawn on an open door, and typing into it
+                  would teach the wrong thing about what protects this wallet.
+                -->
                 <form
                     v-if="!phrase"
                     style="display: flex; gap: 8px; margin-top: 12px"
                     @submit.prevent="reveal"
                 >
                     <input
+                        v-if="!unprotected"
                         v-model="password"
                         type="password"
                         class="cw-input"
@@ -213,8 +367,12 @@ onBeforeUnmount(() => {
                     <button
                         type="submit"
                         class="cw-ghost"
-                        style="height: 48px; flex: none"
-                        :disabled="password.length === 0"
+                        :style="
+                            unprotected
+                                ? { height: '48px', width: '100%' }
+                                : { height: '48px', flex: 'none' }
+                        "
+                        :disabled="!unprotected && password.length === 0"
                     >
                         {{ t('showPhrase') }}
                     </button>
@@ -280,8 +438,14 @@ onBeforeUnmount(() => {
                 </p>
             </div>
 
-            <!-- Auto-lock. -->
+            <!--
+              Auto-lock, and only where there is something to lock: sealing a
+              vault whose password does not exist would put the owner in front
+              of a prompt with no answer. `lock()` refuses it too — this is the
+              first line, not the only one.
+            -->
             <div
+                v-if="!unprotected"
                 class="cw-row"
                 style="padding: 16px; border-bottom: 1px solid var(--cw-line)"
             >
@@ -456,6 +620,44 @@ onBeforeUnmount(() => {
             </label>
         </div>
 
+        <div class="cw-label" style="margin: 26px 0 6px">
+            {{ t('derivationSection') }}
+        </div>
+        <p class="cw-hint" style="margin: 0 0 10px">
+            {{ t('derivationHint') }}
+        </p>
+
+        <div class="cw-card" style="padding: 0">
+            <div
+                v-for="row in derivations"
+                :key="row.chain"
+                class="cw-row"
+                style="
+                    padding: 13px 16px;
+                    border-bottom: 1px solid var(--cw-line);
+                "
+            >
+                <NetworkMark :chain="row.chain" dot :size="9" />
+                <span
+                    style="
+                        flex: 1;
+                        font: 400 13px/1.3 var(--cw-sans);
+                        color: var(--cw-text);
+                    "
+                    >{{ row.label }}</span
+                >
+                <span
+                    style="
+                        font: 400 11px/1.4 var(--cw-mono);
+                        color: var(--cw-dim);
+                        text-align: right;
+                        word-break: break-all;
+                    "
+                    >{{ row.path }} · {{ row.curve }}</span
+                >
+            </div>
+        </div>
+
         <!--
           Networks. The split that matters is who vouched for the endpoint, so
           that is the split the section draws: everything shipped with the
@@ -491,7 +693,7 @@ onBeforeUnmount(() => {
                 </div>
                 <span
                     class="cw-label"
-                    style="flex: none; color: var(--cw-fainter)"
+                    style="flex: none; color: var(--cw-faint)"
                     >{{ t('verified') }}</span
                 >
             </div>
@@ -642,6 +844,7 @@ onBeforeUnmount(() => {
         </div>
 
         <button
+            v-if="!unprotected"
             type="button"
             class="cw-btn cw-btn-secondary"
             style="margin-top: 12px; height: 48px"

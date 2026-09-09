@@ -94,6 +94,12 @@ const suspectPeers = ref<string[]>([]);
 
 const proven = ref(false);
 const opening = ref(false);
+
+/**
+ * Whether the whole of what this signature means is on screen. Closed by
+ * default and never remembered: it is a thing read once, before agreeing.
+ */
+const detailed = ref(false);
 const sending = ref(false);
 const syncing = ref(false);
 const error = ref<string | null>(null);
@@ -765,7 +771,7 @@ onBeforeUnmount(stopPolling);
                     <span class="cw-data">{{ t('chatOpenTitle') }}</span>
                 </div>
                 <p class="cw-prose" style="max-width: 62ch">
-                    {{ t('chatOpenBody') }}
+                    {{ t('chatOpenLead') }}
                 </p>
                 <div class="cw-kv" style="margin-top: 14px">
                     <span class="cw-kv-key">{{ t('chatYourAddress') }}</span>
@@ -784,9 +790,43 @@ onBeforeUnmount(stopPolling);
                         @complete="open()"
                     />
                 </div>
+
+                <!--
+                  Ninety words of true and careful text used to stand between
+                  this screen and its single action, and the result was that
+                  people scrolled it — including the forward-secrecy warning,
+                  which is the sentence here that most deserves to be read. So
+                  the warning is one line that is always on screen, and the
+                  full text is kept whole behind a control instead of being
+                  unavoidable and therefore skipped.
+                -->
+                <button
+                    type="button"
+                    class="cw-back"
+                    style="margin-top: 14px"
+                    :aria-expanded="detailed"
+                    @click="detailed = !detailed"
+                >
+                    {{ detailed ? t('hideDetails') : t('showDetails') }}
+                </button>
+
+                <template v-if="detailed">
+                    <p
+                        class="cw-prose"
+                        style="max-width: 62ch; margin-top: 6px"
+                    >
+                        {{ t('chatOpenBody') }}
+                    </p>
+                    <p
+                        class="cw-prose"
+                        style="max-width: 62ch; margin-top: 10px"
+                    >
+                        {{ t('chatMetadataNote') }}
+                    </p>
+                </template>
             </div>
             <p class="cw-prose" style="max-width: 62ch">
-                {{ t('chatMetadataNote') }}
+                {{ t('chatMetadataShort') }}
             </p>
         </div>
 

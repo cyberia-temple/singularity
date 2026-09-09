@@ -29,6 +29,9 @@ import {
     readNetworkChoices,
     readManualTokens,
     sameToken,
+    openUnprotectedVault,
+    protectVault,
+    saveOpenVault,
     saveVault,
     seedAccountId,
     seedFromMnemonic,
@@ -39,6 +42,7 @@ import {
     HOME_CHAIN,
     setCustomWalletChains,
     unsealVault,
+    vaultProtection,
     validateCustomNetwork,
     walletChain,
     walletChains,
@@ -57,6 +61,7 @@ import type {
     NetworkChoices,
     OpenedVault,
     VaultContents,
+    VaultProtection,
     WalletAccount,
     WalletAccountRecord,
     WalletChainId,
@@ -148,6 +153,10 @@ const accountRecords = ref<WalletAccountRecord[]>([]);
 const activeAccountId = ref<string>(PRIMARY_ACCOUNT_ID);
 const exists = ref(false);
 const unlocked = ref(false);
+/** Whether this device's vault has a password on it, or none, or is absent. */
+const protection = ref<VaultProtection | null>(null);
+/** Whether the phrase has been written down off this device. */
+const backedUp = ref(true);
 const balances = ref<Record<string, WalletBalance>>({});
 const history = ref<Record<string, WalletHistory>>({});
 const tokens = ref<Record<string, WalletTokens>>({});
@@ -192,9 +201,30 @@ export type MultiWallet = ReturnType<typeof useMultiWallet>;
 export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     const refreshExists = (): void => {
         exists.value = typeof window !== 'undefined' && hasVault();
+        protection.value =
+            typeof window === 'undefined' ? null : vaultProtection();
     };
 
     refreshExists();
+
+    /**
+     * A vault with no password is open from the first frame.
+     *
+     * Synchronously, and before anything renders: the page decides between the
+     * lock screen and the app from `unlocked`, so doing this in `onMounted`
+     * would show a password prompt to somebody who declined one. There is no
+     * key to derive, so there is nothing to wait for either.
+     */
+    if (protection.value === 'none') {
+        try {
+            vault = openUnprotectedVault();
+        } catch {
+            // A record that says it has no password and then will not open is
+            // a broken record, not a locked one. The page falls back to
+            // onboarding, which can restore from the phrase.
+            vault = null;
+        }
+    }
 
     /**
      * The account the app is acting as, or the primary one when whatever was
@@ -219,6 +249,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         accounts.value =
             vault && record ? deriveAccounts(vault.phrase, record) : [];
         unlocked.value = vault !== null;
+        backedUp.value = vault ? vault.backedUp !== false : true;
     };
 
     /** Everything read from a chain, which belongs to one account only. */
@@ -445,18 +476,36 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     };
 
     /**
-     * Seal a phrase into this device's vault and open it. Both onboarding
-     * paths end here: a phrase this device generated and one the user typed
-     * in are the same thing by the time they are stored.
+     * Put a phrase into this device's vault and open it. Both onboarding paths
+     * end here: a phrase this device generated and one the user typed in are
+     * the same thing by the time they are stored.
+     *
+     * A `null` password means the person declined one, and the vault is
+     * written in the clear. It is a branch and never a fallback: the caller
+     * had to pass `null` on purpose, so an empty string or an unset field
+     * cannot arrive here and quietly unseal a wallet.
+     *
+     * `backedUp` says whether the phrase left the device. Skipping the check
+     * does not block anything — it is the owner's phrase — but the Security
+     * screen keeps saying so until it has been copied out.
      */
     const adopt = async (
         candidate: string,
-        password: string,
+        password: string | null,
+        backupDone = true,
     ): Promise<void> => {
         busy.value = true;
 
         try {
-            vault = await saveVault(candidate, password);
+            vault =
+                password === null
+                    ? await saveOpenVault(candidate, undefined, backupDone)
+                    : await saveVault(
+                          candidate,
+                          password,
+                          undefined,
+                          backupDone,
+                      );
             touch();
             refreshExists();
             clearReads();
@@ -464,6 +513,55 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         } finally {
             busy.value = false;
         }
+    };
+
+    /**
+     * Put a password on a vault that was created without one.
+     *
+     * Everything inside travels across — the phrase, every imported account,
+     * which one is active — because the alternative is asking somebody to
+     * choose between protecting their wallet and keeping it.
+     */
+    const protect = async (password: string): Promise<void> => {
+        if (!vault) {
+            throw new Error('The wallet is not open');
+        }
+
+        busy.value = true;
+
+        try {
+            vault = await protectVault(
+                {
+                    phrase: vault.phrase,
+                    accounts: vault.accounts,
+                    activeId: vault.activeId,
+                    backedUp: vault.backedUp,
+                },
+                password,
+            );
+            refreshExists();
+            load();
+        } finally {
+            busy.value = false;
+        }
+    };
+
+    /** Write down that the phrase has left this device. */
+    const markBackedUp = async (): Promise<void> => {
+        if (!vault || vault.backedUp !== false) {
+            return;
+        }
+
+        const next: VaultContents = {
+            phrase: vault.phrase,
+            accounts: vault.accounts,
+            activeId: vault.activeId,
+            backedUp: true,
+        };
+
+        await vault.reseal(next);
+        vault = { ...next, reseal: vault.reseal };
+        backedUp.value = true;
     };
 
     const unlock = async (password: string): Promise<void> => {
@@ -479,7 +577,19 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
     };
 
+    /**
+     * Close the vault.
+     *
+     * Refused when there is no password on it: the lock screen asks for one,
+     * and a wallet whose only way back in is a secret that does not exist is
+     * not locked, it is lost. Everything that offers this hides it for an
+     * unprotected vault; this is the second line, not the first.
+     */
     const lock = (): void => {
+        if (protection.value === 'none') {
+            return;
+        }
+
         vault = null;
         accounts.value = [];
         accountRecords.value = [];
@@ -504,6 +614,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
 
             if (
                 unlocked.value &&
+                protection.value === 'password' &&
                 limit > 0 &&
                 Date.now() - lastActivity.value >= limit
             ) {
@@ -514,8 +625,24 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
 
     startAutoLock();
 
-    /** The backup phrase, behind a fresh password check. */
-    const reveal = (password: string): Promise<string> => openVault(password);
+    /**
+     * The backup phrase, behind a fresh password check — where there is one.
+     *
+     * A vault with no password has nothing to check against, and inventing a
+     * gesture that looks like one would be a lock drawn on a door that is
+     * open. The screen that calls this says which of the two it is.
+     */
+    const reveal = async (password: string | null): Promise<string> => {
+        if (protection.value === 'none') {
+            if (!vault) {
+                throw new Error('The wallet is not open');
+            }
+
+            return vault.phrase;
+        }
+
+        return openVault(password ?? '');
+    };
 
     /**
      * Act as another account. Everything read from a chain belongs to the
@@ -1554,11 +1681,17 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         fees: computed(() => fees.value),
         exists: computed(() => exists.value),
         unlocked: computed(() => unlocked.value),
+        /** 'password', 'none', or null when this device has no vault. */
+        protection: computed(() => protection.value),
+        /** False only when the backup check was declined and never done. */
+        backedUp: computed(() => backedUp.value),
         busy: computed(() => busy.value),
         autoLockMinutes: computed(() => autoLockMinutes.value),
         setAutoLock,
         isValidMnemonic,
         adopt,
+        protect,
+        markBackedUp,
         unlock,
         lock,
         touch,

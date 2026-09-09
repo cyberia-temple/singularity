@@ -6,14 +6,23 @@ import {
 import type { WalletAccountRecord } from '@/lib/wallet/accounts';
 
 /**
- * Encrypted-at-rest storage for everything this device knows about the wallet.
+ * On-device storage for everything this device knows about the wallet.
  *
  * The wallet is non-custodial in the strict sense: the phrase is generated in
- * the browser, sealed with a key derived from the user's password, and kept in
- * this device's localStorage. It is never sent to Laravel, never put in an
- * Inertia prop, never written to a log, and never rendered except in the
- * deliberate backup flow the user has to confirm. Losing the phrase and the
+ * the browser and kept in this device's localStorage. It is never sent to
+ * Laravel, never put in an Inertia prop, never written to a log, and never
+ * rendered except in the deliberate backup flow. Losing the phrase and the
  * password means losing the funds — that is the trade for custody.
+ *
+ * **Two kinds of vault, and the difference is not hidden anywhere.** A
+ * password-protected vault is AES-256-GCM under a PBKDF2-SHA-256 key and is
+ * what this file was written for. An *unprotected* vault holds the same
+ * document in the clear, because a password was declined — that is a real
+ * choice a person is allowed to make, and the only dishonest way to build it
+ * would be to encrypt under a key stored beside the ciphertext and let the UI
+ * go on saying "encrypted". So the record says `protection: 'none'`, carries
+ * no `kdf`, no salt and no ciphertext, and every screen that mentions the
+ * vault says which of the two this device has.
  *
  * The account list is sealed alongside the phrase rather than kept beside it.
  * An imported account carries a live private key, so it has no business in
@@ -21,17 +30,20 @@ import type { WalletAccountRecord } from '@/lib/wallet/accounts';
  * addresses this person cares about, which is exactly the kind of thing a
  * locked vault should not still be saying out loud.
  *
- * AES-256-GCM over a PBKDF2-SHA-256 key; the tag makes a wrong password fail
- * loudly instead of yielding garbage that would derive plausible addresses.
+ * For the sealed kind: AES-256-GCM over a PBKDF2-SHA-256 key; the tag makes a
+ * wrong password fail loudly instead of yielding garbage that would derive
+ * plausible addresses.
  */
 
 const STORAGE_KEY = 'cyberia.wallet.vault.v1';
 
 const PBKDF2_ITERATIONS = 310_000;
 
-export type VaultRecord = {
+/** A vault sealed with a password. Absent `protection` means this kind. */
+export type SealedVaultRecord = {
     /** 1 sealed a bare phrase; 2 seals the JSON document below. */
     version: 1 | 2;
+    protection?: 'password';
     kdf: 'PBKDF2-SHA-256';
     iterations: number;
     salt: string;
@@ -40,12 +52,39 @@ export type VaultRecord = {
     createdAt: string;
 };
 
-/** Everything behind the password, once it has been unsealed. */
+/**
+ * A vault with no password, holding the same document in the clear.
+ *
+ * There is no ciphertext field to mistake for one, and nothing here is
+ * obfuscated: obfuscation would only make the record harder for its owner to
+ * read while costing an attacker who already has the device nothing at all.
+ */
+export type OpenVaultRecord = {
+    version: 2;
+    protection: 'none';
+    contents: VaultContents;
+    createdAt: string;
+};
+
+export type VaultRecord = SealedVaultRecord | OpenVaultRecord;
+
+export type VaultProtection = 'password' | 'none';
+
+/** Everything the vault holds, once it is open. */
 export type VaultContents = {
     phrase: string;
     accounts: WalletAccountRecord[];
     /** Which account the app is currently acting as. */
     activeId: string;
+    /**
+     * Whether the phrase has been written down somewhere off this device.
+     *
+     * Absent means yes: every vault made before the backup check could be
+     * skipped had passed it. Only a vault whose owner declined the check
+     * carries `false`, and it is what the Security screen warns about until
+     * the phrase has actually been copied out.
+     */
+    backedUp?: boolean;
 };
 
 /**
@@ -130,6 +169,25 @@ export const seedFromMnemonic = (phrase: string): Uint8Array =>
 export const hasVault = (storage: VaultStorage = defaultStorage()): boolean =>
     storage.getItem(STORAGE_KEY) !== null;
 
+/**
+ * Which kind of vault this device has, or null when it has none.
+ *
+ * Read from the record rather than remembered: a screen that asks "is there a
+ * password on this" must be answering from what is actually stored, not from
+ * what the app believed when it started.
+ */
+export const vaultProtection = (
+    storage: VaultStorage = defaultStorage(),
+): VaultProtection | null => {
+    const record = readVault(storage);
+
+    if (!record) {
+        return null;
+    }
+
+    return record.protection === 'none' ? 'none' : 'password';
+};
+
 export const readVault = (
     storage: VaultStorage = defaultStorage(),
 ): VaultRecord | null => {
@@ -184,21 +242,52 @@ const seal = async (
     return record;
 };
 
-/**
- * Create this device's vault around a phrase, and hand back the means to keep
- * writing to it. Both onboarding paths land here — a phrase this device
- * generated and one the user typed in are the same thing by now.
- */
-export const saveVault = async (
-    phrase: string,
-    password: string,
-    storage: VaultStorage = defaultStorage(),
-): Promise<OpenedVault> => {
+/** Write the document with no password over it, and say so in the record. */
+const write = (contents: VaultContents, storage: VaultStorage): void => {
+    const record: OpenVaultRecord = {
+        version: 2,
+        protection: 'none',
+        contents,
+        createdAt: new Date().toISOString(),
+    };
+
+    storage.setItem(STORAGE_KEY, JSON.stringify(record));
+};
+
+/** The document a brand-new vault starts with, whichever kind it is. */
+const freshContents = (phrase: string, backedUp: boolean): VaultContents => ({
+    phrase,
+    accounts: defaultAccountRecords(),
+    activeId: PRIMARY_ACCOUNT_ID,
+    backedUp,
+});
+
+const validPhrase = (phrase: string): string => {
     const normalized = normalizeMnemonic(phrase);
 
     if (!Mnemonic.isValidMnemonic(normalized)) {
         throw new Error('Not a valid BIP-39 seed phrase');
     }
+
+    return normalized;
+};
+
+/**
+ * Create this device's vault around a phrase, and hand back the means to keep
+ * writing to it. Both onboarding paths land here — a phrase this device
+ * generated and one the user typed in are the same thing by now.
+ *
+ * `backedUp` is the last argument rather than the third so that every existing
+ * caller keeps working, and it defaults to `true` because that is what a vault
+ * made before the check could be skipped always was.
+ */
+export const saveVault = async (
+    phrase: string,
+    password: string,
+    storage: VaultStorage = defaultStorage(),
+    backedUp = true,
+): Promise<OpenedVault> => {
+    const normalized = validPhrase(phrase);
 
     if (password.length < 8) {
         throw new Error('Wallet password must be at least 8 characters');
@@ -206,12 +295,61 @@ export const saveVault = async (
 
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const key = await deriveKey(password, salt, PBKDF2_ITERATIONS);
+    const contents = freshContents(normalized, backedUp);
 
-    const contents: VaultContents = {
-        phrase: normalized,
-        accounts: defaultAccountRecords(),
-        activeId: PRIMARY_ACCOUNT_ID,
+    await seal(contents, key, salt, PBKDF2_ITERATIONS, storage);
+
+    return {
+        ...contents,
+        reseal: (next) =>
+            seal(next, key, salt, PBKDF2_ITERATIONS, storage).then(() => {}),
     };
+};
+
+/**
+ * Create a vault with no password on it.
+ *
+ * Deliberately a separate function from `saveVault` rather than a `null`
+ * password it would accept: storing a seed phrase in the clear is a decision,
+ * and a decision must not be reachable by an argument that arrived undefined.
+ *
+ * Nothing about the phrase changes — the same words, the same accounts, the
+ * same derivation. What changes is who can read it: anybody with this browser
+ * profile, and any script that gets to run on this origin.
+ */
+export const saveOpenVault = async (
+    phrase: string,
+    storage: VaultStorage = defaultStorage(),
+    backedUp = true,
+): Promise<OpenedVault> => {
+    const contents = freshContents(validPhrase(phrase), backedUp);
+
+    write(contents, storage);
+
+    return {
+        ...contents,
+        reseal: async (next) => write(next, storage),
+    };
+};
+
+/**
+ * Put a password on a vault that had none, keeping everything inside it.
+ *
+ * The accounts travel across unchanged, which is the whole point: somebody who
+ * skipped the password at the start and imported three keys since must not
+ * have to choose between protecting them and keeping them.
+ */
+export const protectVault = async (
+    contents: VaultContents,
+    password: string,
+    storage: VaultStorage = defaultStorage(),
+): Promise<OpenedVault> => {
+    if (password.length < 8) {
+        throw new Error('Wallet password must be at least 8 characters');
+    }
+
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await deriveKey(password, salt, PBKDF2_ITERATIONS);
 
     await seal(contents, key, salt, PBKDF2_ITERATIONS, storage);
 
@@ -265,6 +403,35 @@ const readContents = (plaintext: string): VaultContents => {
             ? accounts
             : [...defaultAccountRecords(), ...accounts],
         activeId: contents.activeId || PRIMARY_ACCOUNT_ID,
+        // Absent means backed up: the field only started being written once
+        // the check could be declined, and everything older had passed it.
+        backedUp: contents.backedUp !== false,
+    };
+};
+
+/**
+ * Open a vault that has no password on it.
+ *
+ * Synchronous on purpose. There is no key to derive, and the page decides
+ * whether to show the lock screen from whether the vault is open — an `await`
+ * here would flash a password prompt at somebody who does not have one.
+ */
+export const openUnprotectedVault = (
+    storage: VaultStorage = defaultStorage(),
+): OpenedVault => {
+    const record = readVault(storage);
+
+    if (!record) {
+        throw new Error('No wallet on this device');
+    }
+
+    if (record.protection !== 'none') {
+        throw new Error('This wallet is protected by a password');
+    }
+
+    return {
+        ...readContents(JSON.stringify(record.contents)),
+        reseal: async (next) => write(next, storage),
     };
 };
 
@@ -284,6 +451,12 @@ export const unsealVault = async (
 
     if (!record) {
         throw new Error('No wallet on this device');
+    }
+
+    // Asking for a password where there is none is a caller's mistake, not a
+    // wrong password: saying so keeps it from being reported as one.
+    if (record.protection === 'none') {
+        throw new Error('This wallet has no password');
     }
 
     const salt = fromBase64(record.salt);

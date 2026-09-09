@@ -160,7 +160,7 @@ const charted = (market: Market): boolean => market.source !== 'none';
                     <span
                         v-if="charted(market)"
                         class="cw-label"
-                        style="color: var(--cw-fainter)"
+                        style="color: var(--cw-faint)"
                         >›</span
                     >
                 </span>

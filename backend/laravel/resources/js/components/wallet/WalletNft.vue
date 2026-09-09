@@ -290,7 +290,7 @@ watch(
             <template v-else>
                 <div class="cw-row" style="margin: 22px 0 10px">
                     <span class="cw-label">{{ t('nftOwned') }}</span>
-                    <span class="cw-label" style="color: var(--cw-fainter)">{{
+                    <span class="cw-label" style="color: var(--cw-faint)">{{
                         items.length
                     }}</span>
                 </div>
@@ -340,7 +340,7 @@ watch(
                                 align-items: center;
                                 justify-content: center;
                                 background: #08090b;
-                                color: var(--cw-fainter);
+                                color: var(--cw-faint);
                             "
                             >{{ item.symbol || 'NFT' }}</span
                         >

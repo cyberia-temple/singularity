@@ -219,6 +219,7 @@ export type {
     WalletChain,
     WalletChainFamily,
     WalletChainId,
+    WalletFeeBasis,
     WalletFeeQuote,
     WalletFeeTier,
     WalletMark,
@@ -254,6 +255,7 @@ export {
     writeNetworkChoices,
 } from '@/lib/wallet/catalogue';
 export type { CatalogueNetwork, NetworkChoices } from '@/lib/wallet/catalogue';
+export { describeReadError } from '@/lib/wallet/readError';
 export type { UtxoAddressType } from '@/lib/wallet/utxo';
 export {
     ERC20_TRANSFER_GAS_CAP,
@@ -348,10 +350,20 @@ export {
     hasVault,
     isValidMnemonic,
     normalizeMnemonic,
+    openUnprotectedVault,
     openVault,
+    protectVault,
     readVault,
+    saveOpenVault,
     saveVault,
     seedFromMnemonic,
     unsealVault,
+    vaultProtection,
 } from '@/lib/wallet/vault';
-export type { OpenedVault, VaultContents } from '@/lib/wallet/vault';
+export type {
+    OpenVaultRecord,
+    OpenedVault,
+    SealedVaultRecord,
+    VaultContents,
+    VaultProtection,
+} from '@/lib/wallet/vault';

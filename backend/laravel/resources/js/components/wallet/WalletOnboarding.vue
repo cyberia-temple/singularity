@@ -22,7 +22,14 @@ const emit = defineEmits<{
      * The third argument says which branch produced it — the two are the same
      * thing by the time they are stored, and completely different funnels.
      */
-    adopt: [phrase: string, password: string, origin: 'created' | 'imported'];
+    adopt: [
+        phrase: string,
+        /** Null when the owner declined one and the vault is stored open. */
+        password: string | null,
+        origin: 'created' | 'imported',
+        /** False when the backup check was skipped. */
+        backedUp: boolean,
+    ];
     /** Left the flow without adopting anything — the vault is untouched. */
     cancel: [];
 }>();
@@ -67,6 +74,8 @@ const importText = ref('');
 const password = ref('');
 const passwordAgain = ref('');
 const slots = ref<(string | null)[]>([null, null, null]);
+/** Whether the phrase was actually written down before the vault was made. */
+const backedUp = ref(true);
 const wrongOrder = ref(false);
 
 /** True while the user came in through import rather than generation. */
@@ -183,10 +192,25 @@ const clearSlot = (index: number): void => {
 
 const confirmBackup = (): void => {
     if (backupOk.value) {
+        backedUp.value = true;
         step.value = 'password';
     } else {
         wrongOrder.value = true;
     }
+};
+
+/**
+ * Move on without writing the phrase down.
+ *
+ * It is the owner's phrase and refusing to continue without a ritual only
+ * teaches people to copy twelve words into a screenshot to get past the form.
+ * What this cannot do is pretend it did not happen: the vault carries
+ * `backedUp: false`, Security says so until the phrase has actually left the
+ * device, and the sentence on the button says what is being accepted.
+ */
+const skipBackup = (): void => {
+    backedUp.value = false;
+    step.value = 'password';
 };
 
 const importWords = computed(
@@ -223,17 +247,38 @@ const passwordOk = computed(
     () => password.value.length >= 8 && password.value === passwordAgain.value,
 );
 
+const adopt = (secret: string | null): void => {
+    emit(
+        'adopt',
+        importing.value ? importText.value.trim() : phrase.value,
+        secret,
+        importing.value ? 'imported' : 'created',
+        // An imported phrase is by definition written down somewhere already:
+        // it was typed in from wherever it was kept.
+        importing.value ? true : backedUp.value,
+    );
+};
+
 const submit = (): void => {
     if (!passwordOk.value) {
         return;
     }
 
-    emit(
-        'adopt',
-        importing.value ? importText.value.trim() : phrase.value,
-        password.value,
-        importing.value ? 'imported' : 'created',
-    );
+    adopt(password.value);
+};
+
+/**
+ * Create the vault with no password on it.
+ *
+ * The wallet is on this device either way; a password decides who else on this
+ * device can spend from it. Somebody on their own phone may reasonably not
+ * want a second lock behind the one the phone already has, and forcing one
+ * there mostly produces `qwerty12`. The consequence is stated on the screen,
+ * not softened, and Security can add a password later without touching a
+ * single account.
+ */
+const skipPassword = (): void => {
+    adopt(null);
 };
 
 /**
@@ -668,6 +713,20 @@ onBeforeUnmount(() => {
         >
             {{ t('wroteItDown') }}
         </button>
+        <!--
+          The way past the ritual, offered here rather than hidden: a flow that
+          will not continue without it teaches people to screenshot twelve
+          words to get through the form, which is worse than every outcome it
+          was defending against.
+        -->
+        <button
+            type="button"
+            class="cw-back"
+            style="margin-top: 12px; align-self: center"
+            @click="skipBackup"
+        >
+            {{ t('skipBackup') }}
+        </button>
     </div>
 
     <!-- Backup confirmation -->
@@ -732,7 +791,7 @@ onBeforeUnmount(() => {
                     :style="{
                         color: slots[index]
                             ? 'var(--cw-text)'
-                            : 'var(--cw-fainter)',
+                            : 'var(--cw-faint)',
                     }"
                     >{{ slots[index] ?? t('slotEmpty') }}</span
                 >
@@ -783,6 +842,14 @@ onBeforeUnmount(() => {
             @click="confirmBackup"
         >
             {{ t('confirmBackup') }}
+        </button>
+        <button
+            type="button"
+            class="cw-back"
+            style="margin-top: 12px; align-self: center"
+            @click="skipBackup"
+        >
+            {{ t('skipBackup') }}
         </button>
     </div>
 
@@ -955,6 +1022,19 @@ onBeforeUnmount(() => {
             <span>{{ t('passwordMismatch') }}</span>
         </p>
 
+        <!--
+          Said once, here, where the vault is about to exist: the two things
+          that were skipped are the two things that get a wallet back, and this
+          is the last screen where both are still one tap away.
+        -->
+        <p
+            v-if="!backedUp && !importing"
+            class="cw-note cw-note-warn"
+            style="margin-top: 18px"
+        >
+            <span>{{ t('skippedBackupNote') }}</span>
+        </p>
+
         <div class="cw-card" style="margin-top: 24px; padding: 14px 16px">
             <div class="cw-stack" style="gap: 8px">
                 <div class="cw-row">
@@ -987,5 +1067,33 @@ onBeforeUnmount(() => {
         >
             {{ t('createVault') }}
         </button>
+        <!--
+          A password decides who else *on this device* can spend; the wallet is
+          on the device either way. Somebody on their own phone may reasonably
+          decline a second lock behind the one the phone already has, and a
+          form that refuses mostly produces `qwerty12`. What is not negotiable
+          is saying what it costs, which the sentence under this button does.
+        -->
+        <button
+            type="button"
+            class="cw-back"
+            style="margin-top: 14px; align-self: center"
+            :disabled="props.busy"
+            @click="skipPassword"
+        >
+            {{ t('skipPassword') }}
+        </button>
+        <p
+            class="cw-label"
+            style="
+                margin-top: 8px;
+                text-align: center;
+                text-transform: none;
+                letter-spacing: 0;
+                color: var(--cw-faint);
+            "
+        >
+            {{ t('skipPasswordNote') }}
+        </p>
     </form>
 </template>

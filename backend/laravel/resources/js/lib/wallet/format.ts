@@ -114,3 +114,15 @@ export const formatUsdPrice = (value: number | null, locale: string): string =>
                   ? { maximumSignificantDigits: 4 }
                   : { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
           }).format(value);
+
+/**
+ * An address split into groups of four, the way a card number is read.
+ *
+ * Addresses are compared by eye — against a paper note, against another
+ * screen, against the field something was already pasted into — and a
+ * forty-two character run wrapping wherever the box ends is the shape that
+ * makes people lose their place on the second line. The copy button beside
+ * every one of these is still how the whole string moves.
+ */
+export const addressGroups = (address: string, size = 4): string[] =>
+    address.match(new RegExp(`.{1,${size}}`, 'g')) ?? [];

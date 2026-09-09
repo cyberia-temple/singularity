@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, Copy, Maximize2, Minimize2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { addressGroups } from '@/lib/wallet/format';
 
 /**
  * An address, truncated but never hidden: head and tail are always readable,
@@ -27,6 +28,15 @@ const shown = computed(() =>
         ? props.address
         : `${props.address.slice(0, 8)}…${props.address.slice(-6)}`,
 );
+
+/**
+ * Expanded, the string is there to be compared character by character — which
+ * is the one thing an unbroken run is worst at. Truncated it is short enough
+ * to read whole, so it stays as it is.
+ */
+const groups = computed(() =>
+    full.value ? addressGroups(props.address) : null,
+);
 </script>
 
 <template>
@@ -34,6 +44,15 @@ const shown = computed(() =>
         <div class="cw-label" style="margin-bottom: 8px">{{ label }}</div>
         <div style="display: flex; align-items: center; gap: 10px">
             <span
+                v-if="groups"
+                class="cw-addr"
+                style="flex: 1; min-width: 0"
+                :title="address"
+            >
+                <span v-for="(group, at) in groups" :key="at">{{ group }}</span>
+            </span>
+            <span
+                v-else
                 class="cw-data"
                 style="flex: 1; min-width: 0; word-break: break-all"
                 >{{ shown }}</span

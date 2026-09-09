@@ -7,7 +7,12 @@ import TxList from '@/components/wallet/TxList.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useSecureClipboard } from '@/composables/useSecureClipboard';
-import { formatUnits, hasSwap, walletChain } from '@/lib/wallet';
+import {
+    describeReadError,
+    formatUnits,
+    hasSwap,
+    walletChain,
+} from '@/lib/wallet';
 import type {
     WalletChainId,
     WalletTokenBalance,
@@ -54,6 +59,11 @@ const balance = computed(() => props.wallet.balances.value[props.chain]);
 
 const history = computed(() => props.wallet.history.value[props.chain]);
 
+/** A failed history read, in words, with the status behind it kept separate. */
+const historyFailure = computed(() =>
+    history.value?.error ? describeReadError(history.value.error, t) : null,
+);
+
 const statusLabels = computed<Record<WalletTxStatus, string>>(() => ({
     confirmed: t('statusConfirmed'),
     pending: t('statusPending'),
@@ -88,14 +98,25 @@ watch(() => props.chain, load);
                 <div style="font: 500 18px/1.2 var(--cw-sans)">
                     {{ account.label }}
                 </div>
+                <!--
+                  What this network *is*, not how its key was derived.
+                  `m/44'/60'/0'/0/0 · secp256k1` used to sit here — debugging
+                  information in the most looked-at line of the screen, and an
+                  answer to a question nobody standing on this page is asking.
+                  It moved to Security, next to the phrase and the accounts,
+                  where it answers "can I restore this elsewhere".
+                -->
                 <div
                     style="
-                        margin-top: 2px;
-                        font: 400 10px/1.4 var(--cw-mono);
+                        margin-top: 3px;
+                        font: 400 11px/1.4 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                 >
-                    {{ account.path }} · {{ account.curve }}
+                    {{ account.symbol
+                    }}<template v-if="chain.chainId">
+                        · chain {{ chain.chainId }}</template
+                    >
                 </div>
             </div>
         </div>
@@ -259,10 +280,15 @@ watch(() => props.chain, load);
         >
             {{ t('loading') }}
         </p>
-        <p v-else-if="history?.error" class="cw-note cw-note-warn">
-            <span>{{
-                t('historyUnavailable', { reason: history.error })
-            }}</span>
+        <p v-else-if="historyFailure" class="cw-note cw-note-warn">
+            <span>
+                {{ t('historyUnavailable', { reason: historyFailure.text }) }}
+                <span
+                    v-if="historyFailure.detail"
+                    style="color: var(--cw-faint)"
+                    >{{ historyFailure.detail }}</span
+                >
+            </span>
         </p>
         <p
             v-else-if="(history?.items.length ?? 0) === 0"
