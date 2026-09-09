@@ -52,26 +52,46 @@ address to `0.0.0.0` on the host.
    docker compose exec monerod monerod status
    ```
 
-4. **Point Laravel at it** (`backend/laravel/.env`):
+4. **Point Laravel at it** (`backend/laravel/.env`). Laravel runs in its own
+   container, and a host loopback port is not reachable from inside one, so put
+   the wallet on the app's network and address it by name — that way the RPC
+   needs no published port at all, which is the safer arrangement anyway:
+
+   ```bash
+   docker network connect docker-compose_default cyberia-monero-wallet
+   ```
 
    ```
-   BRIDGE_XMR_WALLET_RPC_URL=http://host.docker.internal:18083
+   BRIDGE_XMR_WALLET_RPC_URL=http://cyberia-monero-wallet:18083
    BRIDGE_XMR_WALLET_RPC_USER=bridge
    BRIDGE_XMR_WALLET_RPC_PASSWORD=...
    ```
+
+   Prod caches its config, so `php artisan config:clear && php artisan
+   config:cache` inside the app container or none of this is read.
 
    With no URL set, both XMR routes disappear from the bridge entirely —
    `BridgeConfigService` treats an unattached wallet as a corridor that does
    not exist, rather than one that accepts deposits it cannot see.
 
-5. **Open the corridor** only once the node is synced and the wallet holds a
-   payout float:
+5. **Open the corridor in two steps, not one.** Deposits mint a wrapper the
+   relayer creates on demand, so that half needs no float and can open as soon
+   as the wallet is synced. Payouts spend real XMR, so that half stays shut
+   until the wallet holds some — a corridor that cannot deliver must not
+   advertise that it can:
 
    ```
    BRIDGE_CHAIN_XMR_ENABLED=true
-   BRIDGE_ROUTE_XMR_TO_EVM_COMING_SOON=false
-   BRIDGE_ROUTE_EVM_TO_XMR_COMING_SOON=false
+   BRIDGE_ROUTE_XMR_TO_EVM_COMING_SOON=false   # deposits in
+   BRIDGE_ROUTE_EVM_TO_XMR_COMING_SOON=true    # until the wallet is funded
    ```
+
+6. **Create the wallet with the daemon reachable.** A wallet created while the
+   daemon is unreachable records monero's built-in *estimate* of the chain
+   height instead of the real one — on a 2024 binary that is ~560k blocks in
+   the past, and the wallet then rescans two years of chain it has no
+   transactions in, starving its own single-threaded RPC the whole time. Check
+   it afterwards: `get_height` should answer within a few of the real tip.
 
 ## Running without a node
 
