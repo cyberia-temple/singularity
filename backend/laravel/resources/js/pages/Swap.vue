@@ -51,7 +51,7 @@ import {
 import { ensureEvmChain } from '@/lib/evmChains';
 import { getSelectedEvmProvider } from '@/lib/evmProvider';
 import {
-    DEFAULT_LIQUIDITY_CHAIN_ID as DEFAULT_DEX_CHAIN_ID,
+    DEFAULT_LIQUIDITY_CHAIN_ID,
     LIQUIDITY_CHAINS as DEX_CHAINS,
     liquidityChainById as dexChainById,
 } from '@/lib/liquidityChains';
@@ -76,8 +76,10 @@ import { walletChains } from '@/lib/wallet/chains';
 import type { WalletChainId } from '@/lib/wallet/chains';
 import type { DexPair } from '@/lib/wallet/dexscreener';
 import {
+    busiestPair,
     dexScreenerChartUrl,
     fetchDexPairs,
+    fetchDexPairsFor,
     pairPoolFor,
 } from '@/lib/wallet/dexscreener';
 
@@ -180,6 +182,19 @@ const slippage = ref('0.5');
 // The active DEX chain follows the wallet's network when it is a known DEX
 // chain, else the default (Cyberia). A chain tab lets users browse another
 // chain's markets read-only; swapping prompts a network switch.
+/**
+ * Where this page opens, which is not where `/liquidity` opens.
+ *
+ * The registry's default is Cyberia and stays that way: providing liquidity is
+ * something people do in *our* pools. Trading is not — the deepest markets this
+ * page can reach are the tokenised stocks on Robinhood Chain, and opening on a
+ * chain whose busiest pool sees three dollars a day is opening on the wrong
+ * one. A link still overrides it, and so does switching networks in a wallet.
+ */
+const DEFAULT_DEX_CHAIN_ID =
+    DEX_CHAINS.find((chain) => chain.chainId === 4663)?.chainId ??
+    DEFAULT_LIQUIDITY_CHAIN_ID;
+
 const activeChainId = ref<number>(DEFAULT_DEX_CHAIN_ID);
 const activeChain = computed<DexChainConfig>(() =>
     dexChainById(activeChainId.value),
@@ -1713,7 +1728,18 @@ const pickChain = (val: unknown): void => {
     }
 };
 
+/**
+ * Whether the pair on screen is the person's own choosing.
+ *
+ * The busiest-market lookup is a network round trip, and a round trip can land
+ * after somebody has already picked a token. This is how it knows to stay out
+ * of the way.
+ */
+let touchedPair = false;
+
 const pickToken = (side: 'in' | 'out', val: unknown): void => {
+    touchedPair = true;
+
     const v = String(val ?? '');
 
     if (side === 'in') {
@@ -2030,7 +2056,7 @@ const switchChain = (chainId: number): void => {
  * it unconditionally quietly undid every link — the chain and both tokens
  * snapped back to the defaults with nothing on screen to say why.
  */
-let followsWallet = true;
+let followsWallet = false;
 
 // Follow the wallet's network: switching it re-points the page to that chain's
 // DEX (when it is a known DEX chain).
@@ -2072,13 +2098,14 @@ watch(
  * one is a page somebody links to and reloading it should still be the link
  * they followed.
  */
-const takeLinkedPair = (): void => {
+const takeLinkedPair = (): boolean => {
     if (typeof window === 'undefined') {
-        return;
+        return false;
     }
 
     const params = new URLSearchParams(window.location.search);
     const requested = Number(params.get('chain'));
+    let chose = false;
 
     if (
         Number.isFinite(requested) &&
@@ -2096,9 +2123,7 @@ const takeLinkedPair = (): void => {
         metaCache.clear();
         tokenOut.value = defaultTokenOut(activeChain.value);
         tokenIn.value = NATIVE;
-        // The link has chosen the network; the wallet's own does not override
-        // it when it reports in a moment from now.
-        followsWallet = false;
+        chose = true;
     }
 
     for (const [key, side] of [
@@ -2109,26 +2134,70 @@ const takeLinkedPair = (): void => {
 
         if (/^0x[0-9a-fA-F]{40}$/.test(address)) {
             side.value = address;
+            chose = true;
         }
     }
+
+    return chose;
+};
+
+/**
+ * Open on the market with the most volume behind it.
+ *
+ * Only when nothing in the address said otherwise, and only where the index
+ * carries the chain — on a chain it does not, this is a no-op and the page
+ * keeps the pair it opens with. The tokens asked about are the ones this page
+ * lists, so the answer is "the busiest of the markets we offer" rather than a
+ * venue's own front page.
+ *
+ * Best effort, always: a slow or missing index leaves the default pair alone
+ * rather than an empty form. And it stands down the moment the person picks
+ * something themselves — an answer that lands after a choice was made is an
+ * answer about a page that no longer exists.
+ */
+const openOnBusiestPair = async (): Promise<void> => {
+    const chain = activeWalletChain.value;
+    const config = activeChain.value;
+
+    if (!chain) {
+        return;
+    }
+
+    const pairs = await fetchDexPairsFor(
+        chain,
+        config.tokens.map((token) => token.address),
+    );
+    const busiest = busiestPair(pairs);
+
+    // Somebody has been typing while the index answered; leave them alone.
+    if (busiest === null || touchedPair) {
+        return;
+    }
+
+    const wrapped = config.wrappedNative.toLowerCase();
+    // The coin, where the pool's other side is its wrapper: paying with what
+    // the chain runs on needs no wrapping step and no second balance.
+    const side = (address: string): string =>
+        address.toLowerCase() === wrapped ? NATIVE : address;
+
+    tokenOut.value = side(busiest.base.address);
+    tokenIn.value = side(busiest.quote.address);
 };
 
 onMounted(async () => {
-    // Start on the wallet's chain when it is a DEX chain, else the default.
-    if (DEX_CHAINS.some((c) => c.chainId === wallet.chainId.value)) {
-        activeChainId.value = wallet.chainId.value as number;
-        readProvider = makeReadProvider(activeChain.value);
-        readRouter = new Contract(
-            activeChain.value.router,
-            ROUTER_ABI,
-            readProvider,
-        );
-        tokenOut.value = defaultTokenOut(activeChain.value);
+    /*
+     * A link chooses the pair; failing that, the busiest market does.
+     *
+     * The page used to start on whichever network the wallet happened to be
+     * pointing at, which is not a choice anybody made about *this* page — and
+     * it arrived late enough to overwrite one. What opens instead is the
+     * default network and, when the index can say which it is, the pair with
+     * the most volume behind it: a swap screen that opens on a market nobody
+     * is trading is a screen asking to be re-configured before it is used.
+     */
+    if (!takeLinkedPair()) {
+        void openOnBusiestPair();
     }
-
-    // After the wallet's chain, because a link is a more specific request than
-    // whichever network a browser extension happens to be pointing at.
-    takeLinkedPair();
 
     await nextTick();
 

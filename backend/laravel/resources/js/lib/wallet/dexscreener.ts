@@ -495,11 +495,11 @@ export const searchDexMarkets = async (
  * One call for up to thirty addresses, which is what makes it usable on a
  * balance refresh: a portfolio asking per token would be a request per row.
  */
-export const fetchDexMarkets = async (
+export const fetchDexPairsFor = async (
     chain: WalletChainId,
     addresses: readonly string[],
     signal?: AbortSignal,
-): Promise<DexMarket[]> => {
+): Promise<DexPair[]> => {
     const slug = dexScreenerSlug(chain);
     const wanted = [...new Set(addresses)].filter((address) => address !== '');
 
@@ -528,8 +528,32 @@ export const fetchDexMarkets = async (
         }),
     );
 
-    return summariseMarkets(answers.flat());
+    return answers.flat();
 };
+
+export const fetchDexMarkets = async (
+    chain: WalletChainId,
+    addresses: readonly string[],
+    signal?: AbortSignal,
+): Promise<DexMarket[]> =>
+    summariseMarkets(await fetchDexPairsFor(chain, addresses, signal));
+
+/**
+ * The busiest pool among a set of tokens, by what actually traded.
+ *
+ * By **volume** and not by depth, because the two answer different questions
+ * and this one is "what is everybody trading right now". A pool can hold ten
+ * million dollars and see nothing move through it all day; opening a page on
+ * that pair would be opening it on the quietest market in the list.
+ */
+export const busiestPair = (pairs: readonly DexPair[]): DexPair | null =>
+    pairs.reduce<DexPair | null>(
+        (best, pair) =>
+            best === null || (pair.volume24hUsd ?? 0) > (best.volume24hUsd ?? 0)
+                ? pair
+                : best,
+        null,
+    );
 
 /**
  * Every pool the index carries for one token, so a caller can pick.
