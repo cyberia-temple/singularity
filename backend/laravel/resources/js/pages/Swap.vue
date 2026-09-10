@@ -1890,11 +1890,35 @@ const switchChain = (chainId: number): void => {
     void refreshQuote();
 };
 
+/**
+ * Whether the wallet's network still gets to steer this page.
+ *
+ * It does by default, and stops the moment a link says otherwise — see
+ * `takeLinkedPair`. A link is a more specific request than whichever network an
+ * extension happens to be pointing at, and the extension always answers second:
+ * `restore()` reports its chain a beat after the page has loaded, so following
+ * it unconditionally quietly undid every link — the chain and both tokens
+ * snapped back to the defaults with nothing on screen to say why.
+ */
+let followsWallet = true;
+
 // Follow the wallet's network: switching it re-points the page to that chain's
 // DEX (when it is a known DEX chain).
 watch(
     () => wallet.chainId.value,
-    (chainId) => {
+    (chainId, previous) => {
+        /*
+         * The first chain a restoring wallet reports is not somebody switching
+         * networks, it is the page finding out where the wallet already was.
+         * After a link has chosen, that one report is ignored and every real
+         * switch afterwards is followed as before.
+         */
+        if (!followsWallet && previous === null) {
+            followsWallet = true;
+
+            return;
+        }
+
         if (
             chainId !== null &&
             chainId !== activeChainId.value &&
@@ -1942,6 +1966,9 @@ const takeLinkedPair = (): void => {
         metaCache.clear();
         tokenOut.value = defaultTokenOut(activeChain.value);
         tokenIn.value = NATIVE;
+        // The link has chosen the network; the wallet's own does not override
+        // it when it reports in a moment from now.
+        followsWallet = false;
     }
 
     for (const [key, side] of [
