@@ -89,6 +89,18 @@ return [
          * number. 300 bps is well above anything defensible here.
          */
         'max_bps' => 300,
+
+        /*
+         * Dollars that have to be claimable before the operator is told.
+         *
+         * The fee does not arrive in a wallet: the router holds it as one
+         * off-chain USDC balance against the address above, and it stays there
+         * until a person withdraws it — so the realistic way this arrangement
+         * fails is not that it stops collecting, but that it collects for a
+         * year and nobody knows. `crosschain:fees --alert` is the reminder,
+         * and this is the figure below which a reminder is just noise.
+         */
+        'claim_alert_usd' => (float) env('CROSSCHAIN_FEE_CLAIM_ALERT_USD', 25),
     ],
 
     /*

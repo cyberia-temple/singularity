@@ -45,6 +45,7 @@ import {
 import { ensureEvmChain } from '@/lib/evmChains';
 import { getSelectedEvmProvider } from '@/lib/evmProvider';
 import type { LiquidityChainConfig } from '@/lib/liquidityChains';
+import { logoForToken } from '@/lib/tokenLogos';
 import { track } from '@/lib/track';
 import { walletChains } from '@/lib/wallet';
 
@@ -187,6 +188,19 @@ const symbolOf = (addr: string): string =>
         ?.symbol ??
     metaCache.get(addr.toLowerCase())?.symbol ??
     shortAddr(addr);
+
+/**
+ * The mark beside a ticker, when this chain has one for that contract.
+ *
+ * Address-keyed rather than ticker-keyed: on Robinhood Chain the tickers belong
+ * to companies, and a company's ticker is short enough to collide with anything
+ * — `F` is Ford there. `logoForToken` answers undefined for everything it does
+ * not recognise, and the icon falls back to its lettered avatar as before.
+ */
+const logoOf = (addr: string | null | undefined): string | undefined =>
+    !addr || isNative(addr)
+        ? undefined
+        : logoForToken(props.chain.chainId, addr, symbolOf(addr));
 
 const loadBalance = async (token: string): Promise<bigint> => {
     const me = wallet.address.value;
@@ -1873,8 +1887,16 @@ onMounted(() => {
                         "
                     >
                         <span class="flex items-center gap-2">
-                            <TokenIcon :symbol="p.sym0" :size="20" />
-                            <TokenIcon :symbol="p.sym1" :size="20" />
+                            <TokenIcon
+                                :symbol="p.sym0"
+                                :logo="logoOf(p.token0)"
+                                :size="20"
+                            />
+                            <TokenIcon
+                                :symbol="p.sym1"
+                                :logo="logoOf(p.token1)"
+                                :size="20"
+                            />
                             <span>
                                 <span class="block font-medium">
                                     {{ p.sym0 }}/{{ p.sym1 }}

@@ -338,6 +338,58 @@ class CrosschainRouter
     }
 
     /**
+     * What this app's fee has accrued to, and what can be taken out.
+     *
+     * The fee is collected on every routed swap, and it has never been visible
+     * anywhere: it does not arrive in a wallet, and it does not arrive per
+     * chain. The router holds it as **one off-chain USDC balance** against the
+     * EVM address in `CROSSCHAIN_FEE_ADDRESS` — which is why that address must
+     * be EVM-shaped even when the swap it was earned on happened on Solana.
+     * The address is a claim ticket, not a payee.
+     *
+     * That design is the reason this method exists. Money that accumulates
+     * somewhere nobody looks is money nobody claims, and the only thing
+     * standing between "we take a fee" and "we are paid" is somebody knowing
+     * there is a balance to withdraw. `crosschain:fees` asks this hourly and
+     * says so in the operator channel.
+     *
+     * Two figures come back and they are not the same number.
+     * `availableBalanceUsd` is what may be withdrawn now; `totalBalanceUsd`
+     * includes fills the router has not finished settling, and reporting that
+     * one as claimable would be promising money that is not there yet.
+     *
+     * @return array{available: float, total: float, pending: float, currencies: array<int, array<string, mixed>>}|null
+     */
+    public function appFeeBalance(): ?array
+    {
+        $address = $this->feeAddress();
+
+        if (! $this->enabled() || $address === null) {
+            return null;
+        }
+
+        $response = Http::timeout($this->timeout())
+            ->acceptJson()
+            ->get($this->api().'/app-fees/'.$address.'/balances');
+
+        if (! $response->successful()) {
+            throw new RuntimeException($this->reason($response->json(), $response->status()));
+        }
+
+        $body = (array) $response->json();
+
+        return [
+            'available' => (float) ($body['availableBalanceUsd'] ?? 0),
+            'total' => (float) ($body['totalBalanceUsd'] ?? 0),
+            'pending' => (float) ($body['outstandingFastFillBalanceUsd'] ?? 0),
+            'currencies' => array_values(array_filter(
+                (array) ($body['balances'] ?? []),
+                'is_array',
+            )),
+        ];
+    }
+
+    /**
      * Where a started swap has got to.
      *
      * The deposit is on chain and the router is delivering; this is the only

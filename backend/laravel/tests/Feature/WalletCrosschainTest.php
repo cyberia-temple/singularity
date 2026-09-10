@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\CrosschainRouter;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -157,6 +158,18 @@ beforeEach(function () {
             app('cross.quote.status'),
         ),
         CROSS_API.'/intents/status*' => fn () => Http::response(app('cross.status')),
+        CROSS_API.'/app-fees/*' => fn () => Http::response(app('cross.balances')),
+    ]);
+
+    app()->instance('cross.balances', [
+        'balances' => [[
+            'currency' => ['symbol' => 'USDC'],
+            'amountFormatted' => '41.20',
+            'amountUsd' => '41.20',
+        ]],
+        'totalBalanceUsd' => 41.2,
+        'outstandingFastFillBalanceUsd' => 6.2,
+        'availableBalanceUsd' => 35,
     ]);
 });
 
@@ -399,4 +412,67 @@ it('goes quiet when the host switches it off', function () {
     $this->postJson('/api/wallet/crosschain/quote', crossPayload())
         ->assertStatus(422)
         ->assertJsonPath('error', 'Cross-chain swaps are switched off on this host.');
+});
+
+/*
+ * The fee is taken along the route, by the router, out of the input — there is
+ * no leg of ours in the path and no key of ours anywhere near it. What that
+ * costs is visibility: it lands in no wallet, so the way this arrangement
+ * fails is not that it stops collecting but that it collects unnoticed.
+ */
+it('reads the balance the fee has accrued to, against the claim address', function () {
+    $balance = app(CrosschainRouter::class)->appFeeBalance();
+
+    // Two figures, and they are not the same number: one is claimable now, the
+    // other includes fills the router has not finished settling. Reporting the
+    // larger as claimable would promise money that is not there.
+    expect($balance['available'])->toBe(35.0)
+        ->and($balance['total'])->toBe(41.2)
+        ->and($balance['pending'])->toBe(6.2);
+
+    Http::assertSent(fn (Request $request) => $request->url()
+        === CROSS_API.'/app-fees/'.CROSS_FEE_ADDRESS.'/balances');
+});
+
+it('has no balance to read when no fee is being asked for', function () {
+    config()->set('crosschain.fee.address', '');
+
+    // Not zero — zero is a balance. There is no arrangement at all, which is
+    // what the command prints instead of a figure nobody is owed.
+    expect(app(CrosschainRouter::class)->appFeeBalance())->toBeNull();
+});
+
+it('says plainly when there is nothing to claim yet', function () {
+    app()->instance('cross.balances', [
+        'balances' => [],
+        'totalBalanceUsd' => 0,
+        'outstandingFastFillBalanceUsd' => 0,
+        'availableBalanceUsd' => 0,
+    ]);
+
+    $this->artisan('crosschain:fees')
+        ->expectsOutputToContain('Claimable now: $0.00')
+        ->expectsOutputToContain('Nothing to claim yet')
+        ->assertSuccessful();
+});
+
+it('tells the operator where to go once there is enough to bother', function () {
+    config()->set('crosschain.fee.claim_alert_usd', 25);
+
+    $this->artisan('crosschain:fees --alert')
+        ->expectsOutputToContain('Claimable now: $35.00')
+        ->expectsOutputToContain('relay.link/app-balance')
+        ->assertSuccessful();
+});
+
+it('does not shout about a balance too small to be worth a trip', function () {
+    config()->set('crosschain.fee.claim_alert_usd', 500);
+
+    $this->artisan('crosschain:fees --alert')
+        ->expectsOutputToContain('Claimable now: $35.00')
+        ->assertSuccessful();
+
+    // The reminder is a reminder, not an incident: below the threshold the
+    // command still reports, and simply says nothing to anybody.
+    expect(Cache::has('crosschain.fees:alerted'))->toBeFalse();
 });

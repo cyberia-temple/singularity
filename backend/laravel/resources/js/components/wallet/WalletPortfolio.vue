@@ -55,6 +55,7 @@ const emit = defineEmits<{
     gas: [];
     bridge: [];
     earn: [];
+    stocks: [];
     browse: [];
     daily: [];
     preferences: [];
@@ -743,6 +744,33 @@ const recent = computed(() =>
             </div>
             <div class="cw-hint" style="margin-top: 8px">
                 {{ t('tileMarketsHint') }}
+            </div>
+        </button>
+
+        <!--
+          Shares, which are not a coin and are not pretending to be one. A full
+          row rather than a fourth tile for the same reason Markets is one: the
+          three tiles below are ways of reading what you already hold, and this
+          is a catalogue of something you do not.
+        -->
+        <button
+            type="button"
+            class="cw-card cw-card-button"
+            style="margin-bottom: 10px; padding: 14px 16px"
+            @click="emit('stocks')"
+        >
+            <div class="cw-row">
+                <span
+                    style="
+                        font: 500 12px/1 var(--cw-sans);
+                        color: var(--cw-text);
+                    "
+                    >{{ t('stocks') }}</span
+                >
+                <span class="cw-label" style="color: var(--cw-faint)">→</span>
+            </div>
+            <div class="cw-hint" style="margin-top: 8px">
+                {{ t('tileStocksHint') }}
             </div>
         </button>
 

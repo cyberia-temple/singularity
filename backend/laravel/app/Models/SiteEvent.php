@@ -23,6 +23,12 @@ class SiteEvent extends Model
         'staking_started',
         'staking_completed',
         'partner_cta_clicked',
+        // The landing's tokenised-stock grid. Its own name rather than a
+        // `partner_cta_clicked` with a ticker in the metadata: what it measures
+        // is whether an equity is the thing that brings somebody in at all,
+        // and folding it into another funnel step would answer that question
+        // by averaging it away.
+        'stock_cta_clicked',
         'liquidity_added',
     ];
 

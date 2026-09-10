@@ -1619,6 +1619,11 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
                 tier,
                 rpcUrl: rpcFor(chainId),
                 token: token?.address ?? null,
+                // The same scale, travelling with the amount it produced.
+                // A chain whose token program checks it (Solana's does) can
+                // then refuse a transfer this wallet counted wrong instead of
+                // performing it.
+                decimals: token?.decimals,
             });
         } finally {
             busy.value = false;

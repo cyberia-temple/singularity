@@ -10,6 +10,14 @@ const DEXSCREENER_URL = 'https://api.dexscreener.com/*';
 
 const COINGECKO_URL = 'https://api.coingecko.com/*';
 
+/*
+ * The issuer of the tokenised stocks. Faked in every one of these tests and not
+ * only in the ones about stocks: `Http::fake()` with a map lets an unmatched
+ * URL through to the network, so leaving it out would make this suite call a
+ * third party fifty times a run.
+ */
+const ROBINHOOD_URL = 'https://api.robinhood.com/*';
+
 beforeEach(function () {
     Cache::flush();
 });
@@ -40,8 +48,29 @@ function fakePriceFeeds(array $overrides = []): void
             'bitcoin' => ['usd' => 64000.0],
             'litecoin' => ['usd' => 78.0],
         ]),
+        ROBINHOOD_URL => Http::response(['assets' => [], 'quotes' => []]),
         ...$overrides,
     ]);
+}
+
+/**
+ * One live quote, under the same key the default fake uses so it replaces it.
+ *
+ * Both of the issuer's endpoints answer with this body, which is the point: no
+ * `assets`, so no multiplier is known, so the token is worth exactly the share.
+ * A separate, narrower pattern would sit *after* the general one in the array
+ * and never be reached.
+ */
+function fakeStockQuotes(): array
+{
+    return [ROBINHOOD_URL => Http::response(['quotes' => [
+        [
+            'tokenSymbol' => 'NVDA',
+            'bid' => '223',
+            'ask' => '223.20',
+            'isTradingHalt' => false,
+        ],
+    ]])];
 }
 
 it('quotes every wallet chain in USD, including the ones sharing a coin', function () {
@@ -139,7 +168,45 @@ it('serves a cached quote instead of hitting the feeds on every page view', func
     app(WalletPriceService::class)->quotes();
     app(WalletPriceService::class)->quotes();
 
-    Http::assertSentCount(2);
+    /*
+     * The coin feeds, and only them. A total count would also be counting the
+     * stock quotes, which are deliberately *not* inside this five-minute cache
+     * — a share moves through the whole window, and a portfolio five minutes
+     * behind the ticker on the next screen is one app disagreeing with itself.
+     */
+    $coinFeeds = 0;
+
+    Http::assertSent(function ($request) use (&$coinFeeds) {
+        if (str_contains($request->url(), 'coingecko')
+            || str_contains($request->url(), 'dexscreener')) {
+            $coinFeeds++;
+        }
+
+        return true;
+    });
+
+    expect($coinFeeds)->toBe(2);
+});
+
+it('prices the tokenised stocks beside every other token', function () {
+    fakePriceFeeds(fakeStockQuotes());
+
+    $tokens = app(WalletPriceService::class)->quotes()['tokens'];
+
+    // Keyed by contract, lowercased, exactly as the wallet reads every other
+    // token price — the stock is not a special case once it has a number.
+    expect($tokens['robinhood']['0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec'])
+        ->toBe(223.1);
+});
+
+it('leaves the stock chain out entirely when no quote came back', function () {
+    fakePriceFeeds();
+
+    $tokens = app(WalletPriceService::class)->quotes()['tokens'];
+
+    // Absent, never an empty map and never zeros: "unpriced" is a state the
+    // wallet renders as a dash, and it has to survive the trip.
+    expect($tokens)->not->toHaveKey('robinhood');
 });
 
 it('hands the wallet page its opening quotes', function () {

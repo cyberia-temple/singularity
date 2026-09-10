@@ -228,9 +228,21 @@ export const blockscoutTokens = async (
         });
 };
 
-/** Case-insensitive identity: the same contract written two ways is one token. */
+/**
+ * The same token written two ways.
+ *
+ * Case-insensitive on EVM, where the checksum is decoration over a hex string
+ * and the same contract is routinely written three ways in one afternoon —
+ * and exact everywhere else, because this is now also asked about Solana
+ * mints, and base58 uses upper and lower case as *different characters*. A
+ * lowercased mint is not a quieter spelling of an address; it is a different
+ * address, or none.
+ */
 export const sameToken = (left: string, right: string): boolean =>
-    left.toLowerCase() === right.toLowerCase();
+    left === right ||
+    (left.startsWith('0x') &&
+        right.startsWith('0x') &&
+        left.toLowerCase() === right.toLowerCase());
 
 /**
  * The index's tokens with the user's own on top, de-duplicated.

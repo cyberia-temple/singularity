@@ -61,6 +61,14 @@ Schedule::command('ai:prune-usage')->daily()->withoutOverlapping();
 // button simply stops working, and nobody reports a wallet that never offered
 // them anything. Reads only, and it shouts at most once every six hours.
 Schedule::command('gas:station --alert')->hourly()->withoutOverlapping();
+
+/*
+ * The wallet's routed swaps take a fee along the route, and the router holds it
+ * as an off-chain balance nobody would otherwise look at. Daily, because this
+ * is a reminder to go and collect money rather than an incident — the command
+ * shouts at most weekly on its own.
+ */
+Schedule::command('crosschain:fees --alert')->dailyAt('09:20')->withoutOverlapping();
 // Funding that the browser never got to report: a wallet funded while closed,
 // a deposit that confirmed after the tab was gone. The activation funnel wants
 // those users most, because a wallet that was funded and never came back is

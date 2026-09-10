@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AddressField from '@/components/wallet/AddressField.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import TokenList from '@/components/wallet/TokenList.vue';
@@ -18,6 +18,7 @@ import type {
     WalletTokenBalance,
     WalletTxStatus,
 } from '@/lib/wallet';
+import { isRoutedChain } from '@/lib/wallet/crosschain';
 import { formatUsd, formatUsdPrice, usdValue } from '@/lib/wallet/format';
 import { walletMessages } from '@/lib/walletMessages';
 
@@ -53,6 +54,33 @@ const account = computed(() =>
     props.wallet.accounts.value.find(
         (candidate) => candidate.chain === props.chain,
     ),
+);
+
+/**
+ * Whether this network can be traded on at all — by us or by anybody.
+ *
+ * It used to be `hasSwap()`, which asks whether *Cyberia* has deployed an
+ * exchange here. On Solana that is false and always will be, and the answer
+ * the screen drew from it was that there is no trading on Solana: no button,
+ * no sentence, nothing. The trade was reachable the whole time, from a button
+ * on the portfolio two screens away, for whoever thought to switch the network
+ * chip first.
+ *
+ * So the question is the honest one now, and the answer is allowed to arrive
+ * late: the button appears when the router confirms it serves this chain,
+ * because a control that is drawn and then withdrawn is worse than one that
+ * turns up a moment after the balance does.
+ */
+const routed = ref(false);
+
+watch(
+    () => props.chain,
+    async (id) => {
+        routed.value = hasSwap(walletChain(id).chainId)
+            ? true
+            : await isRoutedChain(id);
+    },
+    { immediate: true },
 );
 
 const balance = computed(() => props.wallet.balances.value[props.chain]);
@@ -233,12 +261,13 @@ watch(() => props.chain, load);
                 {{ t('receive') }}
             </button>
             <!--
-              Only where an exchange is actually deployed: a network with no
-              router has nothing to trade against, and a button that opens a
-              screen to say so is a button that lied.
+              Wherever the trade can actually be filled — our own pools, or a
+              router that serves this chain. Not "wherever we deployed an
+              exchange", which is a fact about this project that used to be
+              rendered as a fact about the network.
             -->
             <button
-                v-if="hasSwap(chain.chainId)"
+                v-if="routed"
                 type="button"
                 class="cw-btn cw-btn-secondary"
                 style="height: 48px"

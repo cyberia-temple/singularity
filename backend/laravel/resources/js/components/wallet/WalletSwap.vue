@@ -46,7 +46,11 @@ import type {
     WrapDirection,
     WrapQuote,
 } from '@/lib/wallet';
-import { fetchCrosschainConfig, routerChainId } from '@/lib/wallet/crosschain';
+import {
+    forgetRoutedChains,
+    routedChainIds,
+    routerChainId,
+} from '@/lib/wallet/crosschain';
 import { dailyBoardCached } from '@/lib/wallet/daily';
 import type { DailyBoard } from '@/lib/wallet/daily';
 import { formatUsd, shortAddress, usdValue } from '@/lib/wallet/format';
@@ -1088,15 +1092,23 @@ watch(mode, (next) => {
 });
 
 /*
- * One call, the first time this screen lands on a chain we do not serve, and
- * never again — the answer is the same for every visitor and the config route
- * is cached server-side anyway. A failure here is not an error state: it means
- * the fallback is unavailable, which is exactly the old message.
+ * One call for the page, and it is asked wherever this screen opens.
+ *
+ * It used to be asked only on a chain we do not serve — cheap, and it made the
+ * network strip a different list depending on which network you happened to
+ * arrive on: standing on Cyberia it offered Cyberia and Robinhood, so the way
+ * to Solana was to leave this screen, switch the network chip, and come back.
+ * The answer is now shared for the whole page and cached on the server behind
+ * the route, so asking it always costs nothing and the strip is the same list
+ * everywhere.
+ *
+ * A failure is not an error state: it means the fallback is unavailable, which
+ * is what the third message on this screen says.
  */
 watch(
     [() => props.chain, dex],
     async () => {
-        if (dex.value || routerAsked.value) {
+        if (routerAsked.value) {
             return;
         }
 
@@ -1104,19 +1116,7 @@ watch(
         routerUnreachable.value = false;
 
         try {
-            const config = await fetchCrosschainConfig();
-
-            /*
-             * Filtered to what this wallet can sign, not to what the router
-             * serves. It routes eight kinds of chain; the wallet holds a key it
-             * can put on two of them, and offering a trade it cannot finish is
-             * worse than not offering one.
-             */
-            routerChains.value = config.enabled
-                ? config.chains
-                      .filter((row) => row.vm === 'evm' || row.vm === 'svm')
-                      .map((row) => row.id)
-                : [];
+            routerChains.value = await routedChainIds();
         } catch {
             routerChains.value = [];
             routerUnreachable.value = true;
@@ -1128,15 +1128,12 @@ watch(
 /** Ask again, for the case that was only ever about this minute. */
 const retryRouter = async (): Promise<void> => {
     routerUnreachable.value = false;
+    // The shared answer is kept for the life of the page, so a retry has to
+    // drop it first or it retries nothing and reports the same failure.
+    forgetRoutedChains();
 
     try {
-        const config = await fetchCrosschainConfig();
-
-        routerChains.value = config.enabled
-            ? config.chains
-                  .filter((row) => row.vm === 'evm' || row.vm === 'svm')
-                  .map((row) => row.id)
-            : [];
+        routerChains.value = await routedChainIds();
     } catch {
         routerChains.value = [];
         routerUnreachable.value = true;

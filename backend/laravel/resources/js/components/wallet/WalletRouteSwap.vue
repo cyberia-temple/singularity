@@ -2,14 +2,17 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
+import WalletPairChart from '@/components/wallet/WalletPairChart.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { useWalletTheme } from '@/composables/useWalletTheme';
 import { formatUnits, parseUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
 import {
     crossFeeShareBps,
     crossSwapStatus,
     fetchCrossTokens,
+    mergeOffers,
     quoteCrossSwap,
     routerChainId,
     routerNativeCurrency,
@@ -18,8 +21,10 @@ import type {
     CrossQuote,
     CrossStatus,
     CrossToken,
+    TokenOffer,
 } from '@/lib/wallet/crosschain';
-import { formatUsd } from '@/lib/wallet/format';
+import { fetchDexMarkets, searchDexMarkets } from '@/lib/wallet/dexscreener';
+import { formatUsd, formatUsdPrice } from '@/lib/wallet/format';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -51,6 +56,7 @@ const props = defineProps<{
 }>();
 
 const { locale, t } = useLocale(walletMessages);
+const { scheme } = useWalletTheme();
 
 const chain = computed(() => walletChain(props.chain));
 
@@ -104,15 +110,66 @@ const payable = computed<CrossToken[]>(() => {
     return [coin, ...held];
 });
 
+/**
+ * Two spellings of one token.
+ *
+ * Case-insensitive on EVM, where a checksum is decoration over a hex string,
+ * and exact everywhere else — base58 uses upper and lower case as *different
+ * characters*, so lowercasing a Solana mint to compare it is a comparison
+ * between two strings that are not addresses.
+ */
+const sameAddress = (left: string, right: string): boolean =>
+    left === right ||
+    (left.startsWith('0x') &&
+        right.startsWith('0x') &&
+        left.toLowerCase() === right.toLowerCase());
+
+/**
+ * A signed percentage, in the reader's own number format.
+ *
+ * Always with its sign, including the plus: these sit in a column where the
+ * eye is looking for direction before magnitude, and an unsigned 19 next to a
+ * −18 is the one pair that must never be ambiguous.
+ */
+const percentChange = (value: number): string => {
+    // Zero takes no sign. It is a real answer — the index measured the day and
+    // it did not move — and "+0%" reads as a rounded gain rather than as flat.
+    const sign = value > 0 ? '+' : value < 0 ? '−' : '';
+
+    return `${sign}${new Intl.NumberFormat(locale.value, {
+        maximumFractionDigits: Math.abs(value) < 10 ? 1 : 0,
+    }).format(Math.abs(value))}%`;
+};
+
+const sameOffer = (selected: TokenOffer | null, offer: TokenOffer): boolean =>
+    selected !== null && sameAddress(selected.address, offer.address);
+
 const from = ref<CrossToken | null>(null);
-const to = ref<CrossToken | null>(null);
+const to = ref<TokenOffer | null>(null);
 const amount = ref('');
 
+/*
+ * What is being spent, defaulted to the network's own coin.
+ *
+ * Kept only while it is still spendable *here*. A pay asset belongs to one
+ * network — it is that chain's coin, or a token held on it — so carrying it
+ * across a switch in the network strip leaves the form holding an address from
+ * the chain you left. That is not a cosmetic wrong: on the way to Solana it
+ * left the EVM zero address in `originCurrency`, and the router answered the
+ * whole quote with `Invalid input currency`, which reads as "this trade is not
+ * possible" and was really "the form is still on the previous chain".
+ */
 watch(
     payable,
     (list) => {
-        if (!from.value && list.length > 0) {
-            from.value = list[0];
+        const still =
+            from.value !== null &&
+            list.some((token) =>
+                sameAddress(token.address, from.value!.address),
+            );
+
+        if (!still) {
+            from.value = list[0] ?? null;
         }
     },
     { immediate: true },
@@ -130,8 +187,8 @@ const balance = computed<bigint | null>(() => {
     }
 
     return (
-        props.wallet.tokens.value[props.chain]?.items.find(
-            (row) => row.address.toLowerCase() === token.address.toLowerCase(),
+        props.wallet.tokens.value[props.chain]?.items.find((row) =>
+            sameAddress(row.address, token.address),
         )?.balance ?? null
     );
 });
@@ -162,18 +219,43 @@ const overBalance = computed(
 /* ------------------------------------------------------------ what to buy -- */
 
 const query = ref('');
-const offers = ref<CrossToken[]>([]);
+const offers = ref<TokenOffer[]>([]);
 const searching = ref(false);
 const searchError = ref<string | null>(null);
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
+let searchRun = 0;
+
+/** Whether what was typed is an address on this network rather than a name. */
+const typedAddress = computed(() => {
+    const term = query.value.trim();
+
+    try {
+        return term !== '' && chain.value.isValidAddress(term) ? term : null;
+    } catch {
+        return null;
+    }
+});
 
 /**
- * The tokens this network can be traded into, from the router's own list.
+ * What can be bought here, from all three things that know.
  *
- * Debounced, and re-asked on every term rather than filtered in the browser:
- * the catalogue for a chain like BNB is far larger than anything worth holding
- * in a page, and the router's search already knows which of them have routes.
+ * The router's catalogue was the only source for one release and it is the
+ * narrowest of the three: it lists what the router has decided to carry, which
+ * is neither everything it will route nor everything that trades. A token
+ * minted on a launchpad this morning has a pool, a price and holders, and is
+ * on nobody's list — and the whole reason somebody opens this screen is to buy
+ * exactly that.
+ *
+ * So the catalogue is asked, the pool index is asked beside it, and when what
+ * was typed is an address the chain itself is asked as well. All three are
+ * allowed to fail independently: the row a user pasted an address for must
+ * still appear when the pool index is down, and the catalogue must still
+ * appear when the address is nonsense.
+ *
+ * Debounced, and every run stamped — three sources answer at three speeds, and
+ * a slow answer to an old term arriving after a fast answer to the current one
+ * is how a list ends up showing the results of a query nobody typed.
  */
 const search = (): void => {
     const chainId = routedId.value;
@@ -187,22 +269,147 @@ const search = (): void => {
     }
 
     searchTimer = setTimeout(async () => {
+        const run = ++searchRun;
+        const term = query.value.trim();
+        const address = typedAddress.value;
+
         searching.value = true;
         searchError.value = null;
 
-        try {
-            offers.value = await fetchCrossTokens(chainId, query.value);
-        } catch (error) {
-            searchError.value =
-                error instanceof Error ? error.message : t('routeNoOffers');
-            offers.value = [];
-        } finally {
-            searching.value = false;
+        const [listed, searched, pasted] = await Promise.all([
+            fetchCrossTokens(chainId, term).catch(() => null),
+            searchDexMarkets(props.chain, term).catch(() => []),
+            address === null
+                ? Promise.resolve(null)
+                : props.wallet
+                      .readToken(props.chain, address)
+                      .catch(() => null),
+        ]);
+
+        if (run !== searchRun) {
+            return;
         }
+
+        /*
+         * With nothing typed there is nothing to search *for*, and the list on
+         * screen is whatever the router carries — which is the list that
+         * prompted the question "on what basis were these chosen". It cannot
+         * be answered by re-ordering rows that carry no numbers, so the pools
+         * are asked about those exact addresses instead: one batched call, and
+         * every row arrives with a depth and a day's move to be ranked and
+         * read by.
+         */
+        const markets =
+            term === '' && listed !== null && listed.length > 0
+                ? await fetchDexMarkets(
+                      props.chain,
+                      listed.map((token) => token.address),
+                  ).catch(() => [])
+                : searched;
+
+        if (run !== searchRun) {
+            return;
+        }
+
+        // The chain's own answer about a pasted address goes first and is the
+        // only row here whose decimals nobody had to be trusted for.
+        const extra: TokenOffer[] =
+            pasted === null
+                ? []
+                : [
+                      {
+                          chainId,
+                          address: pasted.address,
+                          symbol: pasted.symbol,
+                          name: pasted.name,
+                          decimals: pasted.decimals,
+                          verified: false,
+                          logo: '',
+                          market: null,
+                          unlisted: true,
+                      },
+                  ];
+
+        offers.value = mergeOffers(listed ?? [], markets, extra);
+        searching.value = false;
+
+        // Only a total blank is worth a sentence. The catalogue failing while
+        // the pools answered is a list that works, and saying so would be
+        // reporting our plumbing as the user's problem.
+        searchError.value =
+            listed === null && offers.value.length === 0
+                ? t('routeNoOffers')
+                : null;
     }, 350);
 };
 
 watch(query, search);
+
+/* ------------------------------------------------------- picking one of them -- */
+
+/** Reading a scale off the chain for a row that arrived without one. */
+const resolving = ref(false);
+const resolveError = ref<string | null>(null);
+
+/**
+ * Choose what to buy — and, for a row the router never listed, find out what
+ * it is first.
+ *
+ * A row from the pool index carries no decimals, because that index does not
+ * report them and a guessed scale is the difference between buying a token and
+ * buying a millionth of one. So picking such a row reads it off the chain, on
+ * a deliberate act rather than for all thirty rows on screen, and a token the
+ * chain will not answer for cannot be picked at all — which is the correct
+ * outcome for an address that is not a token on this network.
+ */
+const pick = async (offer: TokenOffer): Promise<void> => {
+    resolveError.value = null;
+
+    if (!offer.unlisted || offer.decimals > 0) {
+        to.value = offer;
+
+        return;
+    }
+
+    resolving.value = true;
+
+    try {
+        const read = await props.wallet.readToken(props.chain, offer.address);
+
+        if (read === null) {
+            resolveError.value = t('routeUnreadableToken');
+
+            return;
+        }
+
+        to.value = { ...offer, decimals: read.decimals };
+    } catch {
+        resolveError.value = t('routeUnreadableToken');
+    } finally {
+        resolving.value = false;
+    }
+};
+
+/* ----------------------------------------------------------------- quoting -- */
+
+const quote = ref<CrossQuote | null>(null);
+const quoting = ref(false);
+const quoteError = ref<string | null>(null);
+
+/*
+ * A new network is a new catalogue, and the list has to be asked for once
+ * before anybody types — the screen opens on "you receive" with nothing under
+ * it otherwise, which reads as "there is nothing here" rather than as "say
+ * what you want".
+ *
+ * It sits *below* the quote it clears rather than up with the other searching,
+ * and that is not tidiness. `immediate` runs this body during setup, so every
+ * name in it has to be initialised by the time setup reaches this line — and
+ * for one release this ran above `const quote`, threw on the temporal dead
+ * zone, and took the opening search down with it. The visible symptom was an
+ * empty token list on every routed chain: the exception was swallowed into a
+ * console warning, so the screen looked built and was simply blank.
+ */
 watch(
     () => props.chain,
     () => {
@@ -213,12 +420,6 @@ watch(
     },
     { immediate: true },
 );
-
-/* ----------------------------------------------------------------- quoting -- */
-
-const quote = ref<CrossQuote | null>(null);
-const quoting = ref(false);
-const quoteError = ref<string | null>(null);
 
 /** Who is spending, in whatever form this chain writes an address. */
 const spender = computed(() => account.value?.address ?? null);
@@ -466,6 +667,19 @@ const canSign = computed(
             :placeholder="t('routeSearch', { chain: chain.label })"
         />
 
+        <!--
+          Where the list comes from and what decides its order. Without this
+          the rows are somebody's ranking of somebody's catalogue, and the only
+          honest reaction to that is the one this line answers.
+        -->
+        <p
+            v-if="!searching && offers.length > 0"
+            class="cw-rowdata"
+            style="margin-top: 6px"
+        >
+            {{ query.trim() === '' ? t('routeListTop') : t('routeListFound') }}
+        </p>
+
         <p v-if="searching" class="cw-label" style="margin-top: 8px">
             {{ t('routeSearching') }}
         </p>
@@ -492,12 +706,9 @@ const canSign = computed(
                 :key="offer.address"
                 type="button"
                 class="cw-pick"
-                :class="{
-                    'cw-pick-on':
-                        to?.address.toLowerCase() ===
-                        offer.address.toLowerCase(),
-                }"
-                @click="to = offer"
+                :class="{ 'cw-pick-on': sameOffer(to, offer) }"
+                :disabled="resolving"
+                @click="pick(offer)"
             >
                 <span style="flex: 1; min-width: 0; text-align: left">
                     <span
@@ -508,25 +719,98 @@ const canSign = computed(
                     >
                         {{ offer.symbol }}
                     </span>
+                    <span class="cw-rowdata" style="margin-top: 3px">{{
+                        offer.name
+                    }}</span>
+                    <!--
+                      What separates nine tokens with one name. Depth first,
+                      because it is the number that decides whether the one you
+                      picked is the one everybody else is trading.
+                    -->
                     <span
-                        class="cw-label"
-                        style="display: block; margin-top: 3px; font-size: 9px"
-                        >{{ offer.name }}</span
+                        v-if="offer.market"
+                        class="cw-rowdata"
+                        style="margin-top: 3px"
                     >
+                        {{
+                            t('routeDepth', {
+                                liquidity: formatUsd(
+                                    offer.market.liquidityUsd,
+                                    locale,
+                                ),
+                            })
+                        }}
+                        ·
+                        {{ formatUsdPrice(offer.market.priceUsd, locale) }}
+                        <!--
+                          The day's move, and only when the index reported one.
+                          A token with no figure is drawn without this rather
+                          than at 0%, which would read as "flat" — the two are
+                          different answers and a new pool gives the first.
+                        -->
+                        <span
+                            v-if="offer.market.priceChange24h !== null"
+                            :style="{
+                                color:
+                                    offer.market.priceChange24h === 0
+                                        ? 'var(--cw-dim)'
+                                        : offer.market.priceChange24h > 0
+                                          ? 'var(--cw-ok)'
+                                          : 'var(--cw-bad)',
+                            }"
+                            >· {{ percentChange(offer.market.priceChange24h) }}
+                        </span>
+                    </span>
                 </span>
-                <!--
-                  The router's own flag, passed through. An unverified token is
-                  marked rather than hidden: anybody may list one, and the
-                  wallet's job is to say so, not to decide for the holder.
-                -->
                 <span
-                    v-if="!offer.verified"
-                    class="cw-badge"
-                    style="flex: none"
-                    >{{ t('routeUnverified') }}</span
+                    style="
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 3px;
+                        align-items: flex-end;
+                    "
                 >
+                    <!--
+                      The router's own flag, passed through. An unverified token
+                      is marked rather than hidden: anybody may list one, and
+                      the wallet's job is to say so, not to decide for the
+                      holder.
+                    -->
+                    <span v-if="!offer.verified" class="cw-badge">{{
+                        t('routeUnverified')
+                    }}</span>
+                    <!--
+                      Found in the pools rather than in the router's catalogue.
+                      Not a warning about the token — it is a warning about how
+                      much is known about it here.
+                    -->
+                    <span v-if="offer.unlisted" class="cw-badge">{{
+                        t('routeUnlisted')
+                    }}</span>
+                </span>
             </button>
         </div>
+
+        <p
+            v-if="resolveError"
+            class="cw-note cw-note-warn"
+            style="margin-top: 8px"
+        >
+            <span>{{ resolveError }}</span>
+        </p>
+
+        <!--
+          The chosen token's own history, from the index that watches its pool.
+          Under the picker rather than beside the quote: this is what a person
+          reads *before* deciding an amount, and a chart that only appears once
+          a route has been priced appears after the decision it informs.
+        -->
+        <WalletPairChart
+            v-if="to?.market"
+            :market="to.market"
+            :scheme="scheme"
+        />
 
         <!-- Quote -->
         <button

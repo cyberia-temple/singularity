@@ -1,4 +1,6 @@
 import { Contract, JsonRpcProvider, getAddress } from 'ethers';
+import type { V3Route } from '@/lib/dexV3';
+import { v3BestRoute, v3SwapCall } from '@/lib/dexV3';
 import { LIQUIDITY_CHAINS } from '@/lib/liquidityChains';
 import type { LiquidityChainConfig } from '@/lib/liquidityChains';
 import { evmSigner } from '@/lib/wallet/keys';
@@ -118,7 +120,18 @@ export type SwapQuote = {
      * one call — an approval left over from an abandoned swap has to be zeroed
      * first, which is a second transaction and is priced as one.
      */
-    approval: { token: string; amount: bigint; reset: boolean } | null;
+    approval: {
+        token: string;
+        /**
+         * Who is allowed to pull it. Not `config.router`: the two venues on a
+         * chain have two routers, and an allowance granted to the one that is
+         * not doing the trade is a transaction that pays for nothing and a
+         * swap that reverts on the transfer anyway.
+         */
+        spender: string;
+        amount: bigint;
+        reset: boolean;
+    } | null;
     /** Which side of the trade is the native coin — decided once, here. */
     kind: 'native-in' | 'native-out' | 'tokens';
     /** False when the node would not price the swap and the cap was used. */
@@ -133,6 +146,15 @@ export type SwapQuote = {
      * chain with many hubs produces a list nobody reads.
      */
     alternatives: { path: string[]; amountOut: bigint }[];
+    /**
+     * The concentrated-liquidity route, present only when v3 is what won.
+     *
+     * A v2 trade is fully described by `path`; a v3 trade is not — the same
+     * two tokens have a pool per fee tier, and which one the router is sent to
+     * is part of the route. So the winning route travels whole into the
+     * signature rather than being rebuilt from the path afterwards.
+     */
+    v3Route?: V3Route;
 };
 
 /* ------------------------------------------------------------ registry -- */
@@ -458,7 +480,7 @@ export const quoteSwap = async (request: {
         }),
     );
 
-    const best = priced.reduce<{ path: string[]; amountOut: bigint } | null>(
+    const v2Best = priced.reduce<{ path: string[]; amountOut: bigint } | null>(
         (winner, candidate) =>
             candidate !== null &&
             candidate.amountOut > 0n &&
@@ -468,29 +490,80 @@ export const quoteSwap = async (request: {
         null,
     );
 
+    /*
+     * The same trade, asked of the concentrated-liquidity pools.
+     *
+     * Both venues are asked and the better answer wins — the rule `/swap`
+     * already follows, brought here because the wallet now trades chains where
+     * the two hold *different assets* rather than competing over the same ones.
+     * On Robinhood Chain our own fork holds the bridged CYBER and ASH while
+     * every tokenised stock lives in Uniswap's v3 pools, so a wallet that asked
+     * only one venue would tell somebody their trade is impossible while the
+     * other one quotes it happily.
+     *
+     * A v3 stack that throws is treated as a venue with nothing in it, never as
+     * a failed quote: v2 may still have the route.
+     */
+    const v3 = config.v3
+        ? await v3BestRoute(
+              rpc,
+              config.v3,
+              inputAddress,
+              outputAddress,
+              request.amountIn,
+              config.hubs,
+          ).catch(() => null)
+        : null;
+
+    const v3Best =
+        v3 !== null && v3.amountOut > 0n
+            ? { path: v3.tokens, amountOut: v3.amountOut }
+            : null;
+
+    const best =
+        v3Best !== null &&
+        (v2Best === null || v3Best.amountOut > v2Best.amountOut)
+            ? v3Best
+            : v2Best;
+
     if (best === null) {
         throw new Error(
             'No pool route connects those two assets on this network.',
         );
     }
 
+    const onV3 = best === v3Best;
+    const v3Config = config.v3;
+
     /**
      * Everything the winner beat, best first.
      *
-     * Compared by path rather than by amount: two different paths can pay the
-     * same to the wei, and dropping one of them by amount would drop a real
-     * alternative.
+     * Compared by identity rather than by path: the losing venue's route can
+     * name the same two tokens as the winner's — that is the ordinary case when
+     * both hold the pair — and dropping it by path would hide the one
+     * comparison this list exists to show.
      */
-    const alternatives = priced
-        .filter(
+    const alternatives = [
+        ...priced.filter(
             (candidate): candidate is { path: string[]; amountOut: bigint } =>
-                candidate !== null &&
-                candidate.amountOut > 0n &&
-                candidate.path.join('>') !== best.path.join('>'),
-        )
+                candidate !== null && candidate.amountOut > 0n,
+        ),
+        ...(v3Best === null ? [] : [v3Best]),
+    ]
+        .filter((candidate) => candidate !== best)
         .sort((a, b) => (b.amountOut > a.amountOut ? 1 : -1))
         .slice(0, ALTERNATIVES_SHOWN);
 
+    /*
+     * The move this trade causes, probed through the venue that won.
+     *
+     * A ten-thousandth of the input pays the marginal rate, and the ratio of
+     * the two rates is the impact. It has to be asked of the *same* venue: a
+     * v3 quote compared against a v2 spot price is two different markets
+     * subtracted from each other, and on concentrated liquidity the difference
+     * is not small — inside a tick range the price barely moves and one tick
+     * further it moves a lot.
+     */
     const impact = await (async (): Promise<number | null> => {
         const probeIn = request.amountIn / 10_000n;
 
@@ -499,6 +572,26 @@ export const quoteSwap = async (request: {
         }
 
         try {
+            if (onV3 && v3Config) {
+                const probe = await v3BestRoute(
+                    rpc,
+                    v3Config,
+                    inputAddress,
+                    outputAddress,
+                    probeIn,
+                    config.hubs,
+                );
+
+                return probe === null || probe.amountOut === 0n
+                    ? null
+                    : priceImpactPct(
+                          request.amountIn,
+                          best.amountOut,
+                          probeIn,
+                          probe.amountOut,
+                      );
+            }
+
             const amounts = (await router.getAmountsOut(
                 probeIn,
                 best.path,
@@ -525,6 +618,26 @@ export const quoteSwap = async (request: {
     const minOut = applySlippage(best.amountOut, request.slippageBps);
     const deadline = BigInt(Math.floor(Date.now() / 1_000) + DEADLINE_SECONDS);
 
+    /** The router doing this trade, which is not always the chain's `router`. */
+    const spender =
+        onV3 && v3Config
+            ? getAddress(v3Config.router)
+            : getAddress(config.router);
+
+    /** The transaction a v3 win will be signed as — quoted from, then signed. */
+    const v3Call =
+        onV3 && v3Config && v3 !== null
+            ? v3SwapCall(v3Config, {
+                  route: v3,
+                  recipient: request.account,
+                  amountOutMinimum: minOut,
+                  exactIn: true,
+                  nativeIn: request.from.address === null,
+                  nativeOut: request.to.address === null,
+                  deadline,
+              })
+            : null;
+
     /**
      * The allowance the router needs to pull the input token.
      *
@@ -541,7 +654,7 @@ export const quoteSwap = async (request: {
         const token = new Contract(inputAddress, ERC20_ABI, rpc);
         const allowance = (await token.allowance(
             request.account,
-            config.router,
+            spender,
         )) as bigint;
 
         if (allowance >= request.amountIn) {
@@ -550,6 +663,7 @@ export const quoteSwap = async (request: {
 
         return {
             token: inputAddress,
+            spender,
             amount: request.amountIn,
             reset: allowance > 0n,
         };
@@ -565,6 +679,18 @@ export const quoteSwap = async (request: {
         }
 
         try {
+            if (v3Call !== null) {
+                // The exact bytes that will be signed, priced by the node: a
+                // fee quoted from a differently-shaped call is a fee that
+                // promises what the signature does not deliver.
+                const gas = await rpc.estimateGas({
+                    ...v3Call,
+                    from: request.account,
+                });
+
+                return (gas * GAS_MARGIN[0]) / GAS_MARGIN[1];
+            }
+
             const overrides =
                 kind === 'native-in'
                     ? { from: request.account, value: request.amountIn }
@@ -632,6 +758,7 @@ export const quoteSwap = async (request: {
         kind,
         estimated: estimate !== null,
         alternatives,
+        ...(onV3 && v3 !== null ? { v3Route: v3 } : {}),
     };
 };
 
@@ -685,11 +812,13 @@ export const executeSwap = async (
         // allowance to another non-zero one. Zeroing first is the only way
         // past a leftover approval, and it was priced in the quote.
         if (quote.approval.reset) {
-            await (await token.approve(config.router, 0n, overrides)).wait();
+            await (
+                await token.approve(quote.approval.spender, 0n, overrides)
+            ).wait();
         }
 
         const approval = await token.approve(
-            config.router,
+            quote.approval.spender,
             quote.approval.amount,
             overrides,
         );
@@ -706,6 +835,38 @@ export const executeSwap = async (
 
     if (quote.kind === 'native-in') {
         overrides.value = quote.amountIn;
+    }
+
+    if (quote.v3Route !== undefined) {
+        const v3Config = config.v3;
+
+        if (!v3Config) {
+            throw new Error(
+                'This quote was made against a v3 stack this network no longer has.',
+            );
+        }
+
+        // Rebuilt from the quote and not re-routed: the tiers, the floor and
+        // the deadline are the ones the user held a button over. The deadline
+        // is the single exception, and it is refreshed rather than reused
+        // because the one in the quote was cut for the moment it was read.
+        const call = v3SwapCall(v3Config, {
+            route: quote.v3Route,
+            recipient: request.recipient,
+            amountOutMinimum: quote.minOut,
+            exactIn: true,
+            nativeIn: quote.kind === 'native-in',
+            nativeOut: quote.kind === 'native-out',
+            deadline,
+        });
+
+        const sent = await signer.sendTransaction({
+            ...call,
+            gasLimit: quote.gasLimit,
+            gasPrice: quote.gasPrice,
+        });
+
+        return { approvalHash, hash: sent.hash };
     }
 
     const tx =

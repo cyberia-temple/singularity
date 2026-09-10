@@ -67,6 +67,7 @@ import type {
     Reserves,
     RouteHop,
 } from '@/lib/marketCandles';
+import { logoForToken } from '@/lib/tokenLogos';
 import { track } from '@/lib/track';
 
 // Router/factory/wrapped-native/pools are per-chain (DEX_CHAINS); the page
@@ -683,6 +684,20 @@ const symbolOf = (addr: string): string => {
         : shortAddr(addr);
 };
 
+/**
+ * The mark beside a ticker, when this chain has one for that contract.
+ *
+ * Address-keyed rather than ticker-keyed, because on Robinhood Chain the
+ * tickers are companies' and companies' tickers are short: `F` is Ford there
+ * and could be anything anywhere else. `logoForToken` answers undefined for
+ * everything it does not recognise, and `TokenIcon` falls back to its lettered
+ * avatar exactly as before.
+ */
+const logoOf = (addr: string | null): string | undefined =>
+    addr === null || addr === NATIVE
+        ? undefined
+        : logoForToken(activeChainId.value, addr, symbolOf(addr));
+
 // --- token metadata cache -----------------------------------------------
 const metaCache = new Map<string, { symbol: string; decimals: number }>();
 const tokenMeta = async (
@@ -902,10 +917,36 @@ const feeNote = computed(() => {
  * whichever pays better, so it says which one won — a trade that went through
  * a different market than the chart below it is otherwise unaccountable.
  */
-const venueLabel = computed(() =>
-    quote.value?.venue === 'v3'
-        ? 'Cyberia V3 (concentrated)'
-        : 'Ritual DEX (v2)',
+const venueLabel = computed(() => {
+    if (quote.value?.venue !== 'v3') {
+        return 'Ritual DEX (v2)';
+    }
+
+    /*
+     * Whose v3 this is, which is not always ours.
+     *
+     * Cyberia's concentrated pools are a fork this project deployed; Robinhood
+     * Chain's are Uniswap's own, deployed by somebody else, and the stock
+     * tokens live entirely in them. Naming both "Cyberia V3" would credit this
+     * project with a venue it does not run, on the one line whose whole job is
+     * to say where the money actually went.
+     */
+    return activeChain.value.v3?.routerKind === 'swapRouter02'
+        ? 'Uniswap V3 (concentrated)'
+        : 'Cyberia V3 (concentrated)';
+});
+
+/**
+ * What this chain actually offers, said before anything is picked.
+ *
+ * The page used to promise "Ritual (Uniswap V2)" everywhere, which was true of
+ * every chain it served until one of them turned out to have a second venue
+ * with more liquidity in it than ours.
+ */
+const venuesLine = computed(() =>
+    activeChain.value.v3
+        ? 'Trade tokens across both venues — the v2 pools and the concentrated ones, whichever pays better'
+        : 'Trade tokens on Ritual (Uniswap V2)',
 );
 
 const routeSymbols = computed(() =>
@@ -1789,6 +1830,54 @@ watch(
     },
 );
 
+/**
+ * A trade somebody was sent here to make: `/swap?chain=4663&out=0x…`.
+ *
+ * The pair is the whole of what a link like this can say, and it is deliberately
+ * not a wallet action — nothing is signed by arriving, the fields are simply
+ * filled in. A network this page does not serve, or an address that is not one,
+ * is ignored rather than half-applied: landing on the wrong chain with the
+ * right contract would quote a token that is not there.
+ *
+ * The parameters are left in the address on purpose, unlike the wallet's — this
+ * one is a page somebody links to and reloading it should still be the link
+ * they followed.
+ */
+const takeLinkedPair = (): void => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const requested = Number(params.get('chain'));
+
+    if (
+        Number.isFinite(requested) &&
+        DEX_CHAINS.some((c) => c.chainId === requested)
+    ) {
+        activeChainId.value = requested;
+        readProvider = makeReadProvider(activeChain.value);
+        readRouter = new Contract(
+            activeChain.value.router,
+            ROUTER_ABI,
+            readProvider,
+        );
+        tokenOut.value = defaultTokenOut(activeChain.value);
+        tokenIn.value = NATIVE;
+    }
+
+    for (const [key, side] of [
+        ['in', tokenIn],
+        ['out', tokenOut],
+    ] as const) {
+        const address = (params.get(key) ?? '').trim();
+
+        if (/^0x[0-9a-fA-F]{40}$/.test(address)) {
+            side.value = address;
+        }
+    }
+};
+
 onMounted(async () => {
     // Start on the wallet's chain when it is a DEX chain, else the default.
     if (DEX_CHAINS.some((c) => c.chainId === wallet.chainId.value)) {
@@ -1801,6 +1890,10 @@ onMounted(async () => {
         );
         tokenOut.value = defaultTokenOut(activeChain.value);
     }
+
+    // After the wallet's chain, because a link is a more specific request than
+    // whichever network a browser extension happens to be pointing at.
+    takeLinkedPair();
 
     await nextTick();
 
@@ -1839,8 +1932,7 @@ onBeforeUnmount(() => {
         <header class="mb-4">
             <h1 class="text-2xl font-bold">Swap</h1>
             <p class="text-sm text-muted-foreground">
-                Trade tokens on Ritual (Uniswap V2) on
-                {{ activeChain.evmChain.name }}. Native
+                {{ venuesLine }} on {{ activeChain.evmChain.name }}. Native
                 {{ activeChain.nativeSymbol }} is supported directly.
             </p>
         </header>
@@ -2007,6 +2099,19 @@ onBeforeUnmount(() => {
                         <span v-else-if="!chartPairKey">
                             Select two tokens to view their market chart.
                         </span>
+                        <!--
+                          Only the v2 pools have a history this page can
+                          rebuild: candles come from `Sync` events, and a
+                          concentrated pool does not emit them. So a pair the
+                          swap above just quoted can still have no chart, and
+                          saying "no route" about it would contradict the price
+                          sitting beside it.
+                        -->
+                        <span v-else-if="!marketRoute && quote">
+                            No chart for this pair: it trades in the
+                            concentrated pools, whose history this page cannot
+                            rebuild.
+                        </span>
                         <span v-else-if="!marketRoute">
                             No route between these tokens yet — add liquidity to
                             open this market.
@@ -2097,6 +2202,7 @@ onBeforeUnmount(() => {
                                 >
                                     <TokenIcon
                                         :symbol="symbolOf(tokenIn)"
+                                        :logo="logoOf(tokenIn)"
                                         :size="20"
                                     />
                                     {{ symbolOf(tokenIn) }}
@@ -2115,6 +2221,7 @@ onBeforeUnmount(() => {
                                     <span class="flex items-center gap-2">
                                         <TokenIcon
                                             :symbol="t.symbol"
+                                            :logo="logoOf(t.address)"
                                             :size="20"
                                         />
                                         {{ t.symbol }}
@@ -2166,6 +2273,7 @@ onBeforeUnmount(() => {
                                 >
                                     <TokenIcon
                                         :symbol="symbolOf(tokenOut)"
+                                        :logo="logoOf(tokenOut)"
                                         :size="20"
                                     />
                                     {{ symbolOf(tokenOut) }}
@@ -2186,6 +2294,7 @@ onBeforeUnmount(() => {
                                     <span class="flex items-center gap-2">
                                         <TokenIcon
                                             :symbol="t.symbol"
+                                            :logo="logoOf(t.address)"
                                             :size="20"
                                         />
                                         {{ t.symbol }}

@@ -1,5 +1,4 @@
-import type {
-    AddressLookupTableAccount} from '@solana/web3.js';
+import type { AddressLookupTableAccount } from '@solana/web3.js';
 import {
     Connection,
     PublicKey,
@@ -11,6 +10,8 @@ import { JsonRpcProvider, isAddress } from 'ethers';
 import { confirmSignature, solanaRpcUrl } from '@/lib/solanaRpc';
 import { walletChain } from '@/lib/wallet/chains';
 import type { WalletChain, WalletChainId } from '@/lib/wallet/chains';
+import { marketFor } from '@/lib/wallet/dexscreener';
+import type { DexMarket } from '@/lib/wallet/dexscreener';
 import { evmSigner, solanaKeypair } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
 import { isValidUtxoAddress } from '@/lib/wallet/utxo';
@@ -483,6 +484,222 @@ export const fetchCrosschainConfig = async (): Promise<CrosschainConfig> => {
             }),
         ),
     };
+};
+
+/* ------------------------------------------------------------- what to buy -- */
+
+/**
+ * One thing that can be bought, and everything known about whether you should.
+ *
+ * The router's catalogue answers "can this be filled" and nothing else — two
+ * tokens with the same ticker come back as two identical rows, and the one
+ * with eight hundred dollars in it looks exactly like the one with eighty
+ * thousand. The pool index answers the other half. Neither is authoritative
+ * about the other, so both travel on the row and the screen says which is
+ * which.
+ */
+export type TokenOffer = CrossToken & {
+    /** What the pools say about it: depth, price, venue. Null when unknown. */
+    market: DexMarket | null;
+    /**
+     * Known to the pool index but not to the router's catalogue.
+     *
+     * Not "unroutable" — the router quotes plenty it does not list, which is
+     * how a launchpad token bought this morning is tradable and uncatalogued at
+     * the same time. It means only that the promise is weaker, and that the
+     * decimals on the row were read from the chain rather than handed over.
+     */
+    unlisted: boolean;
+};
+
+/**
+ * The router's catalogue and the pool index, as one list.
+ *
+ * **Order is the answer to "why these tokens".** It used to be the router's
+ * own, which is a ranking nobody outside the router can explain: the default
+ * list on Solana opened with IBRL, four separate tokens all called WLFI, and
+ * DOOD, and there was no way to tell from the screen what any of that had in
+ * common. So the list is ordered by the one property a person can check and
+ * act on — **how much money is in the pools** — and the number that decides it
+ * is printed on every row, next to the day's move.
+ *
+ * Two rows are exempt, in both directions. What the *chain itself* answered
+ * for — an address somebody pasted — is pinned to the top, because it is not a
+ * suggestion, it is the thing they asked for. And a row nobody has a market
+ * for keeps its original position at the end rather than being ranked as
+ * though its depth were zero: unknown is not the same as empty, and the badge
+ * on the row says which it is.
+ */
+export const mergeOffers = (
+    listed: readonly CrossToken[],
+    markets: readonly DexMarket[],
+    extra: readonly TokenOffer[] = [],
+): TokenOffer[] => {
+    const seen = new Set<string>();
+    const key = (address: string): string =>
+        address.startsWith('0x') ? address.toLowerCase() : address;
+
+    const offers: TokenOffer[] = [];
+
+    for (const offer of extra) {
+        if (seen.has(key(offer.address))) {
+            continue;
+        }
+
+        const catalogued = listed.find(
+            (token) => key(token.address) === key(offer.address),
+        );
+
+        seen.add(key(offer.address));
+        offers.push({
+            ...offer,
+            market: offer.market ?? marketFor(markets, offer.address),
+            // The scale stays the one read off the chain, but everything the
+            // router knows about the row still applies to it. A token the
+            // catalogue carries must not be badged "found in the pools" just
+            // because the user reached it by pasting its address — that badge
+            // is a statement about how much is known, and it would be false.
+            verified: catalogued?.verified ?? offer.verified,
+            unlisted: catalogued === undefined,
+        });
+    }
+
+    for (const token of listed) {
+        if (seen.has(key(token.address))) {
+            continue;
+        }
+
+        seen.add(key(token.address));
+        offers.push({
+            ...token,
+            market: marketFor(markets, token.address),
+            unlisted: false,
+        });
+    }
+
+    for (const market of markets) {
+        if (seen.has(key(market.address))) {
+            continue;
+        }
+
+        seen.add(key(market.address));
+        offers.push({
+            chainId: 0,
+            address: market.address,
+            symbol: market.symbol,
+            name: market.name || market.symbol,
+            // Deliberately absent rather than guessed. The index does not
+            // report decimals, and a wrong scale is how an amount comes out a
+            // million times off — so a row from this source carries no scale
+            // until the chain itself has been asked for one. See
+            // `WalletRouteSwap.vue`, which reads it when the row is picked.
+            decimals: 0,
+            verified: false,
+            logo: '',
+            market,
+            unlisted: true,
+        });
+    }
+
+    const pinned = offers.slice(0, extra.length);
+    const rest = offers.slice(extra.length);
+
+    // A stable sort, so the rows with no market keep the order they arrived
+    // in rather than being shuffled among themselves by a comparison that has
+    // nothing to compare.
+    const ranked = rest
+        .map((offer, index) => ({ offer, index }))
+        .sort((a, b) => {
+            const left = a.offer.market?.liquidityUsd ?? null;
+            const right = b.offer.market?.liquidityUsd ?? null;
+
+            if (left === right) {
+                return a.index - b.index;
+            }
+
+            if (left === null) {
+                return 1;
+            }
+
+            if (right === null) {
+                return -1;
+            }
+
+            return right - left;
+        })
+        .map((entry) => entry.offer);
+
+    return [...pinned, ...ranked];
+};
+
+/**
+ * Whether the wallet can trade on a network at all, and who would fill it.
+ *
+ * Three screens need this answer — the network, one token, and the swap
+ * composer itself — and they used to have no way of asking: the composer
+ * fetched the router's chain list into a local ref, and everywhere else the
+ * question "can I trade here" was answered with "do *we* run an exchange
+ * here", which is a different question and is the reason a network with deep
+ * liquidity offered no way in.
+ *
+ * One promise, kept for the life of the page. The list is the same for every
+ * visitor, it is cached on the server behind this route, and three components
+ * mounting at once must not be three requests. A failure is not cached: it is
+ * about this minute, and the caller has to be able to ask again.
+ */
+let routedChains: Promise<number[]> | null = null;
+
+export const routedChainIds = async (): Promise<number[]> => {
+    if (routedChains === null) {
+        routedChains = fetchCrosschainConfig()
+            .then((config) =>
+                config.enabled
+                    ? config.chains
+                          /*
+                           * What this wallet can sign, not what the router
+                           * serves. It routes eight kinds of chain; a key here
+                           * goes on two of them, and offering a trade that
+                           * cannot be finished is worse than not offering one.
+                           */
+                          .filter((row) => row.vm === 'evm' || row.vm === 'svm')
+                          .map((row) => row.id)
+                    : [],
+            )
+            .catch((error: unknown) => {
+                routedChains = null;
+
+                throw error;
+            });
+    }
+
+    return routedChains;
+};
+
+/** Forget the cached answer, for a retry that is meant to reach the network. */
+export const forgetRoutedChains = (): void => {
+    routedChains = null;
+};
+
+/**
+ * Whether one wallet network can be traded on through the router.
+ *
+ * Answers `false` rather than throwing when the router cannot be reached,
+ * because every caller of this shape is deciding whether to *draw a button*.
+ * The screen behind that button is where an unreachable router is a sentence
+ * of its own — see `WalletSwap.vue`, which keeps the three states apart.
+ */
+export const isRoutedChain = async (chain: WalletChainId): Promise<boolean> => {
+    const id = routerChainId(chain);
+
+    if (id === null) {
+        return false;
+    }
+
+    try {
+        return (await routedChainIds()).includes(id);
+    } catch {
+        return false;
+    }
 };
 
 export const fetchCrossTokens = async (

@@ -42,6 +42,16 @@ import type {
 /** The four tiers the factory ships with, plus the launchpad's 11% tier. */
 export const V3_FEE_TIERS = [100, 500, 2500, 10_000, 110_000] as const;
 
+/**
+ * Uniswap's own four, for the chains that run the unforked contracts.
+ *
+ * It is one number apart from the list above and that number matters: Pancake
+ * (and so Cyberia) replaced the 0.3% tier with 0.25%, so probing a Uniswap
+ * chain with 2500 derives the address of a pool that was never created, and
+ * skipping 3000 misses the tier most pairs actually live in.
+ */
+export const UNISWAP_V3_FEE_TIERS = [100, 500, 3_000, 10_000] as const;
+
 export type V3Config = {
     /** CREATE2 deployer for every pool — NOT the factory. */
     poolDeployer: string;
@@ -53,6 +63,23 @@ export type V3Config = {
     initCodeHash: string;
     /** Tiers worth probing on this chain, cheapest first. */
     tiers: readonly number[];
+    /**
+     * Which periphery router this chain deploys.
+     *
+     * Not a detail: Uniswap's `SwapRouter02` **took the deadline out of the
+     * swap parameters** and moved it to a `multicall(deadline, calls)`
+     * overload. So the two routers disagree about the shape of every call this
+     * module makes, and a struct encoded for one is not merely rejected by the
+     * other — it is a different function selector. A chain saying nothing here
+     * gets the original `SwapRouter` layout, which is what the Cyberia fork
+     * (and Pancake's, which it comes from) deploys.
+     *
+     * The deadline never becomes optional. On `SwapRouter02` every swap goes
+     * out through the multicall overload even when there is only one call in
+     * it, because a swap with no deadline is one that can be mined tomorrow at
+     * tomorrow's price.
+     */
+    routerKind?: 'swapRouter' | 'swapRouter02';
 };
 
 const QUOTER_ABI = [
@@ -79,6 +106,28 @@ export const V3_ROUTER_ABI = [
     'function refundETH() payable',
     'function multicall(bytes[] data) payable returns (bytes[] results)',
 ];
+
+/**
+ * Uniswap's `SwapRouter02`, which is the same trade said differently.
+ *
+ * Every difference from the list above is here: no `deadline` inside the
+ * parameter structs, and a `multicall` that takes one for the whole batch.
+ * `unwrapWETH9` and `refundETH` are unchanged, which is why the coin legs need
+ * no second version.
+ */
+export const V3_ROUTER_02_ABI = [
+    'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)',
+    'function exactInput((bytes path,address recipient,uint256 amountIn,uint256 amountOutMinimum)) payable returns (uint256 amountOut)',
+    'function exactOutputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountOut,uint256 amountInMaximum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountIn)',
+    'function exactOutput((bytes path,address recipient,uint256 amountOut,uint256 amountInMaximum)) payable returns (uint256 amountIn)',
+    'function unwrapWETH9(uint256 amountMinimum,address recipient) payable',
+    'function refundETH() payable',
+    'function multicall(uint256 deadline,bytes[] data) payable returns (bytes[] results)',
+];
+
+/** The ABI this chain's router actually speaks. */
+export const v3RouterAbi = (cfg: Pick<V3Config, 'routerKind'>): string[] =>
+    cfg.routerKind === 'swapRouter02' ? V3_ROUTER_02_ABI : V3_ROUTER_ABI;
 
 /**
  * Where a pool lives, before asking anything.
@@ -212,8 +261,8 @@ export const v3PoolsFor = async (
                 // A pool that was created but never initialised has no price and
                 // cannot be traded through; it is not a market yet.
                 if (slot0.sqrtPriceX96 === 0n) {
-return null;
-}
+                    return null;
+                }
 
                 return {
                     address,
@@ -253,8 +302,8 @@ export const v3BestRoute = async (
     hubs: readonly string[] = [],
 ): Promise<V3Route | null> => {
     if (amountIn <= 0n) {
-return null;
-}
+        return null;
+    }
 
     const quoter = new Contract(cfg.quoter, QUOTER_ABI, runner);
     const direct = await v3PoolsFor(runner, cfg, tokenIn, tokenOut);
@@ -288,8 +337,8 @@ return null;
     const best = pickBest(await Promise.all(direct.map(quoteSingle)));
 
     if (best) {
-return best;
-}
+        return best;
+    }
 
     const twoHop = await Promise.all(
         hubs
@@ -305,8 +354,8 @@ return best;
                 ]);
 
                 if (first.length === 0 || second.length === 0) {
-return null;
-}
+                    return null;
+                }
 
                 // The deepest pool on each leg: quoting every combination would
                 // be tiers-squared calls for a hop that usually does not exist.
@@ -375,8 +424,8 @@ export const v3BestRouteExactOut = async (
     hubs: readonly string[] = [],
 ): Promise<V3Route | null> => {
     if (amountOut <= 0n) {
-return null;
-}
+        return null;
+    }
 
     const quoter = new Contract(cfg.quoter, QUOTER_ABI, runner);
     const direct = await v3PoolsFor(runner, cfg, tokenIn, tokenOut);
@@ -410,8 +459,8 @@ return null;
     const best = pickCheapest(await Promise.all(direct.map(quoteSingle)));
 
     if (best) {
-return best;
-}
+        return best;
+    }
 
     const twoHop = await Promise.all(
         hubs
@@ -427,8 +476,8 @@ return best;
                 ]);
 
                 if (first.length === 0 || second.length === 0) {
-return null;
-}
+                    return null;
+                }
 
                 const fees = [first[0].tier, second[0].tier];
                 const tokens = [
@@ -480,8 +529,8 @@ export const v3PriceFromSqrt = (
     decimals1: number,
 ): number => {
     if (sqrtPriceX96 <= 0n) {
-return 0;
-}
+        return 0;
+    }
 
     const ratio = Number(sqrtPriceX96) / 2 ** 96;
     const price = ratio * ratio;
@@ -523,22 +572,26 @@ export type V3SwapPlan = {
 };
 
 /**
- * Sign and send one v3 swap.
+ * The transaction one v3 swap is, without a signer anywhere near it.
  *
- * Single-hop and multi-hop are different router calls, and the coin legs turn
- * the whole thing into a `multicall` — so this is assembled in one place
- * rather than in each screen that trades. Nothing here re-quotes: the floor
- * (or ceiling) it was given is what travels into the signature.
+ * Split out from `v3Swap` because two callers want the same bytes for
+ * different reasons: one signs them, and one asks the node what they would
+ * cost. A fee quoted from a differently-shaped call is a fee that promises
+ * something the signature does not deliver.
  */
-export const v3Swap = async (
-    signer: Signer,
+export const v3SwapCall = (
     cfg: V3Config,
     plan: V3SwapPlan,
-): Promise<ContractTransactionResponse> => {
-    const iface = new Interface(V3_ROUTER_ABI);
-    const router = new Contract(cfg.router, V3_ROUTER_ABI, signer);
+): { to: string; data: string; value: bigint } => {
+    const iface = new Interface(v3RouterAbi(cfg));
     const { route } = plan;
     const single = route.tokens.length === 2;
+
+    // `SwapRouter02` has no `deadline` field in any of its parameter structs;
+    // it carries one for the whole batch instead. Spreading nothing into the
+    // struct on that router is what keeps one encoder for both.
+    const deadline =
+        cfg.routerKind === 'swapRouter02' ? {} : { deadline: plan.deadline };
 
     // Output that must come back as the coin stays in the router until
     // `unwrapWETH9` sends it on; anything else goes straight to the user.
@@ -557,7 +610,7 @@ export const v3Swap = async (
                       tokenOut: route.tokens[1],
                       fee: route.fees[0],
                       recipient,
-                      deadline: plan.deadline,
+                      ...deadline,
                       amountIn: route.amountIn,
                       amountOutMinimum: plan.amountOutMinimum,
                       sqrtPriceLimitX96: 0n,
@@ -567,7 +620,7 @@ export const v3Swap = async (
                   {
                       path: encodeV3Path(route.tokens, route.fees),
                       recipient,
-                      deadline: plan.deadline,
+                      ...deadline,
                       amountIn: route.amountIn,
                       amountOutMinimum: plan.amountOutMinimum,
                   },
@@ -579,7 +632,7 @@ export const v3Swap = async (
                     tokenOut: route.tokens[1],
                     fee: route.fees[0],
                     recipient,
-                    deadline: plan.deadline,
+                    ...deadline,
                     amountOut: route.amountOut,
                     amountInMaximum: plan.amountInMaximum ?? route.amountIn,
                     sqrtPriceLimitX96: 0n,
@@ -593,7 +646,7 @@ export const v3Swap = async (
                         [...route.fees].reverse(),
                     ),
                     recipient,
-                    deadline: plan.deadline,
+                    ...deadline,
                     amountOut: route.amountOut,
                     amountInMaximum: plan.amountInMaximum ?? route.amountIn,
                 },
@@ -618,15 +671,32 @@ export const v3Swap = async (
         calls.push(iface.encodeFunctionData('refundETH', []));
     }
 
-    if (calls.length === 1) {
-        return (await signer.sendTransaction({
-            to: cfg.router,
-            data: calls[0],
-            value,
-        })) as unknown as ContractTransactionResponse;
-    }
+    const data =
+        cfg.routerKind === 'swapRouter02'
+            ? // Always the multicall, single call or not: it is the only place
+              // this router will take a deadline, and going without one lets
+              // the transaction settle at a price nobody agreed to.
+              iface.encodeFunctionData('multicall', [plan.deadline, calls])
+            : calls.length === 1
+              ? calls[0]
+              : iface.encodeFunctionData('multicall', [calls]);
 
-    return (await router.multicall(calls, {
-        value,
-    })) as ContractTransactionResponse;
+    return { to: getAddress(cfg.router), data, value };
 };
+
+/**
+ * Sign and send one v3 swap.
+ *
+ * Single-hop and multi-hop are different router calls, and the coin legs turn
+ * the whole thing into a `multicall` — so this is assembled in one place
+ * rather than in each screen that trades. Nothing here re-quotes: the floor
+ * (or ceiling) it was given is what travels into the signature.
+ */
+export const v3Swap = async (
+    signer: Signer,
+    cfg: V3Config,
+    plan: V3SwapPlan,
+): Promise<ContractTransactionResponse> =>
+    (await signer.sendTransaction(
+        v3SwapCall(cfg, plan),
+    )) as unknown as ContractTransactionResponse;

@@ -25,18 +25,24 @@
     --cw-border-hover: #46505a;
     /*
      * Four levels of quiet ink, and the line between them is not taste: the
-     * top three are *text* and carry WCAG's 4.5:1 against every ground this
-     * theme paints (surface, panel, well), while `fainter` is the one that
-     * does not and is therefore never allowed to be text — it draws disabled
-     * controls and rules, which is what it measured 1.92:1 as. There is no
-     * room for a fourth passing grey above near-black; what separates dim from
-     * faint here is a few points of lightness, and the rest of the hierarchy
-     * is carried by size and weight rather than by a colour nobody can read.
+     * top three are *text*, while `fainter` is the one that is not and is
+     * therefore never allowed to be text — it draws disabled controls and
+     * rules, which is what it measured 1.92:1 as.
+     *
+     * The three were picked at WCAG's 4.5:1 and have been raised to **6.2:1 or
+     * better against every ground this theme paints** (surface, app, panel,
+     * well), because 4.5:1 is a floor for *normal-size* text and almost
+     * nothing wearing these is normal size. A label here is 11px uppercase
+     * mono at 0.16em tracking — the caps kill the word-shape, the tracking
+     * pulls the letters apart, and at the old ratios the result was legible
+     * only if you leaned in, which is exactly what it was reported as. The
+     * separation between the three is now a few points of lightness, and the
+     * hierarchy is carried by size and weight, which is where it belongs.
      */
     --cw-fainter: #626a72;
-    --cw-faint: #767f89;
-    --cw-dim: #7f8892;
-    --cw-muted: #8a949e;
+    --cw-faint: #8f98a2;
+    --cw-dim: #949da7;
+    --cw-muted: #9aa3ad;
     --cw-body: #d6dde4;
     --cw-text: #e8edf2;
     --cw-bright: #f2f6fa;
@@ -170,10 +176,12 @@
     --cw-border: #c2c1b7;
     --cw-border-soft: #cfcec5;
     --cw-border-hover: #93928a;
+    /* Same rule as the dark theme's: raised from 4.5:1 to 6.7:1 and up, for
+       text that is mostly 11px uppercase mono. See the note there. */
     --cw-fainter: #868d95;
-    --cw-faint: #676e76;
-    --cw-dim: #61686f;
-    --cw-muted: #5c636a;
+    --cw-faint: #4f565d;
+    --cw-dim: #4a5158;
+    --cw-muted: #444b52;
     --cw-body: #2c3238;
     --cw-text: #14181d;
     --cw-bright: #05070a;
@@ -1068,6 +1076,23 @@ html:has(.cw-frame) {
  * with 0.2em of tracking lose more to the treatment than Latin does, and this
  * is the one that names things.
  */
+/*
+ * Numbers under a row: a market's depth, its price, the day's move.
+ *
+ * Deliberately not `.cw-label`. A label is a *word* naming the field beneath
+ * it, and uppercase mono at 0.16em tracking is a fine costume for one — but
+ * these are figures somebody reads and compares, and putting them in the same
+ * costume at 9px produced the line that had to be leaned into. So: the mono
+ * that keeps digits aligned, no caps, tracking cut to a third, and a size that
+ * is small because the row is dense rather than because it does not matter.
+ */
+.cw-rowdata {
+    display: block;
+    font: 400 10.5px/1.35 var(--cw-mono);
+    letter-spacing: 0.04em;
+    color: var(--cw-faint);
+}
+
 .cw-label {
     font: 400 11px/1.1 var(--cw-mono);
     letter-spacing: 0.16em;
@@ -2287,4 +2312,62 @@ html:has(.cw-frame) {
     .cw-body {
         padding: 16px 12px;
     }
+}
+
+/* --- tokenised stocks ---------------------------------------------------- */
+
+/*
+ * A company mark, square rather than round.
+ *
+ * Every other icon in this wallet is a coin and coins are circles; these are
+ * companies, and the two must not read as the same kind of thing at a glance.
+ * The white ground is not decoration either — these logos are drawn for a light
+ * page and several of them are solid black, so on the dark theme they would
+ * otherwise disappear entirely.
+ */
+.cw-stock-icon {
+    flex: none;
+    border-radius: 3px;
+    background: #fff;
+    object-fit: contain;
+    padding: 1px;
+}
+.cw-stock-icon-none {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: var(--cw-hairline);
+    color: var(--cw-faint);
+    font: 600 9px/1 var(--cw-mono);
+    letter-spacing: 0.04em;
+}
+
+/*
+ * Where the price sits between the day's low and high.
+ *
+ * The only derived number on the stocks screen, and it is arithmetic on three
+ * figures the issuer published rather than a change against a close nobody did.
+ * A day that has not moved draws no marker at all instead of one in the middle,
+ * which would say "halfway" about a range of zero.
+ */
+.cw-stock-day {
+    position: relative;
+    display: block;
+    width: 72px;
+    height: 3px;
+    background: var(--cw-hairline);
+}
+.cw-stock-day-at {
+    position: absolute;
+    top: -2px;
+    width: 2px;
+    height: 7px;
+    background: var(--cw-text);
+    transform: translateX(-1px);
+}
+.cw-stock-halted {
+    font: 600 9px/1 var(--cw-mono);
+    letter-spacing: 0.1em;
+    color: var(--cw-bad);
 }

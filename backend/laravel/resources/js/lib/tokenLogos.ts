@@ -1,4 +1,8 @@
 import { reactive } from 'vue';
+import {
+    ROBINHOOD_STOCK_CHAIN_ID,
+    stockByAddress,
+} from '@/lib/robinhoodStocks';
 
 // Token logos served from public/token-icons/ (copied from the Ritual DEX), keyed by
 // on-chain symbol. Used by both the Lending and Farm pages via <TokenIcon>.
@@ -44,6 +48,32 @@ const failed = reactive<Record<string, boolean>>({});
 
 export const logoFor = (symbol: string): string | undefined =>
     TOKEN_LOGOS[symbol];
+
+/**
+ * The logo for one token, when the caller knows which chain and which contract.
+ *
+ * The map above is keyed by ticker, and a ticker is only unique among the
+ * handful of assets this project deployed. The tokenised stocks broke that
+ * quietly: `F` is Ford on Robinhood Chain and could be anything on Cyberia
+ * tomorrow, and drawing Ford's mark on somebody else's token is worse than
+ * drawing no mark at all. So an address, where there is one, is asked first —
+ * and only a contract the stock registry actually lists gets a company's logo.
+ */
+export const logoForToken = (
+    chainId: number | undefined,
+    address: string | null | undefined,
+    symbol: string,
+): string | undefined => {
+    if (chainId === ROBINHOOD_STOCK_CHAIN_ID && address) {
+        const stock = stockByAddress(address);
+
+        if (stock) {
+            return stock.icon;
+        }
+    }
+
+    return TOKEN_LOGOS[symbol];
+};
 
 export const showLogo = (symbol: string): boolean =>
     !!TOKEN_LOGOS[symbol] && !failed[symbol];

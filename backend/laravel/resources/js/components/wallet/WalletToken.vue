@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AddressField from '@/components/wallet/AddressField.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useSecureClipboard } from '@/composables/useSecureClipboard';
 import { formatUnits, hasSwap, sameToken, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
+import { isRoutedChain } from '@/lib/wallet/crosschain';
 import { formatUsd, formatUsdPrice, usdValue } from '@/lib/wallet/format';
 import { walletMessages } from '@/lib/walletMessages';
 
@@ -48,6 +49,26 @@ const account = computed(() =>
     props.wallet.accounts.value.find(
         (candidate) => candidate.chain === props.chain,
     ),
+);
+
+/**
+ * Whether anybody will trade this network — our own exchange or the router.
+ *
+ * Same correction as the network screen: the button used to appear only where
+ * Cyberia had deployed a DEX, so a token on Solana or BNB offered a send and
+ * an explorer link and no way to sell it, on a screen whose whole subject is
+ * that token.
+ */
+const routed = ref(false);
+
+watch(
+    () => props.chain,
+    async (id) => {
+        routed.value = hasSwap(walletChain(id).chainId)
+            ? true
+            : await isRoutedChain(id);
+    },
+    { immediate: true },
 );
 
 const token = computed<WalletTokenBalance | null>(
@@ -228,7 +249,7 @@ const hide = async (): Promise<void> => {
                   still be the thing you are about to buy.
                 -->
                 <button
-                    v-if="hasSwap(chain.chainId)"
+                    v-if="routed"
                     type="button"
                     class="cw-btn cw-btn-secondary"
                     style="height: 50px"

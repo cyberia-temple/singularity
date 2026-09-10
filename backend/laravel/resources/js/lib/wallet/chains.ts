@@ -20,6 +20,8 @@ import {
 } from '@/lib/evmChains';
 import { isValidMoneroAddress } from '@/lib/monero';
 import { solanaRpcUrl } from '@/lib/solanaRpc';
+import { fetchDexMarkets, marketFor } from '@/lib/wallet/dexscreener';
+import type { DexMarket } from '@/lib/wallet/dexscreener';
 import {
     ERC20_TRANSFER_GAS_CAP,
     blockscoutTokens,
@@ -41,6 +43,15 @@ import {
 import type { WalletKeySource } from '@/lib/wallet/keys';
 import { MONERO_PATH, moneroAccountAddress } from '@/lib/wallet/moneroKeys';
 import { explorerFailure } from '@/lib/wallet/readError';
+import {
+    SPL_ACCOUNT_SPACE,
+    asTokenBalance,
+    readSplHoldings,
+    readSplToken,
+    splMintProgram,
+    splTransferInstructions,
+    withoutCollectibles,
+} from '@/lib/wallet/spl';
 import {
     buildP2wpkhTransaction,
     decodeWif,
@@ -353,6 +364,18 @@ export type WalletChain = {
             tier: WalletFeeTier;
             rpcUrl?: string;
             token?: string | null;
+            /**
+             * The decimals `amount` was counted in, when a token is being
+             * moved.
+             *
+             * Not decoration and not a duplicate of what the chain knows: this
+             * is the scale the *user's* figure was multiplied by, and handing
+             * it to a program that checks it against the mint is what turns a
+             * wallet holding a stale decimals value into a transaction that
+             * does not land, rather than a transfer of a thousand times the
+             * wrong amount.
+             */
+            decimals?: number;
         },
     ) => Promise<string>;
 };
@@ -666,6 +689,11 @@ export const evmChain = (spec: EvmSpec): WalletChain => {
 
             return receipt.status === 1 ? 'confirmed' : 'failed';
         },
+        /*
+         * `decimals` travels with a token amount and is deliberately not read
+         * here: an ERC-20 `transfer` takes a raw integer and offers nothing to
+         * check a scale against. Solana's token program does, and uses it.
+         */
         send: async (source, { to, amount, tier, rpcUrl, token }) => {
             const signer = evmSigner(source).connect(provider(rpcUrl));
             const price = await gasPrice(tier, rpcUrl);
@@ -765,6 +793,26 @@ const solanaFee = (unitPrice: bigint): bigint =>
  * instruction list means a transfer still shows up correctly when it arrives
  * inside a program call this wallet knows nothing about.
  */
+/**
+ * What the pools call a set of mints.
+ *
+ * Solana keeps a token's name beside its mint rather than in it, so this is
+ * the one piece of a Solana token the chain itself will not answer for. The
+ * pool index answers instead — and when it cannot, the caller falls back to
+ * the mint, which is at least the string the user was given.
+ *
+ * Never allowed to fail the list: a balance came from the chain and stands on
+ * its own, and a token drawn as its own address is worse to read but not less
+ * true than one drawn with a symbol.
+ */
+const solanaNames = async (mints: readonly string[]): Promise<DexMarket[]> => {
+    try {
+        return await fetchDexMarkets('solana', mints);
+    } catch {
+        return [];
+    }
+};
+
 const solanaHistory = async (
     address: string,
     rpcUrl?: string,
@@ -1059,19 +1107,88 @@ const SHIPPED_CHAINS: readonly WalletChain[] = [
                     new PublicKey(address),
                 ),
             ),
-        fetchFees: async ({ rpcUrl }) => {
-            const prices = await solanaPriorityPrices(rpcUrl);
+        /*
+         * Both token programs, because the newer one is where the tokens
+         * people actually trade are minted. See `lib/wallet/spl.ts`.
+         */
+        fetchTokens: async (address, rpcUrl) => {
+            const connection = solanaConnection(rpcUrl);
+            const holdings = await withoutCollectibles(
+                connection,
+                await readSplHoldings(connection, address),
+            );
+
+            if (holdings.length === 0) {
+                return [];
+            }
+
+            const named = await solanaNames(
+                holdings.map((holding) => holding.mint),
+            );
+
+            return holdings.map((holding) =>
+                asTokenBalance(
+                    holding,
+                    marketFor(named, holding.mint) ?? undefined,
+                ),
+            );
+        },
+        readToken: async (mint, owner, rpcUrl) => {
+            const holding = await readSplToken(
+                solanaConnection(rpcUrl),
+                mint,
+                owner,
+            );
+            const named = await solanaNames([mint]);
+
+            return {
+                ...asTokenBalance(holding, marketFor(named, mint) ?? undefined),
+                manual: true,
+            };
+        },
+        readTokenSupply: async (mint, rpcUrl) =>
+            BigInt(
+                (
+                    await solanaConnection(rpcUrl).getTokenSupply(
+                        new PublicKey(mint),
+                    )
+                ).value.amount,
+            ),
+        /*
+         * A token transfer costs the signature, the priority bid and — when
+         * the recipient has never held this token — the rent on the account
+         * that has to be opened for them.
+         *
+         * That rent is quoted whether or not it will be owed, because the
+         * recipient is not part of the question this hook is asked. Quoting it
+         * always is the safe direction of wrong: the fee shown is a ceiling
+         * the transfer cannot exceed, and an account that already exists makes
+         * it cheaper than promised rather than more expensive.
+         */
+        fetchFees: async ({ rpcUrl, token }) => {
+            const connection = solanaConnection(rpcUrl);
+            const [prices, rent] = await Promise.all([
+                solanaPriorityPrices(rpcUrl),
+                token
+                    ? connection
+                          .getMinimumBalanceForRentExemption(SPL_ACCOUNT_SPACE)
+                          .then((lamports) => BigInt(lamports))
+                          .catch(() => 0n)
+                    : Promise.resolve(0n),
+            ]);
 
             return WALLET_FEE_TIERS.map((tier) => ({
                 tier,
-                fee: solanaFee(prices[tier]),
+                fee: solanaFee(prices[tier]) + rent,
                 basis:
-                    prices[tier] === 0n
-                        ? { key: 'feeBasisSignature' }
-                        : {
-                              key: 'feeBasisPriority',
-                              params: { price: prices[tier].toString() },
-                          },
+                    rent > 0n
+                        ? { key: 'feeBasisSplRent' }
+                        : prices[tier] === 0n
+                          ? { key: 'feeBasisSignature' }
+                          : {
+                                key: 'feeBasisPriority',
+                                params: { price: prices[tier].toString() },
+                            },
             }));
         },
         fetchHistory: solanaHistory,
@@ -1099,7 +1216,22 @@ const SHIPPED_CHAINS: readonly WalletChain[] = [
 
             throw new Error('Timed out waiting for confirmation');
         },
-        send: async (source, { to, amount, tier, rpcUrl }) => {
+        /*
+         * The coin, or one of its tokens.
+         *
+         * `token` used to be ignored here, which is the worst shape a bug can
+         * take in a wallet: the screen said "send 6900 CYBER.sol", the
+         * signature said "move 6900 lamports of SOL", and both were consistent
+         * with each other. Nothing listed SPL tokens at the time, so nothing
+         * could reach it — but the two were fixed in the same change, and this
+         * branch is the half that makes the other half safe.
+         *
+         * The mint's owning program is read rather than passed in: an
+         * associated account's address is derived *with* that program in the
+         * seeds, so guessing it wrong addresses an account that does not exist
+         * rather than failing loudly.
+         */
+        send: async (source, { to, amount, tier, rpcUrl, token, decimals }) => {
             const keypair = solanaKeypair(source);
             const connection = solanaConnection(rpcUrl);
             const unitPrice = (await solanaPriorityPrices(rpcUrl))[tier];
@@ -1110,12 +1242,39 @@ const SHIPPED_CHAINS: readonly WalletChain[] = [
                 ComputeBudgetProgram.setComputeUnitPrice({
                     microLamports: unitPrice,
                 }),
-                SystemProgram.transfer({
-                    fromPubkey: keypair.publicKey,
-                    toPubkey: new PublicKey(to),
-                    lamports: amount,
-                }),
             );
+
+            if (token) {
+                const mint = new PublicKey(token);
+                const program = await splMintProgram(connection, token);
+
+                transaction.add(
+                    ...splTransferInstructions({
+                        mint,
+                        program,
+                        from: keypair.publicKey,
+                        to: new PublicKey(to),
+                        amount,
+                        // The scale the amount on screen was multiplied by,
+                        // handed to a program that compares it with the mint's
+                        // own. Reading it back off the chain here would make
+                        // the check tautological — it would always agree with
+                        // itself and never with the number the user saw.
+                        decimals:
+                            decimals ??
+                            (await connection.getTokenSupply(mint)).value
+                                .decimals,
+                    }),
+                );
+            } else {
+                transaction.add(
+                    SystemProgram.transfer({
+                        fromPubkey: keypair.publicKey,
+                        toPubkey: new PublicKey(to),
+                        lamports: amount,
+                    }),
+                );
+            }
 
             return connection.sendTransaction(transaction, [keypair]);
         },

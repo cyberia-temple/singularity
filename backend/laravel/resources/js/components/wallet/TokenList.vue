@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import StockIcon from '@/components/wallet/StockIcon.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { logoForToken } from '@/lib/tokenLogos';
 import { describeReadError, formatUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
 import { formatUsd, usdValue } from '@/lib/wallet/format';
@@ -77,6 +79,18 @@ const rows = computed(() =>
 const tag = (symbol: string): string =>
     (symbol.replace(/[^A-Za-z0-9]/g, '').slice(0, 2) || '?').toUpperCase();
 
+/**
+ * A company's mark, for the tokens that stand for one.
+ *
+ * Everything else here wears the network's two-letter tag, and that is right
+ * for a token whose whole identity is the chain it is on. A tokenised share is
+ * the exception: what it stands for exists off this chain and is recognised by
+ * its logo before its ticker is read. Asked by address, never by symbol —
+ * a ticker on a permissionless chain is a claim, not an identity.
+ */
+const markFor = (token: WalletTokenBalance): string | undefined =>
+    logoForToken(chain.value.chainId, token.address, token.symbol);
+
 const add = async (): Promise<void> => {
     adding.value = true;
     problem.value = await props.wallet.addToken(
@@ -146,7 +160,14 @@ const add = async (): Promise<void> => {
                     style="display: flex; align-items: center; gap: 12px"
                     @click="emit('open', row.token)"
                 >
+                    <StockIcon
+                        v-if="markFor(row.token)"
+                        :symbol="row.token.symbol"
+                        :src="markFor(row.token)!"
+                        :size="28"
+                    />
                     <span
+                        v-else
                         :style="{
                             display: 'flex',
                             width: '28px',

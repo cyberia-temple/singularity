@@ -50,6 +50,7 @@ class WalletPriceService
     public function __construct(
         private CyberPriceService $cyberPrice,
         private CyberiaPrices $tokenPrices,
+        private RobinhoodStockService $stocks,
     ) {}
 
     /**
@@ -60,7 +61,7 @@ class WalletPriceService
     public function quotes(): array
     {
         /** @var array{prices: array<string, float|null>, tokens: array<string, array<string, float>>, fetchedAt: string} */
-        return Cache::remember(
+        $quotes = Cache::remember(
             self::CACHE_KEY,
             self::TTL_SECONDS,
             fn (): array => [
@@ -72,6 +73,24 @@ class WalletPriceService
                 'fetchedAt' => now()->toIso8601String(),
             ],
         );
+
+        /*
+         * The stock tokens are merged in *after* the cache, on purpose.
+         *
+         * Five minutes is the right staleness for a coin whose price is a pool
+         * and the wrong one for a share: the market moves through the whole
+         * cache window, and a portfolio quietly five minutes behind the ticker
+         * on the next screen is two numbers disagreeing inside one app. So they
+         * keep their own, much shorter cache (`config/robinhood.php`) and are
+         * put on top of this answer rather than frozen inside it.
+         */
+        $stocks = $this->stocks->priceMap();
+
+        if ($stocks !== []) {
+            $quotes['tokens']['robinhood'] = $stocks;
+        }
+
+        return $quotes;
     }
 
     /**

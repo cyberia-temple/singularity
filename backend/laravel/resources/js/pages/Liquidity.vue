@@ -36,6 +36,7 @@ import {
 } from '@/lib/liquidityChains';
 import type { LiquidityChainConfig } from '@/lib/liquidityChains';
 import { scanLiquidityBalances } from '@/lib/liquidityPositions';
+import { logoForToken } from '@/lib/tokenLogos';
 import { track } from '@/lib/track';
 import { walletChains } from '@/lib/wallet';
 
@@ -225,6 +226,19 @@ const tokens = computed<Token[]>(() => {
 const symbolOf = (addr: string): string =>
     tokens.value.find((t) => t.address.toLowerCase() === addr.toLowerCase())
         ?.symbol ?? shortAddr(addr);
+
+/**
+ * The mark beside a ticker, when this chain has one for that contract.
+ *
+ * Address-keyed rather than ticker-keyed: on Robinhood Chain the tickers belong
+ * to companies, and a company's ticker is short enough to collide with anything
+ * — `F` is Ford there. `logoForToken` answers undefined for everything it does
+ * not recognise, and the icon falls back to its lettered avatar as before.
+ */
+const logoOf = (addr: string | null | undefined): string | undefined =>
+    !addr || addr === NATIVE
+        ? undefined
+        : logoForToken(activeChainId.value, addr, symbolOf(addr));
 
 // --- token metadata cache (live) --------------------------------------------
 const metaCache = new Map<string, { symbol: string; decimals: number }>();
@@ -991,6 +1005,11 @@ watch(
                                                 side === 'A' ? tokenA : tokenB,
                                             )
                                         "
+                                        :logo="
+                                            logoOf(
+                                                side === 'A' ? tokenA : tokenB,
+                                            )
+                                        "
                                         :size="20"
                                     />
                                     {{
@@ -1011,6 +1030,7 @@ watch(
                                     <span class="flex items-center gap-2">
                                         <TokenIcon
                                             :symbol="t.symbol"
+                                            :logo="logoOf(t.address)"
                                             :size="20"
                                         />
                                         {{ t.symbol }}
@@ -1131,8 +1151,16 @@ watch(
                         @click="selected = p.pairAddress"
                     >
                         <span class="flex items-center gap-2">
-                            <TokenIcon :symbol="p.symbol0" :size="20" />
-                            <TokenIcon :symbol="p.symbol1" :size="20" />
+                            <TokenIcon
+                                :symbol="p.symbol0"
+                                :logo="logoOf(p.token0)"
+                                :size="20"
+                            />
+                            <TokenIcon
+                                :symbol="p.symbol1"
+                                :logo="logoOf(p.token1)"
+                                :size="20"
+                            />
                             <span class="font-medium"
                                 >{{ p.symbol0 }}/{{ p.symbol1 }}</span
                             >

@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\WalletGasController;
 use App\Http\Controllers\Api\WalletIpfsController;
 use App\Http\Controllers\Api\WalletMoneroSwapController;
 use App\Http\Controllers\Api\WalletPushController;
+use App\Http\Controllers\Api\WalletStocksController;
 use App\Http\Middleware\AuthenticateAiApiKey;
 use App\Http\Middleware\X402Paywall;
 use App\Services\WalletPriceService;
@@ -37,6 +38,14 @@ Route::prefix('wallet')->group(function () {
     // it says nothing about any account, only what a coin is worth.
     Route::get('prices', fn (WalletPriceService $prices) => response()->json($prices->quotes()))
         ->middleware('throttle:60,1');
+
+    /*
+     * The tokenised stocks on Robinhood Chain, with what the issuer says a
+     * share is worth. Public, cached and account-free — a price is not a
+     * disclosure — and read here rather than in the browser so that one call
+     * serves every visitor instead of each of them spending the rate limit.
+     */
+    Route::get('stocks', WalletStocksController::class)->middleware('throttle:60,1');
 
     // Pinning for the wallet: bytes in, a CID out. Kubo listens on localhost
     // and can run any node command, so the browser never talks to it directly.

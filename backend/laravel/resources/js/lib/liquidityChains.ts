@@ -4,7 +4,7 @@ import {
     USDT_ADDRESS,
 } from '@/lib/cyberiaTokens';
 import type { V3Config } from '@/lib/dexV3';
-import { V3_FEE_TIERS } from '@/lib/dexV3';
+import { UNISWAP_V3_FEE_TIERS, V3_FEE_TIERS } from '@/lib/dexV3';
 import {
     CYBERIA_CHAIN,
     CYBERIA_CHAIN_ID,
@@ -12,6 +12,7 @@ import {
     EVM_CHAINS,
 } from '@/lib/evmChains';
 import type { EvmChain } from '@/lib/evmChains';
+import { ROBINHOOD_STOCKS } from '@/lib/robinhoodStocks';
 
 /**
  * Per-chain wiring for the Ritual DEX liquidity page. Each chain has its own
@@ -75,6 +76,15 @@ export type LiquidityChainConfig = {
 
 const ROBINHOOD_CHAIN = EVM_CHAINS.find((c) => c.chainId === 4663)!;
 
+/** Robinhood Chain's wrapped ether — the L2 WETH its own gateway deploys. */
+const WETH_ROBINHOOD = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73';
+
+/**
+ * Global Dollar, the stablecoin Robinhood Chain quotes in. **Six decimals**,
+ * like every other dollar here and unlike the 18 the stock tokens carry.
+ */
+const USDG_ADDRESS = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
+
 export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
     {
         chainId: CYBERIA_CHAIN_ID,
@@ -115,7 +125,7 @@ export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
         readRpcUrl: 'https://rpc.mainnet.chain.robinhood.com',
         router: '0xB0aC30907c04b61F1482e62eA66eF4562a690917',
         factory: '0xD199e6ae74B992F017f8940B26Fa18A7dD30eE86',
-        wrappedNative: '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73', // aeWETH
+        wrappedNative: WETH_ROBINHOOD,
         nativeSymbol: 'ETH',
         explorer: 'https://robinhoodchain.blockscout.com',
         tokens: [
@@ -127,11 +137,51 @@ export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
                 address: '0xa284bF7D1d941ED8dEd25f8E592003E9e5373284',
                 symbol: 'ASH',
             },
+            { address: USDG_ADDRESS, symbol: 'USDG' },
+            ...ROBINHOOD_STOCKS.map((stock) => ({
+                address: stock.address,
+                symbol: stock.symbol,
+            })),
         ],
-        // Everything here is paired against the wrapped native and nothing
-        // else, so it is the only hop worth trying.
-        hubs: ['0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73'],
+        /*
+         * Two hubs, and the order is the order they are tried in.
+         *
+         * Our own pools on this chain are paired against the wrapped native and
+         * nothing else, which is why it used to be the only entry. The stock
+         * tokens are the other way round: their deepest market by far is
+         * against USDG, the chain's dollar, and a route that only ever hops
+         * through ether prices a stock through a second pool it did not need.
+         */
+        hubs: [USDG_ADDRESS, WETH_ROBINHOOD],
+        dollar: USDG_ADDRESS,
         serverPools: false,
+        /*
+         * Uniswap V3, deployed on Robinhood Chain by somebody else.
+         *
+         * Every other v3 entry in this file is a stack this project put there.
+         * This one is not, which changes exactly one thing about how it was
+         * written down: nothing here may be assumed from our own deployment.
+         * The addresses were read off the chain — the pool that trades NVDA
+         * answers `factory()` with the address below, `Mint` names the position
+         * manager, and the router is the verified `SwapRouter02` beside them —
+         * and `initCodeHash` is Uniswap's own, checked by deriving the live
+         * NVDA/USDG pool from it before this line was written.
+         *
+         * `poolDeployer` is the factory here. Pancake splits the two, so the
+         * Cyberia fork above has different addresses in those fields; Uniswap
+         * does not, and copying the fork's shape would address nothing.
+         */
+        v3: {
+            poolDeployer: '0x1f7d7550B1b028f7571E69A784071F0205FD2EfA',
+            factory: '0x1f7d7550B1b028f7571E69A784071F0205FD2EfA',
+            quoter: '0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7',
+            router: '0xCaf681a66D020601342297493863E78C959E5cb2',
+            positionManager: '0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3',
+            initCodeHash:
+                '0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54',
+            tiers: UNISWAP_V3_FEE_TIERS,
+            routerKind: 'swapRouter02',
+        },
     },
 ];
 

@@ -783,6 +783,60 @@
   .phil .btn.ghost{border-color:rgba(255,255,255,.9);color:#fff}
   .phil .btn.ghost:hover{background:#fff;color:var(--ink)}
 
+  /* ====== TOKENISED STOCKS ====== */
+  /* Live prices on a static page: the grid renders from a list that ships in
+     the markup, and the numbers arrive over it. A failed fetch therefore costs
+     the prices and never the section. */
+  .stx{max-width:var(--max);margin:0 auto;padding:96px 28px 20px}
+  .stx-grid{
+    display:grid;grid-template-columns:repeat(6,1fr);
+    border:1px solid var(--ink);margin-top:28px;
+  }
+  .stx-cell{
+    display:flex;flex-direction:column;gap:8px;
+    padding:16px 16px 14px;
+    border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);
+    color:var(--ink);text-decoration:none;
+    transition:background .15s,color .15s;
+  }
+  .stx-cell:nth-child(6n){border-right:none}
+  .stx-cell:nth-last-child(-n+6){border-bottom:none}
+  a.stx-cell:hover{background:var(--ink);color:#fff}
+  a.stx-cell:hover .stx-name,a.stx-cell:hover .stx-day{color:rgba(255,255,255,.6)}
+  a.stx-cell:hover .stx-bar{background:rgba(255,255,255,.25)}
+  .stx-top{display:flex;align-items:center;gap:9px}
+  .stx-logo{
+    width:24px;height:24px;flex:0 0 24px;border-radius:3px;
+    background:#fff;object-fit:contain;padding:1px;
+    border:1px solid var(--rule);
+  }
+  .stx-tick{font-weight:800;font-size:13px;letter-spacing:.02em}
+  .stx-name{
+    font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .stx-px{font-variant-numeric:tabular-nums;font-weight:700;font-size:16px}
+  .stx-day{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .stx-bar{position:relative;height:2px;background:var(--rule)}
+  .stx-at{position:absolute;top:-2px;width:2px;height:6px;background:currentColor;transform:translateX(-1px)}
+  .stx-note{margin-top:18px;font-size:12px;color:var(--muted);max-width:760px;line-height:1.7}
+  .stx-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+  @media(max-width:1080px){
+    .stx-grid{grid-template-columns:repeat(4,1fr)}
+    .stx-cell:nth-child(6n){border-right:1px solid var(--rule)}
+    .stx-cell:nth-child(4n){border-right:none}
+    .stx-cell:nth-last-child(-n+6){border-bottom:1px solid var(--rule)}
+    .stx-cell:nth-last-child(-n+4){border-bottom:none}
+  }
+  @media(max-width:640px){
+    .stx{padding:64px 22px 16px}
+    .stx-grid{grid-template-columns:repeat(2,1fr)}
+    .stx-cell:nth-child(4n){border-right:1px solid var(--rule)}
+    .stx-cell:nth-child(2n){border-right:none}
+    .stx-cell:nth-last-child(-n+4){border-bottom:1px solid var(--rule)}
+    .stx-cell:nth-last-child(-n+2){border-bottom:none}
+  }
+
   /* ====== ECOSYSTEM ====== */
   .eco-sub{
     display:flex;align-items:center;gap:16px;
@@ -1941,6 +1995,109 @@ function Ecosystem(){
   );
 }
 
+/* ====== TOKENISED STOCKS ======
+   Twelve of the fifty-three the wallet lists, with the price the issuer quotes
+   for the underlying share. The tickers ship in this file so the section is
+   never empty; the numbers are fetched once from /api/wallet/stocks, which is
+   cached on the server — a page that asked Robinhood directly would spend a
+   per-caller rate limit once per visitor. */
+const STOCK_TICKERS = ['NVDA','TSLA','AAPL','SPCX','MSFT','GOOGL','AMZN','META','COIN','MSTR','SPY','GLD'];
+
+function stockUrl(row){
+  return row ? `/swap?chain=4663&out=${row.address}` : '/wallet';
+}
+
+function money(v){
+  return v === null || v === undefined
+    ? '—'
+    : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function Stocks(){
+  const [rows, setRows] = useState(null);
+
+  useEffect(()=>{
+    let live = true;
+    fetch('/api/wallet/stocks', { headers:{ Accept:'application/json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(body => {
+        if(!live) return;
+        const by = {};
+        (body.stocks || []).forEach(row => { by[row.symbol] = row; });
+        setRows(by);
+      })
+      .catch(()=>{ /* the grid keeps its tickers and shows no prices */ });
+    return ()=>{ live = false; };
+  },[]);
+
+  return (
+    <section className="stx" id="stocks" data-screen-label="03b Stocks">
+      <div className="chapter-index">
+        <span className="num">◆</span>
+        <span>Equities — the market that already exists</span>
+      </div>
+      <h2 className="chapter-h" data-reveal="">
+        <Glitch>Real stocks.</Glitch>
+        <Glitch>Traded on chain.</Glitch>
+      </h2>
+      <div className="body" data-reveal="">
+        <p className="lead">
+          Robinhood tokenised the shares; the wallet holds them, the DEX trades
+          them, and the same seed phrase that holds your CYBER holds NVIDIA.
+          Fifty-three companies and funds, priced by the issuer and swapped in
+          the pools of Robinhood Chain — no brokerage account anywhere in it.
+        </p>
+      </div>
+
+      <div className="stx-grid" data-reveal="" aria-label="Tokenised stocks">
+        {STOCK_TICKERS.map(sym => {
+          const row = rows ? rows[sym] : null;
+          const low = row && row.low, high = row && row.high, share = row && row.share;
+          const at = (low !== null && high !== null && share !== null && high > low)
+            ? Math.min(1, Math.max(0, (share - low) / (high - low)))
+            : null;
+
+          return (
+            <a className="stx-cell" key={sym} href={stockUrl(row)}
+               onClick={()=>trackStatic('stock_cta_clicked',{ticker:sym, action_type:'swap'})}>
+              <span className="stx-top">
+                {/* The path comes back with the row: eight of these logos are
+                    PNGs and the rest SVGs, so the extension is not something a
+                    ticker can be turned into. */}
+                {row && row.icon ? <img className="stx-logo" src={row.icon} alt="" loading="lazy"/> : <span className="stx-logo"/>}
+                <span className="stx-tick">{sym}</span>
+              </span>
+              <span className="stx-name">{row ? row.name : '\u00a0'}</span>
+              <span className="stx-px">{money(row && row.price)}</span>
+              {at === null
+                ? <span className="stx-day">{'\u00a0'}</span>
+                : <>
+                    <span className="stx-bar"><span className="stx-at" style={{left:`${at*100}%`}}/></span>
+                    <span className="stx-day">{money(low)} – {money(high)}</span>
+                  </>}
+            </a>
+          );
+        })}
+      </div>
+
+      <p className="stx-note">
+        A share held by a broker, with a token standing for it on Robinhood
+        Chain. It is not equity — no vote, no claim on the company — and here
+        the only thing behind it is whoever will trade it in that chain’s pools.
+        Prices are the issuer’s quote for the underlying share; what a trade
+        actually pays is quoted live, against the pool, before you sign.
+      </p>
+
+      <div className="stx-cta">
+        <a className="btn" href="/swap?chain=4663"
+           onClick={()=>trackStatic('stock_cta_clicked',{action_type:'dex'})}>Trade on the DEX</a>
+        <a className="btn ghost" href="/wallet"
+           onClick={()=>trackStatic('stock_cta_clicked',{action_type:'wallet'})}>All 53 in the wallet</a>
+      </div>
+    </section>
+  );
+}
+
 function App(){
   // Scroll-reveal: elements tagged data-reveal slide in when they enter view.
   useEffect(()=>{
@@ -1967,6 +2124,7 @@ function App(){
       <Tape />
       <Philosophy />
       <Ecosystem />
+      <Stocks />
       <Tape reverse />
       <Doctrine />
       <Problem />
