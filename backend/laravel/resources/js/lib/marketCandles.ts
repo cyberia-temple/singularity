@@ -360,8 +360,7 @@ export const loadMarketHistory = async (
         .map((log) => {
             const amountIn = word(log.data, baseIsToken0 ? 0 : 1);
             const amountOut = word(log.data, baseIsToken0 ? 2 : 3);
-            const volume =
-                Number(amountIn + amountOut) / 10 ** baseHop.decIn;
+            const volume = Number(amountIn + amountOut) / 10 ** baseHop.decIn;
 
             return { ts: log.ts, volume };
         })
@@ -448,6 +447,25 @@ export const buildCandles = (
     for (let t = bucketOf(from); t <= bucketOf(to); t += bucketSec) {
         const points = byBucket.get(t) ?? [];
         const volume = volumeByBucket.get(t);
+
+        /*
+         * A bucket where nothing happened is not drawn.
+         *
+         * It used to be, as a flat candle at the carried price, and on a pool
+         * that trades a few times a month that is what the chart became: seven
+         * hundred one-pixel bars at one price, two real candles somewhere in
+         * them, and a dotted line joining the lot. The price did not sit still
+         * for thirty days — nobody looked at it, and those are different facts
+         * that a flat candle prints identically.
+         *
+         * `carry` still moves forward, so the next real candle opens where the
+         * last one closed and the line stays continuous. The time axis becomes
+         * uneven, which is the honest shape: a market with gaps has gaps.
+         */
+        if (points.length === 0 && volume === undefined) {
+            continue;
+        }
+
         const open = carry;
         let high = open;
         let low = open;
@@ -474,7 +492,22 @@ export const buildCandles = (
     const last = candles[candles.length - 1];
     const spot = opts.spot;
 
-    if (last && spot !== null && spot !== undefined && spot > 0) {
+    /*
+     * The live price belongs to the *current* period and only there.
+     *
+     * While every bucket was drawn, the last candle was always the newest one,
+     * so folding the spot into it was folding it into now. With empty buckets
+     * gone the last candle can be a month old, and writing today's price into
+     * a month-old candle would date the present wrongly — the one thing a
+     * chart is read for.
+     */
+    if (
+        last &&
+        last.time === (bucketOf(to) as UTCTimestamp) &&
+        spot !== null &&
+        spot !== undefined &&
+        spot > 0
+    ) {
         last.close = spot;
         last.high = Math.max(last.high, spot);
         last.low = Math.min(last.low, spot);
