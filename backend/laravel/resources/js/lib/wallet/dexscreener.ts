@@ -326,6 +326,54 @@ export const marketFor = (
 /* ------------------------------------------------------------------ chart -- */
 
 /**
+ * The pool to chart for one *pair*, out of everything the index carries.
+ *
+ * Pure, and separate from `summariseMarkets`, because the two answer different
+ * questions. A market row wants the token's deepest pool whatever it is priced
+ * against — that is where its price comes from. A chart beside a trade wants
+ * the pool the trade goes through, and those are routinely not the same pool:
+ * NVDA's deepest is against the chain's dollar, while buying it with ether
+ * touches a different one. Drawing the first under a heading naming the second
+ * is the kind of quiet mismatch nobody catches twice.
+ *
+ * So: the deepest pool holding **both** sides, and only if there is none, the
+ * deepest holding the base at all — with the caller told which it got, since
+ * "this is your pair" and "this is the closest thing to it" are different
+ * claims to put on a screen.
+ */
+export const pairPoolFor = (
+    pairs: readonly DexPair[],
+    base: string,
+    quote: string,
+): { pair: DexPair; exact: boolean } | null => {
+    const holds = (pair: DexPair, token: string): boolean =>
+        sameMint(pair.base.address, token) ||
+        sameMint(pair.quote.address, token);
+
+    const deepest = (candidates: readonly DexPair[]): DexPair | null =>
+        candidates.reduce<DexPair | null>(
+            (best, pair) =>
+                best === null ||
+                (pair.liquidityUsd ?? 0) > (best.liquidityUsd ?? 0)
+                    ? pair
+                    : best,
+            null,
+        );
+
+    const both = deepest(
+        pairs.filter((pair) => holds(pair, base) && holds(pair, quote)),
+    );
+
+    if (both !== null) {
+        return { pair: both, exact: true };
+    }
+
+    const either = deepest(pairs.filter((pair) => holds(pair, base)));
+
+    return either === null ? null : { pair: either, exact: false };
+};
+
+/**
  * The index's own chart for a pool, as a frame.
  *
  * There is already a chart in this wallet and it answers two cases: an asset
@@ -481,4 +529,29 @@ export const fetchDexMarkets = async (
     );
 
     return summariseMarkets(answers.flat());
+};
+
+/**
+ * Every pool the index carries for one token, so a caller can pick.
+ *
+ * `fetchDexMarkets` collapses a token to one row and loses the pool list on the
+ * way; a chart needs the list. Same cache, same failure rule — an index that
+ * did not answer is a missing chart and never a broken screen.
+ */
+export const fetchDexPairs = async (
+    chain: WalletChainId,
+    token: string,
+    signal?: AbortSignal,
+): Promise<DexPair[]> => {
+    const slug = dexScreenerSlug(chain);
+
+    if (slug === null || token === '') {
+        return [];
+    }
+
+    try {
+        return await ask(`/token-pairs/v1/${slug}/${token}`, signal);
+    } catch {
+        return [];
+    }
 };

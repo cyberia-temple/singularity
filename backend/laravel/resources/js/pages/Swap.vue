@@ -74,11 +74,11 @@ import { logoForToken } from '@/lib/tokenLogos';
 import { track } from '@/lib/track';
 import { walletChains } from '@/lib/wallet/chains';
 import type { WalletChainId } from '@/lib/wallet/chains';
-import type { DexMarket } from '@/lib/wallet/dexscreener';
+import type { DexPair } from '@/lib/wallet/dexscreener';
 import {
     dexScreenerChartUrl,
-    dexScreenerSlug,
-    fetchDexMarkets,
+    fetchDexPairs,
+    pairPoolFor,
 } from '@/lib/wallet/dexscreener';
 
 // Router/factory/wrapped-native/pools are per-chain (DEX_CHAINS); the page
@@ -1467,70 +1467,77 @@ const activeWalletChain = computed<WalletChainId | null>(
 );
 
 /**
- * Which of the two sides is worth a chart.
+ * The two sides, as the index addresses them: the coin becomes its wrapper.
  *
- * The one that is not the money: buying NVDA with ether should draw NVDA, and
- * so should selling it. Output first, because that is what somebody who came
- * here by link is looking at.
+ * Output first, because that is the token somebody who came here by link is
+ * looking at, and it is the side whose name goes on the panel.
  */
-const dexChartToken = computed<string | null>(() => {
-    const cfg = activeChain.value;
-    const dollar = cfg.dollar?.toLowerCase() ?? null;
-    const wrapped = cfg.wrappedNative.toLowerCase();
-    const sides = [tokenOut.value, tokenIn.value]
-        .filter((token): token is string => !!token)
-        .map((token) => (token === NATIVE ? wrapped : token.toLowerCase()));
+const dexSides = computed<{ base: string; quote: string } | null>(() => {
+    const wrapped = activeChain.value.wrappedNative.toLowerCase();
+    const resolve = (token: string | null): string | null =>
+        token === null || token === ''
+            ? null
+            : token === NATIVE
+              ? wrapped
+              : token.toLowerCase();
 
-    return (
-        sides.find((token) => token !== dollar && token !== wrapped) ??
-        sides[0] ??
-        null
-    );
+    const base = resolve(tokenOut.value);
+    const quote = resolve(tokenIn.value);
+
+    return base === null || quote === null || base === quote
+        ? null
+        : { base, quote };
 });
 
-const dexMarket = ref<DexMarket | null>(null);
+const dexPool = ref<{ pair: DexPair; exact: boolean } | null>(null);
 let dexSeq = 0;
 
 watch(
-    [dexChartToken, activeChainId],
+    [dexSides, activeChainId],
     async () => {
         const seq = ++dexSeq;
-        dexMarket.value = null;
+        dexPool.value = null;
 
         const chain = activeWalletChain.value;
-        const token = dexChartToken.value;
+        const sides = dexSides.value;
 
-        if (!chain || !token || dexScreenerSlug(chain) === null) {
+        if (!chain || !sides) {
             return;
         }
 
-        try {
-            const markets = await fetchDexMarkets(chain, [token]);
+        const pairs = await fetchDexPairs(chain, sides.base);
 
-            // A slower answer for a pair nobody is looking at any more must not
-            // land on top of the one on screen.
-            if (seq === dexSeq) {
-                dexMarket.value = markets[0] ?? null;
-            }
-        } catch {
-            // An index that did not answer is a missing chart, never a broken
-            // page: everything that decides a trade came from the chain.
+        // A slower answer for a pair nobody is looking at any more must not
+        // land on top of the one on screen.
+        if (seq === dexSeq) {
+            dexPool.value = pairPoolFor(pairs, sides.base, sides.quote);
         }
     },
     { immediate: true },
 );
 
 const dexChartUrl = computed<string | null>(() =>
-    dexMarket.value
-        ? dexScreenerChartUrl(dexMarket.value, {
-              theme: resolvedAppearance.value,
-          })
+    dexPool.value
+        ? dexScreenerChartUrl(
+              {
+                  chain: dexPool.value.pair.chain,
+                  pairAddress: dexPool.value.pair.pairAddress,
+              },
+              { theme: resolvedAppearance.value },
+          )
         : null,
 );
 
 /** Whether the panel is showing somebody else's chart rather than ours. */
 const showsIndexedChart = computed(
     () => candles.value.length === 0 && dexChartUrl.value !== null,
+);
+
+/** The pair the frame is actually drawing, in the index's own words. */
+const dexPairLabel = computed(() =>
+    dexPool.value
+        ? `${dexPool.value.pair.base.symbol}/${dexPool.value.pair.quote.symbol}`
+        : '',
 );
 
 watch([tokenIn, tokenOut], scheduleQuote);
@@ -2147,7 +2154,15 @@ onBeforeUnmount(() => {
 <template>
     <Head :title="`Swap · ${activeChain.evmChain.name}`" />
 
-    <div class="mx-auto max-w-5xl px-4 py-6">
+    <!--
+      Wider than the rest of the site on a big screen, because this page is not
+      a document: the left column is a chart, and a chart is the one thing here
+      that gets better with every pixel it is given. The cap stays, so a very
+      wide monitor does not stretch the form into a line nobody can read.
+    -->
+    <div
+        class="mx-auto max-w-5xl px-4 py-6 xl:max-w-[92rem] 2xl:max-w-[108rem]"
+    >
         <header class="mb-4">
             <h1 class="text-2xl font-bold">Swap</h1>
             <p class="text-sm text-muted-foreground">
@@ -2178,7 +2193,9 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-[1fr_28rem] lg:items-start">
+        <div
+            class="grid gap-4 lg:grid-cols-[1fr_28rem] lg:items-start xl:gap-6"
+        >
             <section class="space-y-4 rounded-lg border p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -2192,8 +2209,22 @@ onBeforeUnmount(() => {
                         -->
                         <h2 class="font-semibold">
                             {{ showsIndexedChart ? 'Market' : 'Ritual market' }}
+                            <!--
+                              The pair the chart is *of*, not the pair being
+                              traded. They are usually the same and sometimes
+                              are not: a token's deepest pool is often against
+                              the chain's dollar while the trade goes through
+                              ether, and a heading naming one over a chart of
+                              the other is the mismatch this exists to avoid.
+                            -->
                             <span
-                                v-if="chartPairKey"
+                                v-if="showsIndexedChart"
+                                class="font-mono text-sm text-muted-foreground"
+                            >
+                                {{ dexPairLabel }}
+                            </span>
+                            <span
+                                v-else-if="chartPairKey"
                                 class="font-mono text-sm text-muted-foreground"
                             >
                                 {{ symbolOf(chartBase) }}/{{
@@ -2202,10 +2233,19 @@ onBeforeUnmount(() => {
                             </span>
                         </h2>
                         <p class="text-xs text-muted-foreground">
-                            <template v-if="showsIndexedChart">
+                            <template
+                                v-if="showsIndexedChart && dexPool?.exact"
+                            >
                                 This pair trades in concentrated pools, whose
                                 history this page cannot rebuild — the chart
-                                below is the index's own, of its deepest pool.
+                                below is the index's own, of the deepest pool
+                                holding both sides.
+                            </template>
+                            <template v-else-if="showsIndexedChart">
+                                No indexed pool holds both sides of this trade,
+                                so the chart below is
+                                {{ symbolOf(chartBase) }}'s deepest pool instead
+                                — a different pair from the one being traded.
                             </template>
                             <template v-else-if="marketRouteSymbols.length > 2">
                                 Routed
@@ -2328,10 +2368,10 @@ onBeforeUnmount(() => {
                     <div v-else-if="dexChartUrl" class="space-y-2">
                         <div class="flex items-baseline justify-between px-1">
                             <h3 class="text-sm font-medium">
-                                {{ dexMarket?.symbol }} · {{ dexMarket?.dex }}
+                                {{ dexPairLabel }} · {{ dexPool?.pair.dex }}
                             </h3>
                             <a
-                                :href="dexMarket?.url ?? undefined"
+                                :href="dexPool?.pair.url ?? undefined"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="text-[0.7rem] text-muted-foreground hover:underline"
@@ -2342,7 +2382,7 @@ onBeforeUnmount(() => {
                         <iframe
                             :key="dexChartUrl"
                             :src="dexChartUrl"
-                            class="h-[420px] w-full rounded border border-border"
+                            class="h-[420px] w-full rounded border border-border xl:h-[600px] 2xl:h-[680px]"
                             loading="lazy"
                             referrerpolicy="no-referrer"
                             sandbox="allow-scripts allow-same-origin allow-popups"

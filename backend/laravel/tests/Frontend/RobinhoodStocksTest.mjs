@@ -23,6 +23,7 @@ import {
     stockBySymbol,
 } from '@/lib/robinhoodStocks';
 import { logoForToken } from '@/lib/tokenLogos';
+import { pairPoolFor } from '@/lib/wallet/dexscreener';
 import { dayPosition, formatStockUsd } from '@/lib/wallet/stocks';
 
 /**
@@ -357,4 +358,57 @@ test('exact-output pays no fee, because the output is what was asked for', () =>
         calls[0].args[0].recipient,
         '0x00000000000000000000000000000000000CaFE1',
     );
+});
+
+/**
+ * Which pool a chart is drawn of.
+ *
+ * The token's deepest pool and the pool the trade goes through are routinely
+ * different — NVDA's deepest is against the chain's dollar, while buying it
+ * with ether touches another one — and drawing the first under a heading
+ * naming the second is exactly the mismatch this picks apart.
+ */
+const pool = (base, quote, liquidityUsd, extra = {}) => ({
+    chain: 'robinhood',
+    dex: 'uniswap',
+    url: '',
+    pairAddress: `0x${liquidityUsd}`,
+    base: { address: base, symbol: 'B', name: '' },
+    quote: { address: quote, symbol: 'Q', name: '' },
+    priceUsd: null,
+    priceChange24h: null,
+    liquidityUsd,
+    volume24hUsd: null,
+    createdAt: null,
+    ...extra,
+});
+
+test('the pair being traded wins over the deeper pool beside it', () => {
+    const nvda = '0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC';
+    const usdg = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
+    const weth = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73';
+    const pairs = [pool(nvda, usdg, 7000), pool(nvda, weth, 1500)];
+
+    const chosen = pairPoolFor(pairs, nvda, weth);
+
+    assert.equal(chosen.pair.liquidityUsd, 1500);
+    assert.equal(chosen.exact, true);
+
+    // Reversed sides are the same pool; the index does not promise an order.
+    assert.equal(pairPoolFor(pairs, weth, nvda).pair.liquidityUsd, 1500);
+});
+
+test('with no pool holding both sides, the deepest one is offered and said to be', () => {
+    const nvda = '0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC';
+    const usdg = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
+    const cyber = '0x753979e6585CCa139fbB1918966D563a25eEB3B2';
+    const pairs = [pool(nvda, usdg, 7000), pool(nvda, usdg, 900)];
+
+    const chosen = pairPoolFor(pairs, nvda, cyber);
+
+    assert.equal(chosen.pair.liquidityUsd, 7000);
+    // The caller has to be able to say "a different pair from the one traded".
+    assert.equal(chosen.exact, false);
+
+    assert.equal(pairPoolFor([], nvda, cyber), null);
 });
