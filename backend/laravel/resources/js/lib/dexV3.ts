@@ -80,6 +80,76 @@ export type V3Config = {
      * tomorrow's price.
      */
     routerKind?: 'swapRouter' | 'swapRouter02';
+    /**
+     * What this project takes for putting the trade together, and where.
+     *
+     * Only on `swapRouter02`, because it is that router's own hook: the swap
+     * pays out to the router instead of to the user, and `sweepTokenWithFee`
+     * (or `unwrapWETH9WithFee` for the coin) forwards the output minus
+     * `feeBips`. One transaction, no contract of ours in the path, and the
+     * whole of it is visible in the calldata the user signs.
+     *
+     * Deliberately absent on Cyberia's own pools: those already pay this
+     * project a protocol share at the pool, and charging again on top would be
+     * taking the same cut twice from the same trade.
+     *
+     * Two honest limits. Uniswap caps `feeBips` at 100 — one per cent — and
+     * refuses zero, so an entry here is between 1 and 100. And the fee is taken
+     * in **what was bought**: buying NVDA pays it in NVDA, on Robinhood Chain.
+     * It is not swept anywhere; it sits at the address below until somebody
+     * moves it.
+     *
+     * A client-side fee is also a voluntary one — anything a browser assembles,
+     * a browser can assemble without this — which is true of every exchange
+     * front end and is not worth pretending otherwise.
+     */
+    fee?: { bps: number; recipient: string };
+};
+
+/** Uniswap's own ceiling on an integrator fee: one per cent, and never zero. */
+export const V3_MAX_FEE_BPS = 100;
+
+/**
+ * The fee this chain's v3 stack takes, or null.
+ *
+ * Null for anything but `SwapRouter02` — no other router here has the hook —
+ * and null for a configured fee outside what the router will accept, because a
+ * fee it rejects is not a smaller fee, it is a swap that reverts.
+ */
+export const v3IntegratorFee = (
+    cfg: Pick<V3Config, 'routerKind' | 'fee'>,
+): { bps: number; recipient: string } | null => {
+    const fee = cfg.fee;
+
+    if (
+        cfg.routerKind !== 'swapRouter02' ||
+        !fee ||
+        fee.bps < 1 ||
+        fee.bps > V3_MAX_FEE_BPS
+    ) {
+        return null;
+    }
+
+    return fee;
+};
+
+/**
+ * What actually reaches the user, once the fee is taken.
+ *
+ * The quoter answers with the gross — it prices the pools and knows nothing
+ * about us — so every number a screen shows, and every comparison against the
+ * other venue, goes through here. The floor the *router* checks stays gross:
+ * `sweepTokenWithFee` tests the balance it holds before it splits it.
+ */
+export const v3AfterFee = (
+    cfg: Pick<V3Config, 'routerKind' | 'fee'>,
+    amount: bigint,
+): bigint => {
+    const fee = v3IntegratorFee(cfg);
+
+    return fee === null
+        ? amount
+        : (amount * BigInt(10_000 - fee.bps)) / 10_000n;
 };
 
 const QUOTER_ABI = [
@@ -121,9 +191,28 @@ export const V3_ROUTER_02_ABI = [
     'function exactOutputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountOut,uint256 amountInMaximum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountIn)',
     'function exactOutput((bytes path,address recipient,uint256 amountOut,uint256 amountInMaximum)) payable returns (uint256 amountIn)',
     'function unwrapWETH9(uint256 amountMinimum,address recipient) payable',
+    'function unwrapWETH9WithFee(uint256 amountMinimum,address recipient,uint256 feeBips,address feeRecipient) payable',
+    'function sweepTokenWithFee(address token,uint256 amountMinimum,address recipient,uint256 feeBips,address feeRecipient) payable',
     'function refundETH() payable',
     'function multicall(uint256 deadline,bytes[] data) payable returns (bytes[] results)',
 ];
+
+/**
+ * How a router is told to keep the output instead of paying it out.
+ *
+ * The two disagree, and the disagreement is silent. The original `SwapRouter`
+ * reads a recipient of `address(0)` as "this contract"; `SwapRouter02` replaced
+ * that with the sentinel `address(2)` and treats a zero recipient as a literal
+ * address — so a swap that means "hold it, I am about to unwrap or take a fee"
+ * instead transfers the output to the zero address and reverts with `TF`.
+ *
+ * Every path that keeps the output in the router goes through here: unwrapping
+ * to the coin, and taking this project's fee.
+ */
+const routerSelf = (cfg: Pick<V3Config, 'routerKind'>): string =>
+    cfg.routerKind === 'swapRouter02'
+        ? '0x0000000000000000000000000000000000000002'
+        : ZeroAddress;
 
 /** The ABI this chain's router actually speaks. */
 export const v3RouterAbi = (cfg: Pick<V3Config, 'routerKind'>): string[] =>
@@ -561,7 +650,15 @@ export const v3RouteFeePct = (pools: readonly V3Pool[]): number =>
 export type V3SwapPlan = {
     route: V3Route;
     recipient: string;
-    /** Exact-in: the floor. Exact-out: the amount to buy. */
+    /**
+     * Exact-in: the floor. Exact-out: the amount to buy.
+     *
+     * **Gross**, always — the amount the router must be holding, before this
+     * project's fee comes out of it. That is what `sweepTokenWithFee` and
+     * `unwrapWETH9WithFee` check, and quoting the net here would set a floor a
+     * fee-taking swap can never clear. What the user is shown is the net of
+     * this number, through `v3AfterFee`.
+     */
     amountOutMinimum: bigint;
     /** Exact-out only: the ceiling on what may be spent. */
     amountInMaximum?: bigint;
@@ -593,9 +690,27 @@ export const v3SwapCall = (
     const deadline =
         cfg.routerKind === 'swapRouter02' ? {} : { deadline: plan.deadline };
 
-    // Output that must come back as the coin stays in the router until
-    // `unwrapWETH9` sends it on; anything else goes straight to the user.
-    const recipient = plan.nativeOut ? ZeroAddress : getAddress(plan.recipient);
+    /*
+     * The fee, when this chain has one and the trade is exact-in.
+     *
+     * Exact-out is excluded on purpose: there the output is the number the user
+     * asked for, and a cut off the top would deliver less than the exact amount
+     * that was agreed. On that side the surplus already comes back as a refund
+     * of the input, and taking anything out of it would need a different hook
+     * than the two this router has.
+     */
+    const fee = plan.exactIn ? v3IntegratorFee(cfg) : null;
+
+    /*
+     * Output that must come back as the coin stays in the router until
+     * `unwrapWETH9` sends it on; anything else goes straight to the user — and
+     * a fee makes every output stay, because the router can only take its share
+     * out of a balance it is holding.
+     */
+    const recipient =
+        plan.nativeOut || fee !== null
+            ? routerSelf(cfg)
+            : getAddress(plan.recipient);
     const value = plan.nativeIn
         ? plan.exactIn
             ? route.amountIn
@@ -655,12 +770,33 @@ export const v3SwapCall = (
     const calls = [swapCall];
 
     if (plan.nativeOut) {
-        // The floor is enforced here as well as in the swap, so a router that
-        // somehow holds less than promised cannot pay out less than promised.
+        /*
+         * The floor is enforced here as well as in the swap, so a router that
+         * somehow holds less than promised cannot pay out less than promised.
+         * `amountOutMinimum` is the **gross** — what the router is holding
+         * before it splits it — which is what both of these calls test.
+         */
         calls.push(
-            iface.encodeFunctionData('unwrapWETH9', [
+            fee === null
+                ? iface.encodeFunctionData('unwrapWETH9', [
+                      plan.amountOutMinimum,
+                      getAddress(plan.recipient),
+                  ])
+                : iface.encodeFunctionData('unwrapWETH9WithFee', [
+                      plan.amountOutMinimum,
+                      getAddress(plan.recipient),
+                      fee.bps,
+                      getAddress(fee.recipient),
+                  ]),
+        );
+    } else if (fee !== null) {
+        calls.push(
+            iface.encodeFunctionData('sweepTokenWithFee', [
+                route.tokens[route.tokens.length - 1],
                 plan.amountOutMinimum,
                 getAddress(plan.recipient),
+                fee.bps,
+                getAddress(fee.recipient),
             ]),
         );
     }

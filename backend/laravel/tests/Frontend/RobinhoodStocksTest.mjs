@@ -3,8 +3,16 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { getAddress } from 'ethers';
-import { UNISWAP_V3_FEE_TIERS, v3PoolAddress, v3RouterAbi } from '@/lib/dexV3';
+import { getAddress, Interface } from 'ethers';
+import {
+    UNISWAP_V3_FEE_TIERS,
+    V3_MAX_FEE_BPS,
+    v3AfterFee,
+    v3IntegratorFee,
+    v3PoolAddress,
+    v3RouterAbi,
+    v3SwapCall,
+} from '@/lib/dexV3';
 import { liquidityChainById } from '@/lib/liquidityChains';
 import {
     ROBINHOOD_STOCK_CHAIN_ID,
@@ -218,4 +226,135 @@ test('a share price is printed to the cent and no further', () => {
     // way, and four decimals would claim a precision nobody published.
     assert.equal(formatStockUsd(223.09279848097944, 'en'), '$223.09');
     assert.equal(formatStockUsd(null, 'en'), '\u2014');
+});
+
+test("this project's fee is the router's own hook, inside the router's bounds", () => {
+    const cfg = robinhood().v3;
+    const fee = v3IntegratorFee(cfg);
+
+    assert.ok(fee, 'the stock chain must carry a fee — nothing else here pays');
+    assert.ok(fee.bps >= 1 && fee.bps <= V3_MAX_FEE_BPS);
+    assert.match(fee.recipient, /^0x[0-9a-fA-F]{40}$/);
+
+    // Both hooks have to be in the ABI or the calldata cannot be built.
+    const abi = v3RouterAbi(cfg).join('\n');
+
+    assert.ok(abi.includes('sweepTokenWithFee('));
+    assert.ok(abi.includes('unwrapWETH9WithFee('));
+});
+
+test('our own pools are not charged twice', () => {
+    // Cyberia's v3 already pays this project a protocol share at the pool, so
+    // an integrator fee on top would be the same trade taken from twice.
+    assert.equal(v3IntegratorFee(liquidityChainById(49406).v3), null);
+    assert.equal(
+        v3AfterFee(liquidityChainById(49406).v3, 1_000_000n),
+        1_000_000n,
+    );
+});
+
+test('the net is what the fee leaves, and it rounds down', () => {
+    const cfg = robinhood().v3;
+    const bps = v3IntegratorFee(cfg).bps;
+
+    assert.equal(v3AfterFee(cfg, 10_000n), BigInt(10_000 - bps));
+    // Never rounds *up*: the user is shown no more than the router will pay.
+    assert.ok(v3AfterFee(cfg, 1n) <= 1n);
+    assert.equal(v3AfterFee(cfg, 0n), 0n);
+});
+
+/**
+ * The recipient sentinel, which is the difference between a working swap and
+ * one that burns the output.
+ *
+ * `SwapRouter` reads a recipient of `address(0)` as "keep it here";
+ * `SwapRouter02` replaced that with `address(2)` and takes a zero recipient
+ * literally — so every path that holds the output back (unwrapping to the coin,
+ * or taking this project's fee) sends it to the zero address and reverts with
+ * `TF`. It cost one live simulation to find and is invisible in every unit that
+ * does not look at the encoded recipient.
+ */
+const decodeCalls = (cfg, data) => {
+    const iface = new Interface(v3RouterAbi(cfg));
+    const outer = iface.parseTransaction({ data });
+    const inner = cfg.routerKind === 'swapRouter02' ? outer.args[1] : [data];
+
+    return inner.map((call) => iface.parseTransaction({ data: call }));
+};
+
+const plan = (route, extra = {}) => ({
+    route,
+    recipient: '0x00000000000000000000000000000000000CaFE1',
+    amountOutMinimum: 1n,
+    exactIn: true,
+    nativeIn: false,
+    nativeOut: false,
+    deadline: 1n,
+    ...extra,
+});
+
+const fakeRoute = (a, b) => ({
+    tokens: [a, b],
+    fees: [500],
+    pools: [],
+    amountIn: 10n ** 18n,
+    amountOut: 10n ** 18n,
+    gasEstimate: 0n,
+});
+
+test('a fee-taking swap keeps the output in the router, by the right sentinel', () => {
+    const cfg = robinhood().v3;
+    const route = fakeRoute(cfg.router, stockBySymbol('NVDA').address);
+    const calls = decodeCalls(cfg, v3SwapCall(cfg, plan(route)).data);
+
+    assert.deepEqual(
+        calls.map((c) => c.name),
+        ['exactInputSingle', 'sweepTokenWithFee'],
+    );
+
+    // address(2) — Constants.ADDRESS_THIS on SwapRouter02. Zero would be a
+    // transfer to the zero address, which the token refuses.
+    assert.equal(
+        calls[0].args[0].recipient,
+        '0x0000000000000000000000000000000000000002',
+    );
+
+    const sweep = calls[1].args;
+
+    assert.equal(sweep[0], stockBySymbol('NVDA').address);
+    assert.equal(Number(sweep[3]), v3IntegratorFee(cfg).bps);
+    assert.equal(sweep[4], v3IntegratorFee(cfg).recipient);
+});
+
+test('taking the coin out uses the fee-aware unwrap', () => {
+    const cfg = robinhood().v3;
+    const route = fakeRoute(stockBySymbol('NVDA').address, cfg.router);
+    const calls = decodeCalls(
+        cfg,
+        v3SwapCall(cfg, plan(route, { nativeOut: true })).data,
+    );
+
+    assert.deepEqual(
+        calls.map((c) => c.name),
+        ['exactInputSingle', 'unwrapWETH9WithFee'],
+    );
+});
+
+test('exact-output pays no fee, because the output is what was asked for', () => {
+    const cfg = robinhood().v3;
+    const route = fakeRoute(cfg.router, stockBySymbol('NVDA').address);
+    const calls = decodeCalls(
+        cfg,
+        v3SwapCall(cfg, plan(route, { exactIn: false })).data,
+    );
+
+    assert.deepEqual(
+        calls.map((c) => c.name),
+        ['exactOutputSingle'],
+    );
+    // …and it pays the user directly, so no sentinel is involved at all.
+    assert.equal(
+        calls[0].args[0].recipient,
+        '0x00000000000000000000000000000000000CaFE1',
+    );
 });

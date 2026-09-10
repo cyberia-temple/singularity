@@ -181,6 +181,23 @@ export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
                 '0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54',
             tiers: UNISWAP_V3_FEE_TIERS,
             routerKind: 'swapRouter02',
+            /*
+             * What this project takes for the trade, through the router's own
+             * hook. The pools here are Uniswap's and the chain is Robinhood's,
+             * so nothing else on this route pays Cyberia anything — unlike our
+             * own v3, where the protocol share is already taken at the pool and
+             * a second cut here would be the same trade charged twice.
+             *
+             * Taken in whatever was bought, at the address below, on this
+             * chain. Written down rather than read from the environment for the
+             * same reason the router address is: it ships in a browser bundle
+             * either way, so a build-time variable would buy nothing but a
+             * deploy that silently forgets it.
+             */
+            fee: {
+                bps: 75,
+                recipient: '0x54BB8a86Fc001d5BB3e6C7ad2e2f153E5Fa6d7f6',
+            },
         },
     },
 ];

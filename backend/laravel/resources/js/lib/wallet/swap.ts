@@ -1,6 +1,11 @@
 import { Contract, JsonRpcProvider, getAddress } from 'ethers';
 import type { V3Route } from '@/lib/dexV3';
-import { v3BestRoute, v3SwapCall } from '@/lib/dexV3';
+import {
+    v3AfterFee,
+    v3BestRoute,
+    v3IntegratorFee,
+    v3SwapCall,
+} from '@/lib/dexV3';
 import { LIQUIDITY_CHAINS } from '@/lib/liquidityChains';
 import type { LiquidityChainConfig } from '@/lib/liquidityChains';
 import { evmSigner } from '@/lib/wallet/keys';
@@ -146,6 +151,14 @@ export type SwapQuote = {
      * chain with many hubs produces a list nobody reads.
      */
     alternatives: { path: string[]; amountOut: bigint }[];
+    /**
+     * What this project takes out of the output, in basis points, or 0.
+     *
+     * On screen rather than only in the calldata: `amountOut` above is already
+     * net of it, and a number that quietly differs from the pool's own quote is
+     * the thing every fee-taking front end gets wrong.
+     */
+    appFeeBps: number;
     /**
      * The concentrated-liquidity route, present only when v3 is what won.
      *
@@ -504,10 +517,11 @@ export const quoteSwap = async (request: {
      * A v3 stack that throws is treated as a venue with nothing in it, never as
      * a failed quote: v2 may still have the route.
      */
-    const v3 = config.v3
+    const v3Config = config.v3;
+    const v3 = v3Config
         ? await v3BestRoute(
               rpc,
-              config.v3,
+              v3Config,
               inputAddress,
               outputAddress,
               request.amountIn,
@@ -515,9 +529,20 @@ export const quoteSwap = async (request: {
           ).catch(() => null)
         : null;
 
+    /*
+     * Net of this project's fee, because that is what the user receives and
+     * therefore the only number the other venue can honestly be compared
+     * against. The route keeps the gross — the router checks its own balance
+     * before it splits it, so the floor that gets signed is derived from there.
+     */
     const v3Best =
         v3 !== null && v3.amountOut > 0n
-            ? { path: v3.tokens, amountOut: v3.amountOut }
+            ? {
+                  path: v3.tokens,
+                  amountOut: v3Config
+                      ? v3AfterFee(v3Config, v3.amountOut)
+                      : v3.amountOut,
+              }
             : null;
 
     const best =
@@ -533,7 +558,6 @@ export const quoteSwap = async (request: {
     }
 
     const onV3 = best === v3Best;
-    const v3Config = config.v3;
 
     /**
      * Everything the winner beat, best first.
@@ -582,11 +606,16 @@ export const quoteSwap = async (request: {
                     config.hubs,
                 );
 
-                return probe === null || probe.amountOut === 0n
+                /*
+                 * Both sides gross. Comparing the net answer against a gross
+                 * probe would read this project's own fee as the market moving
+                 * against the trade, and print it as price impact.
+                 */
+                return probe === null || probe.amountOut === 0n || v3 === null
                     ? null
                     : priceImpactPct(
                           request.amountIn,
-                          best.amountOut,
+                          v3.amountOut,
                           probeIn,
                           probe.amountOut,
                       );
@@ -624,13 +653,21 @@ export const quoteSwap = async (request: {
             ? getAddress(v3Config.router)
             : getAddress(config.router);
 
+    /**
+     * The floor the router itself checks, which is the **gross**: its fee hooks
+     * test the balance they are holding before taking a share of it. `minOut`
+     * above is the same floor seen from the user's side, after the fee.
+     */
+    const grossMinOut =
+        v3 === null ? 0n : applySlippage(v3.amountOut, request.slippageBps);
+
     /** The transaction a v3 win will be signed as — quoted from, then signed. */
     const v3Call =
         onV3 && v3Config && v3 !== null
             ? v3SwapCall(v3Config, {
                   route: v3,
                   recipient: request.account,
-                  amountOutMinimum: minOut,
+                  amountOutMinimum: grossMinOut,
                   exactIn: true,
                   nativeIn: request.from.address === null,
                   nativeOut: request.to.address === null,
@@ -758,6 +795,7 @@ export const quoteSwap = async (request: {
         kind,
         estimated: estimate !== null,
         alternatives,
+        appFeeBps: onV3 && v3Config ? (v3IntegratorFee(v3Config)?.bps ?? 0) : 0,
         ...(onV3 && v3 !== null ? { v3Route: v3 } : {}),
     };
 };
@@ -846,14 +884,25 @@ export const executeSwap = async (
             );
         }
 
-        // Rebuilt from the quote and not re-routed: the tiers, the floor and
-        // the deadline are the ones the user held a button over. The deadline
-        // is the single exception, and it is refreshed rather than reused
-        // because the one in the quote was cut for the moment it was read.
+        /*
+         * Rebuilt from the quote and not re-routed: the tiers, the floor and
+         * the deadline are the ones the user held a button over. The deadline
+         * is the single exception, and it is refreshed rather than reused
+         * because the one in the quote was cut for the moment it was read.
+         *
+         * The floor handed to the router is the **gross** one, derived from the
+         * route's own (pre-fee) output and the slippage the user agreed to —
+         * `quote.minOut` is that same floor after the fee, which is what the
+         * screen showed. Passing the net here would set a bar the router
+         * cannot clear once it takes its share, and every swap would revert.
+         */
         const call = v3SwapCall(v3Config, {
             route: quote.v3Route,
             recipient: request.recipient,
-            amountOutMinimum: quote.minOut,
+            amountOutMinimum: applySlippage(
+                quote.v3Route.amountOut,
+                quote.slippageBps,
+            ),
             exactIn: true,
             nativeIn: quote.kind === 'native-in',
             nativeOut: quote.kind === 'native-out',

@@ -1406,6 +1406,27 @@ const venueLine = computed(() => {
     return t('swapVenue', { chain: chain.value.label, hops });
 });
 
+/**
+ * This project's own cut, when the winning route pays one.
+ *
+ * Its own row rather than folded into anything: the pool's fee goes to whoever
+ * put the liquidity there and this goes to Cyberia, and the amount above is
+ * already net of it. A quote that quietly differs from the pool's own is the
+ * one thing a fee-taking screen must not do.
+ */
+const appFee = computed<{ bps: number; amount: bigint } | null>(() => {
+    const current = quote.value;
+
+    if (!current || current.appFeeBps <= 0 || !current.v3Route) {
+        return null;
+    }
+
+    return {
+        bps: current.appFeeBps,
+        amount: current.v3Route.amountOut - current.amountOut,
+    };
+});
+
 /* --------------------------------------------------------- alternatives -- */
 
 /**
@@ -2268,6 +2289,25 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                     quote && receiveAsset
                                         ? formatUnits(
                                               quote.minOut,
+                                              receiveAsset.decimals,
+                                              8,
+                                          )
+                                        : '—'
+                                }}
+                                {{ receiveAsset?.symbol }}</span
+                            >
+                        </div>
+                        <div v-if="appFee" class="cw-kv">
+                            <span class="cw-kv-key">{{
+                                t('swapAppFee', {
+                                    pct: (appFee.bps / 100).toFixed(2),
+                                })
+                            }}</span>
+                            <span class="cw-kv-val" style="font-weight: 400"
+                                >{{
+                                    receiveAsset
+                                        ? formatUnits(
+                                              appFee.amount,
                                               receiveAsset.decimals,
                                               8,
                                           )

@@ -42,6 +42,8 @@ import type { V3Route } from '@/lib/dexV3';
 import {
     v3BestRoute,
     v3BestRouteExactOut,
+    v3AfterFee,
+    v3IntegratorFee,
     v3RouteFeePct,
     v3Swap,
 } from '@/lib/dexV3';
@@ -949,6 +951,30 @@ const venuesLine = computed(() =>
         : 'Trade tokens on Ritual (Uniswap V2)',
 );
 
+/**
+ * This project's own cut, when the winning route pays one.
+ *
+ * Printed as its own line rather than folded into the pool's fee: they are
+ * different money going to different people — the pool's goes to whoever put
+ * the liquidity there, and this goes to Cyberia. `amountOut` above is already
+ * net of it, and a quote that quietly differs from the pool's own is the thing
+ * every fee-taking front end gets wrong.
+ */
+const appFee = computed<{ bps: number; amount: bigint } | null>(() => {
+    const q = quote.value;
+    const cfg = activeChain.value.v3;
+
+    if (!q || q.venue !== 'v3' || !q.v3Route || !cfg || mode.value !== 'in') {
+        return null;
+    }
+
+    const fee = v3IntegratorFee(cfg);
+
+    return fee === null
+        ? null
+        : { bps: fee.bps, amount: q.v3Route.amountOut - q.amountOut };
+});
+
 const routeSymbols = computed(() =>
     quote.value ? quote.value.path.map((a) => symbolOf(a)) : [],
 );
@@ -1176,7 +1202,11 @@ const v3ImpactPct = async (q: {
             return null;
         }
 
-        const execRate = Number(q.amountOut) / Number(q.amountIn);
+        /*
+         * Both sides gross. Pricing the net answer against a gross probe would
+         * read this project's own fee as the market moving against the trade.
+         */
+        const execRate = Number(q.v3Route.amountOut) / Number(q.amountIn);
         const spotRate = Number(probe.amountOut) / Number(probeIn);
         const impact = (1 - execRate / spotRate) * 100;
 
@@ -1301,19 +1331,34 @@ const refreshQuote = async (): Promise<void> => {
 
         // v3 wins only by paying better — a tie stays with v2, whose route the
         // chart and the pool page already understand.
+        const v3Net =
+            v3Route && exactIn && v3
+                ? v3AfterFee(v3, v3Route.amountOut)
+                : (v3Route?.amountOut ?? 0n);
+
         if (
             v3Route &&
             v3Route.amountIn > 0n &&
             v3Route.amountOut > 0n &&
             (!best ||
                 (exactIn
-                    ? v3Route.amountOut > best.amountOut
+                    ? v3Net > best.amountOut
                     : v3Route.amountIn < best.amountIn))
         ) {
             best = {
                 path: v3Route.tokens,
                 amountIn: v3Route.amountIn,
-                amountOut: v3Route.amountOut,
+                /*
+                 * Net of this project's fee on an exact-input trade: it is what
+                 * the user receives, so it is the only figure the other venue
+                 * can honestly be compared against. Exact-output takes no fee
+                 * — the output there is the number that was asked for — and
+                 * `v3AfterFee` is not applied to it.
+                 */
+                amountOut:
+                    exactIn && v3
+                        ? v3AfterFee(v3, v3Route.amountOut)
+                        : v3Route.amountOut,
                 venue: 'v3' as const,
                 v3Route,
             };
@@ -1649,10 +1694,21 @@ const doSwap = async (): Promise<void> => {
             }
 
             status.value = 'Confirm the swap in your wallet…';
+            /*
+             * The floor handed to the router is the **gross** one — its fee
+             * hooks test the balance they are holding before taking a share —
+             * so it is derived from the route's own pre-fee output and the
+             * slippage on screen. `minOut` is that same floor after the fee,
+             * which is the number the user was shown.
+             */
             tx = await v3Swap(signer, cfg, {
                 route: q.v3Route,
                 recipient: to,
-                amountOutMinimum: exactIn ? minOut : q.amountOut,
+                amountOutMinimum: exactIn
+                    ? (q.v3Route.amountOut *
+                          BigInt(10000 - slippageBps.value)) /
+                      10000n
+                    : q.amountOut,
                 amountInMaximum: exactIn ? undefined : maxIn,
                 exactIn,
                 nativeIn: tokenIn.value === NATIVE,
@@ -2354,6 +2410,15 @@ onBeforeUnmount(() => {
                             fmt(lpFee, decIn, 8)
                         }}</span>
                         {{ symbolOf(tokenIn) }} ({{ feeNote }})
+                    </p>
+                    <p v-if="appFee">
+                        Cyberia fee:
+                        <span class="font-mono">{{
+                            fmt(appFee.amount, decOut, 8)
+                        }}</span>
+                        {{ symbolOf(tokenOut) }} ({{
+                            (appFee.bps / 100).toFixed(2)
+                        }}% of the output)
                     </p>
                     <p>Venue: {{ venueLabel }}</p>
                     <p v-if="mode === 'in'">
