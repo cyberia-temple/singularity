@@ -23,7 +23,7 @@ import {
     stockBySymbol,
 } from '@/lib/robinhoodStocks';
 import { logoForToken } from '@/lib/tokenLogos';
-import { pairPoolFor } from '@/lib/wallet/dexscreener';
+import { indexAskOrder, pairPoolFor } from '@/lib/wallet/dexscreener';
 import { dayPosition, formatStockUsd } from '@/lib/wallet/stocks';
 
 /**
@@ -411,4 +411,32 @@ test('with no pool holding both sides, the deepest one is offered and said to be
     assert.equal(chosen.exact, false);
 
     assert.equal(pairPoolFor([], nvda, cyber), null);
+});
+
+test('the index is asked from the side that can see the pair', () => {
+    const nvda = '0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC';
+    const usdg = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
+    const weth = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73';
+    const money = [usdg, weth];
+
+    /*
+     * The index answers at most thirty pools per token, deepest first, and the
+     * chain's dollar is the quote side of hundreds — so asking about USDG comes
+     * back thirty USDG/ETH pools with no NVDA in them. The same market is
+     * therefore visible from one side and invisible from the other, which is
+     * how reversing a pair on screen used to lose its chart.
+     */
+    assert.deepEqual(indexAskOrder(usdg, nvda, money), [nvda, usdg]);
+    // Already the right way round: the order is left alone.
+    assert.deepEqual(indexAskOrder(nvda, usdg, money), [nvda, usdg]);
+
+    // Money on both sides has no better side; the base leads and the other is
+    // still tried, so nothing depends on which it picked.
+    assert.deepEqual(indexAskOrder(usdg, weth, money), [usdg, weth]);
+
+    // Case is not identity: the registry checksums, the page lowercases.
+    assert.deepEqual(indexAskOrder(usdg.toLowerCase(), nvda, money), [
+        nvda,
+        usdg.toLowerCase(),
+    ]);
 });

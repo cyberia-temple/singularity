@@ -326,6 +326,32 @@ export const marketFor = (
 /* ------------------------------------------------------------------ chart -- */
 
 /**
+ * Which side of a pair to ask the index about, and in what order.
+ *
+ * The index answers at most thirty pools per token, deepest first, and a
+ * chain's dollar is the quote side of hundreds of them: asking about USDG on
+ * Robinhood Chain comes back thirty USDG/ETH pools with no NVDA anywhere in
+ * them. So the same market — NVDA/USDG — is found when asked about from one
+ * side and invisible from the other, which is why reversing a pair on screen
+ * used to lose its chart.
+ *
+ * The side that is *not* the money goes first, because that is the token whose
+ * pool list is short enough to contain the answer. The other side is the
+ * fallback, for a pair that is money on both sides and for a token the index
+ * happens not to carry.
+ */
+export const indexAskOrder = (
+    base: string,
+    quote: string,
+    money: readonly string[],
+): [string, string] => {
+    const isMoney = (token: string): boolean =>
+        money.some((candidate) => sameMint(candidate, token));
+
+    return isMoney(base) && !isMoney(quote) ? [quote, base] : [base, quote];
+};
+
+/**
  * The pool to chart for one *pair*, out of everything the index carries.
  *
  * Pure, and separate from `summariseMarkets`, because the two answer different

@@ -80,6 +80,7 @@ import {
     dexScreenerChartUrl,
     fetchDexPairs,
     fetchDexPairsFor,
+    indexAskOrder,
     pairPoolFor,
 } from '@/lib/wallet/dexscreener';
 
@@ -1520,13 +1521,37 @@ watch(
             return;
         }
 
-        const pairs = await fetchDexPairs(chain, sides.base);
+        /*
+         * Asked from the side that can see the answer, and from the other only
+         * if it could not. A pool holding both tokens ends the search; anything
+         * less is kept as a fallback and says so on screen.
+         */
+        const order = indexAskOrder(sides.base, sides.quote, [
+            activeChain.value.dollar ?? '',
+            activeChain.value.wrappedNative,
+        ]);
 
-        // A slower answer for a pair nobody is looking at any more must not
-        // land on top of the one on screen.
-        if (seq === dexSeq) {
-            dexPool.value = pairPoolFor(pairs, sides.base, sides.quote);
+        let found: ReturnType<typeof pairPoolFor> = null;
+
+        for (const token of order) {
+            const pairs = await fetchDexPairs(chain, token);
+            const chosen = pairPoolFor(pairs, sides.base, sides.quote);
+
+            // A newer pair is on screen; this answer is about a page that no
+            // longer exists.
+            if (seq !== dexSeq) {
+                return;
+            }
+
+            if (chosen?.exact) {
+                found = chosen;
+                break;
+            }
+
+            found ??= chosen;
         }
+
+        dexPool.value = found;
     },
     { immediate: true },
 );
