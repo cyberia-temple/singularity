@@ -23,9 +23,19 @@
     --cw-border: #2a3038;
     --cw-border-soft: #23282e;
     --cw-border-hover: #46505a;
-    --cw-fainter: #3a424a;
-    --cw-faint: #4a525a;
-    --cw-dim: #5a636c;
+    /*
+     * Four levels of quiet ink, and the line between them is not taste: the
+     * top three are *text* and carry WCAG's 4.5:1 against every ground this
+     * theme paints (surface, panel, well), while `fainter` is the one that
+     * does not and is therefore never allowed to be text — it draws disabled
+     * controls and rules, which is what it measured 1.92:1 as. There is no
+     * room for a fourth passing grey above near-black; what separates dim from
+     * faint here is a few points of lightness, and the rest of the hierarchy
+     * is carried by size and weight rather than by a colour nobody can read.
+     */
+    --cw-fainter: #626a72;
+    --cw-faint: #767f89;
+    --cw-dim: #7f8892;
     --cw-muted: #8a949e;
     --cw-body: #d6dde4;
     --cw-text: #e8edf2;
@@ -160,16 +170,25 @@
     --cw-border: #c2c1b7;
     --cw-border-soft: #cfcec5;
     --cw-border-hover: #93928a;
-    --cw-fainter: #a8a79d;
-    --cw-faint: #8b9299;
-    --cw-dim: #7a8188;
+    --cw-fainter: #868d95;
+    --cw-faint: #676e76;
+    --cw-dim: #61686f;
     --cw-muted: #5c636a;
     --cw-body: #2c3238;
     --cw-text: #14181d;
     --cw-bright: #05070a;
 
-    --cw-accent: #0b9b93;
-    --cw-accent-hover: #0fb5ac;
+    /*
+     * The accent is a *ground* here as often as it is ink — the primary button
+     * paints it and writes `--cw-accent-ink` on top — so it is picked against
+     * that pairing first. #0b9b93 was picked for its hue and read 3.34:1 under
+     * white text, which is a button label nobody with low vision can finish;
+     * #0b7a74 is the same hue two steps down and carries 5.04:1 there, 5.18:1
+     * as ink on white and 4.63:1 on the panel. The dark theme never had this
+     * problem because it writes dark ink on a bright accent.
+     */
+    --cw-accent: #0b7a74;
+    --cw-accent-hover: #0d918a;
     --cw-accent-ink: #f0fffd;
     --cw-meta: #5a46d6;
 
@@ -180,7 +199,7 @@
      * of against black. They still keep clear of the amber/green/red family
      * that transaction status owns.
      */
-    --cw-net-cyberia: #0b9b93;
+    --cw-net-cyberia: #0b7a74;
     --cw-net-robinhood: #b0129a;
     --cw-net-bnb: #8a6a00;
     --cw-net-base: #1d5fd1;
@@ -214,8 +233,8 @@
 
     --cw-grid: rgba(0, 0, 0, 0.036);
     --cw-raster-ink: rgba(0, 0, 0, 0.1);
-    --cw-scan-ink: rgba(11, 155, 147, 0.06);
-    --cw-accent-tint: rgba(11, 155, 147, 0.08);
+    --cw-scan-ink: rgba(11, 122, 116, 0.06);
+    --cw-accent-tint: rgba(11, 122, 116, 0.08);
 
     --cw-bad-line: rgba(206, 35, 49, 0.3);
     --cw-bad-line-strong: rgba(206, 35, 49, 0.45);
@@ -378,12 +397,6 @@
     .cw-masthead-tag {
         display: none;
     }
-}
-
-/* Onboarding copy, and it keeps a paragraph's measure rather than the frame's. */
-.cw-intro {
-    margin-top: 16px;
-    max-width: 80ch;
 }
 
 html[data-native-shell='desktop'] .cw-masthead {
@@ -590,10 +603,22 @@ html:has(.cw-frame) {
     background: var(--cw-app);
 }
 
+/*
+ * One row, always.
+ *
+ * It used to wrap, and wrapping is the one thing a flex row does *instead* of
+ * shrinking: items are packed onto a line at their natural width and the
+ * overflow drops to a second line, so a 393px phone paid fifty-four pixels of
+ * height above the fold on every screen to put one control on a row of its
+ * own. Nothing here needs its full width — an account has a name its owner
+ * chose and a network's is one of a list a tap away — so both chips ellipsis
+ * instead, and the price, which is the only genuinely optional thing on the
+ * bar, leaves first.
+ */
 .cw-context-bar {
     display: flex;
     min-height: 54px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
     padding: 6px 14px;
@@ -601,16 +626,29 @@ html:has(.cw-frame) {
 
 /* The rate the balances below are quoted at, never the whole sentence. */
 .cw-context-rate {
+    flex: none;
     font: 400 11px/1 var(--cw-mono);
     color: var(--cw-dim);
     white-space: nowrap;
 }
 
+/*
+ * Below this the row is chips and controls only. The rate is the one thing
+ * here that is repeated elsewhere — the network screen prints it under the
+ * balance it belongs to — so it is what a narrow row gives up.
+ */
+@media (max-width: 560px) {
+    .cw-context-rate {
+        display: none;
+    }
+}
+
 .cw-chip {
     display: flex;
-    min-width: 0;
+    min-width: 3.5rem;
     min-height: 42px;
     max-width: 260px;
+    flex: 1 1 auto;
     align-items: center;
     gap: 9px;
     padding: 0 10px;
@@ -629,9 +667,21 @@ html:has(.cw-frame) {
     border-color: var(--cw-accent);
 }
 
-/* A network is a mark and a ticker; it needs none of the account's width. */
+/*
+ * The network chip carries a name now, so it needs a share of the row rather
+ * than the two letters' worth it used to take. It still shrinks before the
+ * account chip does — an account has been given a name by its owner, and a
+ * network's is one of a list on screen a tap away.
+ */
 .cw-chip-tight {
-    flex: none;
+    flex: 0 1 auto;
+    /*
+     * The network name is what this chip exists to print, so it is the last
+     * thing on the bar to give up room: the account beside it ellipsises
+     * first, because that name was chosen by its owner and is repeated in the
+     * panel this chip opens.
+     */
+    min-width: 7rem;
 }
 
 .cw-chip-mark {
@@ -666,8 +716,11 @@ html:has(.cw-frame) {
 }
 
 .cw-chip-net {
-    font: 500 11px/1 var(--cw-mono);
+    overflow: hidden;
+    font: 500 11px/1.2 var(--cw-mono);
     color: var(--cw-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cw-chip-chev {
@@ -836,6 +889,19 @@ html:has(.cw-frame) {
     .cw-body {
         padding: 32px;
     }
+    /*
+     * A measure, not a stretch. Without this the screens are exactly as wide
+     * as the window: on 1440 the row of actions came out 351px per button and
+     * the card that opens Markets 1071px wide under a 10px caption — a phone
+     * layout with the air let out of it. The frame keeps its 1400px so the
+     * rail and the composer column still get their room; what is capped is the
+     * one column a person reads down.
+     */
+    .cw-body > * {
+        width: 100%;
+        max-width: 820px;
+        margin-inline: auto;
+    }
     .cw-tabs {
         display: none;
     }
@@ -995,11 +1061,33 @@ html:has(.cw-frame) {
 
 /* --------------------------------------------------------------- typo --- */
 
+/*
+ * The eyebrow over a block: mono, tracked, upper case — and 11px rather than
+ * 10, because two thirds of the visible characters on the portfolio were 11px
+ * or smaller and the caps here are as often Russian as English. Cyrillic caps
+ * with 0.2em of tracking lose more to the treatment than Latin does, and this
+ * is the one that names things.
+ */
 .cw-label {
-    font: 400 10px/1 var(--cw-mono);
-    letter-spacing: 0.2em;
+    font: 400 11px/1.1 var(--cw-mono);
+    letter-spacing: 0.16em;
     color: var(--cw-dim);
     text-transform: uppercase;
+}
+
+/*
+ * A sentence *under* a label, and therefore never a label itself.
+ *
+ * The tiles and the rows that open a screen used to carry their explanation as
+ * a 9px tracked capital `cw-label` — which is a whole sentence set as an
+ * eyebrow, unreadable at that size and doubly so in Russian. This is the same
+ * ink one level quieter, in the sans face the rest of the prose uses, at a size
+ * meant for reading.
+ */
+.cw-hint {
+    display: block;
+    font: 400 12px/1.35 var(--cw-sans);
+    color: var(--cw-dim);
 }
 
 .cw-data {
@@ -1148,28 +1236,20 @@ html:has(.cw-frame) {
 }
 
 /*
- * The light/dark switch on the context bar. Square and quiet on purpose: it
- * sits beside the account and the network, which are the two things on this bar
- * anyone came to read, and a third control competing with them would make the
- * bar a toolbar. 34px rather than the 44px of `.cw-icon-btn` because the bar is
- * 46px tall and an icon button the height of its own bar reads as a tab.
+ * The two controls at the far end of the context bar — re-read the chains, and
+ * open Preferences. Borderless because they sit beside the account and the
+ * network chips, which are the two things on this bar anyone came to read: a
+ * third and fourth framed control would make the bar a toolbar. The target is
+ * still 40px square, which is what a thumb needs.
  */
-.cw-context-theme {
-    display: flex;
-    height: 34px;
-    width: 34px;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--cw-border-soft);
-    border-radius: 3px;
-    background: none;
-    color: var(--cw-muted);
-    cursor: pointer;
+.cw-icon-btn-bare {
+    height: 40px;
+    width: 40px;
+    border-color: transparent;
 }
 
-.cw-context-theme:hover {
-    border-color: var(--cw-accent);
+.cw-icon-btn-bare:hover {
+    border-color: var(--cw-border-soft);
     color: var(--cw-accent);
 }
 
@@ -1469,6 +1549,56 @@ html:has(.cw-frame) {
     background: var(--cw-raised);
     color: var(--cw-text);
     font-weight: 500;
+}
+
+/*
+ * The rail names two kinds of destination and used to run them together as one
+ * flat list of twenty — which is how it ended up looking like a second, longer
+ * navigation than the tab bar's seven rather than the same one with its inner
+ * screens shown. The headings say which is which: the tabs a phone also has,
+ * and the places that live inside the wallet tab.
+ */
+.cw-rail-group {
+    padding: 18px 12px 8px;
+}
+
+.cw-rail-group:first-child {
+    padding-top: 0;
+}
+
+/*
+ * Named for a screen reader and for the browser's own furniture — the tab
+ * title, the history entry, the bookmark — without drawing a second heading
+ * over a screen that already says what it is.
+ */
+.cw-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/*
+ * An address is compared the way a card number is: in fours, by eye, against
+ * something on paper or on another screen. As one 42-character run it wraps
+ * wherever the box ends and a person loses their place on the second line.
+ * The copy button beside it is still the way to move the whole string.
+ */
+.cw-addr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    font: 400 12px/1.7 var(--cw-mono);
+    color: var(--cw-text);
+}
+
+.cw-addr > span {
+    white-space: nowrap;
 }
 
 /*
@@ -2094,4 +2224,67 @@ html:has(.cw-frame) {
     border-style: dashed;
     border-color: var(--cw-accent);
     background: var(--cw-accent-tint);
+}
+
+/* ------------------------------------------------------- narrow screens --- */
+
+/*
+ * Last in the file on purpose. These override rules that are declared further
+ * down than the sections they belong to — a media query of equal specificity
+ * placed *above* its target loses to it, which is how the tile grid went on
+ * being three columns wide on a 320px screen after being told not to be.
+ */
+
+/* A phone gives the two names on the bar what the two controls can spare. */
+@media (max-width: 420px) {
+    .cw-context-bar {
+        gap: 4px;
+        padding: 6px 10px;
+    }
+
+    .cw-icon-btn-bare {
+        width: 36px;
+    }
+
+    /*
+     * On the narrowest screens the two names cannot both survive, and the one
+     * that stays whole is the network: it is the control that decides where
+     * money goes, and the account beside it is already drawn as its own
+     * coloured mark and named in full in the panel one tap away.
+     *
+     * Order matters — the tight chip carries both classes, so the general one
+     * has to be stated first or it wins on source order and takes the floor
+     * back off the network name.
+     */
+    .cw-chip {
+        min-width: 4.5rem;
+    }
+
+    .cw-chip-tight {
+        min-width: 7rem;
+    }
+
+    /*
+     * The account's square is the same accent square on every account — it
+     * carries no information the chevron and the name do not — and it costs
+     * twenty-five pixels the name has nowhere else to get.
+     */
+    .cw-chip-mark {
+        display: none;
+    }
+}
+
+/*
+ * Under ~360px three tiles leave sixty pixels of usable label each and every
+ * caption breaks onto four lines of differing height — a grid that reads as
+ * rubble. Two columns is the same information in rows that line up.
+ */
+@media (max-width: 359px) {
+    .cw-tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cw-body {
+        padding: 16px 12px;
+    }
 }

@@ -51,7 +51,7 @@ const color = computed(() => COLORS[props.status]);
         />
         <span
             :style="{
-                font: `400 ${bare ? '9px' : '10px'}/1 var(--cw-mono)`,
+                font: `400 ${bare ? '10px' : '11px'}/1 var(--cw-mono)`,
                 letterSpacing: '0.12em',
                 color,
                 textTransform: 'uppercase',

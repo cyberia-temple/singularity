@@ -3,6 +3,7 @@ import { EVM_CHAINS } from '@/lib/evmChains';
 import {
     EVM_CONTRACT_SEND_GAS_CAP,
     WALLET_FEE_TIERS,
+    evmFeeBasis,
     nativeSendGas,
     utxoChain,
 } from '@/lib/wallet/chains';
@@ -179,6 +180,7 @@ const customEvmChain = (network: CustomEvmNetwork): WalletChain => {
         signMessage: (source, message) =>
             evmSigner(source).signMessage(message),
         isValidAddress: (address) => isAddress(address),
+        addressHint: '0x…',
         explorerAddressUrl: (address) =>
             network.explorer ? `${network.explorer}/address/${address}` : null,
         explorerTxUrl: (hash) =>
@@ -211,10 +213,7 @@ const customEvmChain = (network: CustomEvmNetwork): WalletChain => {
                 WALLET_FEE_TIERS.map(async (tier) => ({
                     tier,
                     fee: (await gasPrice(tier)) * gas,
-                    basis: `network price × ${
-                        Number(EVM_TIER_MULTIPLIER[tier][0]) /
-                        Number(EVM_TIER_MULTIPLIER[tier][1])
-                    }${token || toContract ? ` × ${gas} gas` : ''}`,
+                    basis: evmFeeBasis(tier, token || toContract ? gas : null),
                 })),
             );
         },

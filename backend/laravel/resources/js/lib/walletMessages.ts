@@ -12,14 +12,13 @@ export const walletMessages: Messages = {
         // Chrome
         wallet: 'Wallet',
         eyebrow: 'One seed, every chain',
-        intro: 'One seed phrase derives your accounts on Cyberia and every EVM network, on Solana, on Monero and in the Bitcoin family. The phrase is generated in your browser, encrypted with your password and stored on this device only — it never reaches Cyberia servers.',
         subtitle: 'NON-CUSTODIAL · EVM · SOL · XMR · BTC · LTC · +CUSTOM',
         back: 'Back',
         cancel: 'Cancel',
         continueLabel: 'Continue',
         retry: 'Retry',
         markets: 'Markets',
-        tileMarketsHint: 'CHARTS · EXCHANGE BOOKS AND OUR OWN POOLS',
+        tileMarketsHint: 'Charts · exchange books and our own pools',
         marketsCount: '{count} markets · your networks and tokens',
         marketsSearch: 'find a market — BTC, CYBER, or a contract…',
         marketsNone: 'Nothing here matches that.',
@@ -35,6 +34,17 @@ export const walletMessages: Messages = {
         marketOpenOnTv: 'Open on TradingView ↗',
         marketTrade: 'Trade {symbol}',
         refresh: 'Refresh',
+        /*
+         * The rail's two kinds of destination, named so it reads as the tab
+         * bar with its inner screens opened rather than as a second, longer
+         * navigation for the same app.
+         */
+        railInWallet: 'In the wallet',
+        railSections: 'Sections',
+        /** Everything on the portfolio that is a way *out* of the portfolio. */
+        moreTitle: 'Elsewhere in the wallet',
+        showDetails: 'Details',
+        hideDetails: 'Hide details',
         // The three-way choice, as the whole choice: these label the buttons
         // of a segmented control that is already titled "Theme", so they name
         // only the option and never repeat the word.
@@ -126,8 +136,41 @@ export const walletMessages: Messages = {
         seedWarn:
             'Never keep the phrase in notes, photos or chats. A screenshot is a copy that someone else can find.',
         wroteItDown: 'I wrote it down',
+        /*
+         * Declining the backup and declining the password.
+         *
+         * Both are the owner's call and neither is softened. A flow that will
+         * not continue without the ritual teaches people to screenshot twelve
+         * words to get past a form, and a password field that cannot be
+         * skipped mostly produces `qwerty12` — so the wallet says what each
+         * one costs and then does what it was told.
+         */
+        skipBackup: 'I will write it down later',
+        skipPassword: 'Continue without a password',
+        skipPasswordNote:
+            'The phrase is then kept in the clear on this device, and anyone who can use this browser can spend from this wallet. You can add a password later in Security.',
+        skippedBackupNote:
+            'You skipped the backup check. If this device is lost or its storage is cleared, the phrase is the only way back — copy it out from Security as soon as you can.',
+        notBackedUp:
+            'This phrase has never been written down. Show it below and keep it somewhere off this device: nobody, here or anywhere else, can restore a wallet without it.',
+        noPasswordTitle: 'No password on this wallet',
+        noPasswordBody:
+            'The phrase and the accounts are stored in the clear on this device. That is what was chosen, and it is a real choice — but anyone who can open this browser can spend from here. A password encrypts everything at rest and changes nothing else.',
+        addPassword: 'Add a password',
+        addingPassword: 'Encrypting…',
         words12: '12 words',
         words24: '24 words',
+        /*
+         * The same two facts as `notBackedUp` and `noPasswordTitle`, said in
+         * one line on the portfolio. They are the only states in this wallet
+         * you cannot come back from, and they used to live two taps away
+         * behind a tile among eleven others — which is where a thing goes when
+         * nobody is meant to find it.
+         */
+        safetyTitle: 'This wallet can still be lost',
+        safetyBackup: 'The phrase has never been written down.',
+        safetyPassword: 'There is no password on this device.',
+        safetyAction: 'Open Security',
 
         // Backup confirmation
         confirmBackupTitle: 'Confirm your backup',
@@ -179,6 +222,13 @@ export const walletMessages: Messages = {
         priceSource: 'Prices: DexScreener · CoinGecko',
         pricePartial: 'Partial',
         priceMissing: '{count} of {total} networks unpriced',
+        /*
+         * Nothing priced at all is one fact about the connection, not eight
+         * facts about eight networks — and stamping "no price" on every row
+         * says the second when the first is what happened.
+         */
+        priceOffline:
+            'No prices could be read just now. Balances are live; their value is not.',
         networks: 'Networks',
         derivedCount: '{count} derived',
         emptyTitle: 'No balances yet',
@@ -316,6 +366,14 @@ export const walletMessages: Messages = {
             'This network has no public index a browser can read without an API key, so tokens cannot be listed automatically. Add a contract below and it is read straight from the chain.',
         tokensUnavailable:
             'Tokens could not be listed: {reason}. Anything you added by hand is still shown.',
+        /*
+         * What a failed read *means*, in place of the HTTP status that used to
+         * be dropped into the middle of a translated sentence. The status
+         * itself is still printed after it, small, because it is what an
+         * operator reads off a screenshot.
+         */
+        readRateLimited: 'the explorer is limiting requests from this browser',
+        readUnavailable: 'the explorer did not answer',
         addToken: 'Add token',
         tokenContract: 'Token contract address',
         hideToken: 'Hide',
@@ -703,6 +761,17 @@ export const walletMessages: Messages = {
         feeSlow: 'Slow',
         feeNormal: 'Normal',
         feeFast: 'Fast',
+        /*
+         * What a tier does to the live price, translated rather than spelled
+         * out in English under a Russian screen. It is the one line on the
+         * send form that used to say "network price × 1.25" whatever the
+         * interface language was.
+         */
+        feeBasisEvm: 'network price × {mult}',
+        feeBasisEvmGas: 'network price × {mult} · {gas} gas',
+        feeBasisUtxo: '{rate} sat/vB × {vsize} vB',
+        feeBasisSignature: 'signature only',
+        feeBasisPriority: '+{price} µlamports/CU',
         feeLoading: 'Reading the network…',
         feeUnavailable:
             'The network fee could not be read, so nothing can be signed yet.',
@@ -822,6 +891,9 @@ export const walletMessages: Messages = {
         vaultSection: 'Vault',
         backupSeed: 'Back up seed phrase',
         backupSeedHint: 'requires your password · never shown on the portfolio',
+        // The same row on a wallet that has no password to require.
+        backupSeedHintOpen:
+            'no password on this wallet · never shown on the portfolio',
         showPhrase: 'Show phrase',
         autoLockHint: 'locks after inactivity',
         clipboardRow: 'Clear clipboard after copy',
@@ -840,6 +912,15 @@ export const walletMessages: Messages = {
         analyticsBlocked: 'Off — your browser asks sites not to track you',
         networksSection: 'Networks',
         vettedEndpoints: 'Endpoints we checked',
+        /*
+         * Where each account's key comes from. It belongs here, beside the
+         * phrase and the accounts, because it answers "can I restore this
+         * somewhere else" — and it belonged nowhere near the subtitle of the
+         * network screen, which is the most looked-at line on it.
+         */
+        derivationSection: 'Derivation',
+        derivationHint:
+            'The path and curve behind each account, for restoring this vault in another wallet.',
         verified: 'Verified',
         removeNetwork: 'Remove',
         removeNetworkHint:
@@ -920,6 +1001,19 @@ export const walletMessages: Messages = {
         chatNoAccount:
             'This account is watch-only. It has no key, so it can neither read nor write messages — the same reason it cannot spend.',
         chatOpenTitle: 'Open encrypted chat',
+        /*
+         * The whole of `chatOpenBody` and `chatMetadataNote` is worth keeping
+         * and none of it is worth putting between a person and the one button
+         * on this screen — ninety words before a single action is a screen
+         * people scroll rather than read, and the forward-secrecy warning went
+         * past with the rest of it. So the lead states what is being signed,
+         * the warning stays visible in one line, and the full text is one tap
+         * away instead of unavoidable.
+         */
+        chatOpenLead:
+            'Two signatures, once. Neither moves funds, approves a transaction or grants an allowance.',
+        chatMetadataShort:
+            'The relay sees who is talking and when, and there is no forward secrecy.',
         chatOpenBody:
             'Two signatures, once: one publishes a messaging key others use to encrypt to you, the other proves this address so the relay hands over your mail. Both move no funds, approve no transaction and grant no allowance. The messaging key is derived from this account and is not the key that signs your transactions.',
         chatOpen: 'Hold to open',
@@ -1498,14 +1592,13 @@ export const walletMessages: Messages = {
         // Chrome
         wallet: 'Кошелёк',
         eyebrow: 'Одна сид-фраза, все сети',
-        intro: 'Одна сид-фраза даёт счета в Cyberia и любой EVM-сети, в Solana, в Monero и в семействе Bitcoin. Фраза создаётся в браузере, шифруется вашим паролем и хранится только на этом устройстве — на серверы Cyberia она не попадает.',
         subtitle: 'НЕКАСТОДИАЛЬНЫЙ · EVM · SOL · XMR · BTC · LTC · +СВОИ',
         back: 'Назад',
         cancel: 'Отмена',
         continueLabel: 'Дальше',
         retry: 'Повторить',
         markets: 'Рынки',
-        tileMarketsHint: 'ГРАФИКИ · БИРЖЕВЫЕ СТАКАНЫ И НАШИ ПУЛЫ',
+        tileMarketsHint: 'Графики · биржевые стаканы и наши пулы',
         marketsCount: '{count} рынков · ваши сети и токены',
         marketsSearch: 'найти рынок — BTC, CYBER или контракт…',
         marketsNone: 'Ничего не нашлось.',
@@ -1522,6 +1615,11 @@ export const walletMessages: Messages = {
         marketOpenOnTv: 'Открыть в TradingView ↗',
         marketTrade: 'Обменять {symbol}',
         refresh: 'Обновить',
+        railInWallet: 'В кошельке',
+        railSections: 'Разделы',
+        moreTitle: 'Другие места кошелька',
+        showDetails: 'Подробнее',
+        hideDetails: 'Свернуть',
         themeSystemShort: 'Как в системе',
         themeDarkShort: 'Тёмная',
         themeLightShort: 'Светлая',
@@ -1609,8 +1707,27 @@ export const walletMessages: Messages = {
         seedWarn:
             'Не храните фразу в заметках, фотографиях и переписках. Скриншот — это копия, которую найдёт кто-то другой.',
         wroteItDown: 'Записал',
+        // Отказ от записи фразы и отказ от пароля. И то и другое — решение
+        // владельца; текст называет цену и не смягчает её.
+        skipBackup: 'Запишу позже',
+        skipPassword: 'Продолжить без пароля',
+        skipPasswordNote:
+            'Тогда фраза хранится на этом устройстве в открытом виде, и потратить средства сможет любой, у кого есть доступ к этому браузеру. Пароль можно добавить позже в «Безопасности».',
+        skippedBackupNote:
+            'Вы пропустили проверку записи. Если устройство потеряется или его хранилище очистят, вернуть кошелёк можно будет только фразой — выпишите её из «Безопасности» при первой возможности.',
+        notBackedUp:
+            'Эта фраза ни разу не была записана. Покажите её ниже и сохраните вне этого устройства: без неё восстановить кошелёк не сможем ни мы, ни кто-либо ещё.',
+        noPasswordTitle: 'На кошельке нет пароля',
+        noPasswordBody:
+            'Фраза и счета хранятся на этом устройстве в открытом виде. Это осознанный выбор, но потратить средства сможет любой, кто откроет этот браузер. Пароль шифрует всё на диске и больше ничего не меняет.',
+        addPassword: 'Поставить пароль',
+        addingPassword: 'Шифруем…',
         words12: '12 слов',
         words24: '24 слова',
+        safetyTitle: 'Этот кошелёк ещё можно потерять',
+        safetyBackup: 'Фраза ни разу не была записана.',
+        safetyPassword: 'На этом устройстве нет пароля.',
+        safetyAction: 'Открыть «Безопасность»',
 
         // Backup confirmation
         confirmBackupTitle: 'Подтвердите копию',
@@ -1663,6 +1780,8 @@ export const walletMessages: Messages = {
         priceSource: 'Цены: DexScreener · CoinGecko',
         pricePartial: 'Частично',
         priceMissing: 'без цены сетей: {count} из {total}',
+        priceOffline:
+            'Цены сейчас прочитать не удалось. Остатки настоящие, их стоимость — нет.',
         networks: 'Сети',
         derivedCount: 'выведено: {count}',
         emptyTitle: 'Балансов пока нет',
@@ -1798,6 +1917,8 @@ export const walletMessages: Messages = {
             'У этой сети нет публичного индекса, который браузер прочитает без API-ключа, поэтому список токенов не собрать автоматически. Добавьте контракт ниже — он читается прямо из сети.',
         tokensUnavailable:
             'Список токенов получить не удалось: {reason}. Добавленные вручную по-прежнему показаны.',
+        readRateLimited: 'обозреватель ограничивает запросы из этого браузера',
+        readUnavailable: 'обозреватель не ответил',
         addToken: 'Добавить токен',
         tokenContract: 'Адрес контракта токена',
         hideToken: 'Скрыть',
@@ -2169,6 +2290,11 @@ export const walletMessages: Messages = {
         feeSlow: 'Медленно',
         feeNormal: 'Обычно',
         feeFast: 'Быстро',
+        feeBasisEvm: 'цена сети × {mult}',
+        feeBasisEvmGas: 'цена сети × {mult} · газа {gas}',
+        feeBasisUtxo: '{rate} сат/вБ × {vsize} вБ',
+        feeBasisSignature: 'только подпись',
+        feeBasisPriority: '+{price} мкламп/CU',
         feeLoading: 'Читаем сеть…',
         feeUnavailable:
             'Комиссию сети прочитать не удалось, поэтому подписывать пока нечего.',
@@ -2288,6 +2414,8 @@ export const walletMessages: Messages = {
         vaultSection: 'Хранилище',
         backupSeed: 'Резервная копия сид-фразы',
         backupSeedHint: 'нужен пароль · в портфеле фраза не показывается',
+        backupSeedHintOpen:
+            'пароля на кошельке нет · в портфеле фраза не показывается',
         showPhrase: 'Показать фразу',
         autoLockHint: 'блокируется после простоя',
         clipboardRow: 'Очищать буфер после копирования',
@@ -2306,6 +2434,9 @@ export const walletMessages: Messages = {
         analyticsBlocked: 'Выключено — браузер просит сайты не отслеживать вас',
         networksSection: 'Сети',
         vettedEndpoints: 'Эндпоинты, которые мы проверили',
+        derivationSection: 'Деривация',
+        derivationHint:
+            'Путь и кривая каждого счёта — чтобы восстановить это хранилище в другом кошельке.',
         verified: 'Проверено',
         removeNetwork: 'Убрать',
         removeNetworkHint:
@@ -2385,6 +2516,10 @@ export const walletMessages: Messages = {
         chatNoAccount:
             'Этот счёт — только наблюдение. У него нет ключа, поэтому он не может ни читать, ни писать — по той же причине, по которой не может тратить.',
         chatOpenTitle: 'Открыть зашифрованный чат',
+        chatOpenLead:
+            'Две подписи, один раз. Ни одна не двигает средства, не подтверждает транзакцию и не выдаёт разрешений.',
+        chatMetadataShort:
+            'Узел видит, кто и когда переписывается, а прямой секретности здесь нет.',
         chatOpenBody:
             'Две подписи, один раз: первая публикует ключ, которым вам будут шифровать, вторая доказывает адрес, чтобы узел отдал вашу почту. Обе не двигают средства, не подтверждают транзакции и не выдают разрешений. Ключ для переписки выведен из этого счёта и не является ключом, которым подписываются ваши транзакции.',
         chatOpen: 'Удерживайте, чтобы открыть',
@@ -2950,7 +3085,6 @@ export const walletMessages: Messages = {
         // Chrome
         wallet: '钱包',
         eyebrow: '一组助记词，所有链',
-        intro: '一组助记词派生出你在 Cyberia 和所有 EVM 网络、Solana、Monero 以及比特币系上的账户。助记词在你的浏览器里生成，用你的密码加密，只保存在这台设备上 — 它从不会到达 Cyberia 的服务器。',
         subtitle: '非托管 · EVM · SOL · XMR · BTC · LTC · +自定义',
         back: '返回',
         cancel: '取消',
@@ -2972,6 +3106,11 @@ export const walletMessages: Messages = {
         marketOpenOnTv: '在 TradingView 打开 ↗',
         marketTrade: '交易 {symbol}',
         refresh: '刷新',
+        railInWallet: '钱包内',
+        railSections: '版块',
+        moreTitle: '钱包里的其他地方',
+        showDetails: '详情',
+        hideDetails: '收起',
         themeSystemShort: '跟随系统',
         themeDarkShort: '深色',
         themeLightShort: '浅色',
@@ -3055,8 +3194,26 @@ export const walletMessages: Messages = {
         seedWarn:
             '绝不要把助记词留在备忘录、相册或聊天里。截图就是一份别人能找到的副本。',
         wroteItDown: '我已经抄下来了',
+        // 拒绝抄写助记词与拒绝设置密码：都由持有者决定，文案只说代价，不加粉饰。
+        skipBackup: '稍后再抄',
+        skipPassword: '不设密码继续',
+        skipPasswordNote:
+            '这样助记词会以明文保存在本设备上，任何能使用这个浏览器的人都能动用这个钱包。之后可以在「安全」里补上密码。',
+        skippedBackupNote:
+            '你跳过了抄写校验。设备丢失或存储被清空后，助记词是唯一的退路——请尽快在「安全」里把它抄出来。',
+        notBackedUp:
+            '这段助记词从未被抄写过。请在下面显示它并保存在本设备之外：没有它，我们和任何人都无法恢复这个钱包。',
+        noPasswordTitle: '此钱包没有密码',
+        noPasswordBody:
+            '助记词和账户以明文保存在本设备上。这是你做出的选择，但任何能打开这个浏览器的人都能从这里花钱。密码只会把静态数据加密，别的什么都不改变。',
+        addPassword: '设置密码',
+        addingPassword: '正在加密…',
         words12: '12 个词',
         words24: '24 个词',
+        safetyTitle: '这个钱包仍然可能丢失',
+        safetyBackup: '助记词从未被抄写过。',
+        safetyPassword: '这台设备上没有密码。',
+        safetyAction: '打开「安全」',
 
         // Backup confirmation
         confirmBackupTitle: '确认你的备份',
@@ -3107,6 +3264,7 @@ export const walletMessages: Messages = {
         priceSource: '价格：DexScreener · CoinGecko',
         pricePartial: '不完整',
         priceMissing: '{total} 个网络中有 {count} 个没有价格',
+        priceOffline: '现在读不到价格。余额是实时的，它们的价值不是。',
         networks: '网络',
         derivedCount: '已派生 {count} 个',
         emptyTitle: '还没有余额',
@@ -3239,6 +3397,8 @@ export const walletMessages: Messages = {
             '这个网络没有浏览器不带 API 密钥就能读的公开索引，所以代币没法自动列出来。在下面添加合约地址，它会直接从链上读。',
         tokensUnavailable:
             '代币列不出来：{reason}。你手动添加的仍然显示在这里。',
+        readRateLimited: '区块浏览器在限制这个浏览器的请求',
+        readUnavailable: '区块浏览器没有回应',
         addToken: '添加代币',
         tokenContract: '代币合约地址',
         hideToken: '隐藏',
@@ -3591,6 +3751,11 @@ export const walletMessages: Messages = {
         feeSlow: '慢',
         feeNormal: '普通',
         feeFast: '快',
+        feeBasisEvm: '网络价格 × {mult}',
+        feeBasisEvmGas: '网络价格 × {mult} · {gas} gas',
+        feeBasisUtxo: '{rate} sat/vB × {vsize} vB',
+        feeBasisSignature: '只有签名费',
+        feeBasisPriority: '+{price} 微 lamports/CU',
         feeLoading: '正在读取网络…',
         feeUnavailable: '网络手续费读不出来，所以现在还不能签名。',
         youWillSign: '你将要签名的是',
@@ -3701,6 +3866,7 @@ export const walletMessages: Messages = {
         vaultSection: '保险库',
         backupSeed: '备份助记词',
         backupSeedHint: '需要你的密码 · 永远不会显示在资产页上',
+        backupSeedHintOpen: '此钱包没有密码 · 永远不会显示在资产页上',
         showPhrase: '显示助记词',
         autoLockHint: '闲置一段时间后锁定',
         clipboardRow: '复制后清空剪贴板',
@@ -3717,6 +3883,9 @@ export const walletMessages: Messages = {
         analyticsBlocked: '已关闭 — 你的浏览器要求网站不要追踪你',
         networksSection: '网络',
         vettedEndpoints: '我们核验过的端点',
+        derivationSection: '派生路径',
+        derivationHint:
+            '每个账户的路径和曲线，用来在别的钱包里恢复这个保险库。',
         verified: '已验证',
         removeNetwork: '移除',
         removeNetworkHint:
@@ -3795,6 +3964,9 @@ export const walletMessages: Messages = {
         chatNoAccount:
             '这个账户只能观察。它没有密钥，所以既读不了也写不了消息 — 和它不能花钱是同一个原因。',
         chatOpenTitle: '开通加密聊天',
+        chatOpenLead:
+            '两个签名，只此一次。两个都不转移资金、不批准交易、不授予额度。',
+        chatMetadataShort: '中继看得到谁在说话、什么时候说，而且没有前向保密。',
         chatOpenBody:
             '两个签名，只此一次：一个发布一把别人用来加密给你的消息密钥，另一个证明这个地址，好让中继把你的信件交出来。两个都不转移资金、不批准交易、不授予任何额度。消息密钥由这个账户派生，不是给你的交易签名的那把密钥。',
         chatOpen: '按住开通',

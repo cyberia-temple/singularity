@@ -203,26 +203,41 @@ const canReview = computed(
         gasShortfall.value === null,
 );
 
-const setMax = (): void => {
+/**
+ * What "Max" would actually put in the field, or null while it cannot be
+ * worked out yet.
+ *
+ * A token's whole balance is spendable: its fee is paid in the coin, not out
+ * of it. Only the coin has to keep enough back to pay for its own move — and
+ * on a balance of zero, or one smaller than its own fee, that leaves nothing.
+ * This is also what decides whether the button is pressable at all: it read
+ * `disabled: false` over a line saying "Balance 0 CYBER", which is a promise
+ * the screen has no way to keep.
+ */
+const maxSpendable = computed(() => {
     if (balance.value === null) {
-        return;
+        return null;
     }
 
-    // A token's whole balance is spendable: its fee is paid in the coin, not
-    // out of it. Only the coin has to keep enough back to pay for its own move.
     if (asset.value !== null) {
-        amount.value = formatUnits(balance.value, decimals.value, 12);
-
-        return;
+        return balance.value;
     }
 
     if (fee.value === null) {
+        return null;
+    }
+
+    const left = balance.value - fee.value;
+
+    return left > 0n ? left : 0n;
+});
+
+const setMax = (): void => {
+    if (maxSpendable.value === null || maxSpendable.value === 0n) {
         return;
     }
 
-    const spendable = balance.value - fee.value;
-    amount.value =
-        spendable > 0n ? formatUnits(spendable, decimals.value, 12) : '0';
+    amount.value = formatUnits(maxSpendable.value, decimals.value, 12);
 };
 
 const pasteTo = async (): Promise<void> => {
@@ -644,12 +659,21 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                     {{ t('recipient') }}
                 </div>
                 <div style="display: flex; gap: 8px">
+                    <!--
+                      The placeholder is the address *format* of this network,
+                      and it is load-bearing rather than decoration: the field
+                      arrived completely blank — a frame and a paste icon — and
+                      the chip above it named the ticker rather than the
+                      network, so nothing on the screen said which of six
+                      address shapes belonged in it.
+                    -->
                     <input
                         v-model="to"
                         class="cw-input"
                         type="text"
                         autocomplete="off"
                         spellcheck="false"
+                        :placeholder="chain.addressHint"
                         :aria-label="t('recipient')"
                         :aria-invalid="to.length > 0 && !addressValid"
                     />
@@ -716,17 +740,26 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                             "
                             >{{ symbol }}</span
                         >
+                        <!--
+                          The accent is bound rather than inlined so that a
+                          disabled Max actually looks disabled: an inline style
+                          beats `.cw-ghost:disabled`, which is how this stayed
+                          bright and inviting over a line reading "Balance 0".
+                        -->
                         <button
                             type="button"
                             class="cw-ghost"
-                            style="
-                                min-height: 32px;
-                                border-color: var(--cw-accent);
-                                color: var(--cw-accent);
+                            style="min-height: 32px"
+                            :style="
+                                maxSpendable
+                                    ? {
+                                          borderColor: 'var(--cw-accent)',
+                                          color: 'var(--cw-accent)',
+                                      }
+                                    : undefined
                             "
                             :disabled="
-                                balance === null ||
-                                (asset === null && fee === null)
+                                maxSpendable === null || maxSpendable === 0n
                             "
                             @click="setMax"
                         >
@@ -915,21 +948,26 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                                       : t('feeFast')
                             }}</span
                         >
+                        <!--
+                          A fee is a quantity of something. This printed the
+                          bare figure — `0.0000315` — under a tier name, with
+                          the unit nowhere on the card and the line below it in
+                          English whatever the interface language was.
+                        -->
                         <span
                             style="
-                                font: 400 10px/1.3 var(--cw-mono);
+                                font: 400 11px/1.3 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
-                            >{{
-                                formatUnits(quote.fee, account.decimals, 8)
-                            }}</span
+                            >{{ formatUnits(quote.fee, account.decimals, 8) }}
+                            {{ account.symbol }}</span
                         >
                         <span
                             style="
                                 font: 400 10px/1.3 var(--cw-mono);
-                                color: var(--cw-fainter);
+                                color: var(--cw-faint);
                             "
-                            >{{ quote.basis }}</span
+                            >{{ t(quote.basis.key, quote.basis.params) }}</span
                         >
                     </button>
                 </div>

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -132,6 +133,12 @@ class CrmContact extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(CrmMessage::class)->inOrder();
+    }
+
+    /** @return HasOne<CrmMessage, $this> */
+    public function latestMessage(): HasOne
+    {
+        return $this->hasOne(CrmMessage::class)->ofMany(['sent_at' => 'max', 'id' => 'max']);
     }
 
     public function isWhale(): bool

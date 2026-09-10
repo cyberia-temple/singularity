@@ -11,6 +11,7 @@ import {
 import { BrowserProvider as EthersBrowserProvider } from 'ethers';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import V3Liquidity from '@/components/dex/V3Liquidity.vue';
 import TokenIcon from '@/components/TokenIcon.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,6 +107,13 @@ const authUser = computed(
 );
 
 const tab = ref<'add' | 'remove'>('add');
+/**
+ * Which venue this screen is talking to. The two are not versions of each
+ * other — v2 pairs and v3 positions both hold real liquidity on this chain and
+ * neither is being retired — so this is a switch and not a migration notice.
+ * A chain with no v3 stack never draws it.
+ */
+const venue = ref<'v2' | 'v3'>('v2');
 const slippage = ref('0.5');
 const status = ref<string | null>(null);
 const error = ref<string | null>(null);
@@ -125,9 +133,8 @@ const activeChain = computed<LiquidityChainConfig>(() =>
  * wallet and liquidity added here group under the same name.
  */
 const walletAnalyticsChain = (): string | undefined =>
-    walletChains().find(
-        (chain) => chain.chainId === activeChain.value.chainId,
-    )?.id;
+    walletChains().find((chain) => chain.chainId === activeChain.value.chainId)
+        ?.id;
 
 const makeReadProvider = (cfg: LiquidityChainConfig): JsonRpcProvider =>
     new JsonRpcProvider(cfg.readRpcUrl, {
@@ -822,6 +829,11 @@ const switchChain = (chainId: number): void => {
 
     activeChainId.value = chainId;
     readProvider = makeReadProvider(activeChain.value);
+
+    if (!activeChain.value.v3) {
+        venue.value = 'v2';
+    }
+
     metaCache.clear();
     customTokens.value = [];
     selected.value = null;
@@ -878,9 +890,17 @@ watch(
             <header class="mb-4">
                 <h1 class="text-2xl font-bold">Liquidity</h1>
                 <p class="text-sm text-muted-foreground">
-                    Provide or withdraw liquidity on Ritual (Uniswap V2) on
-                    {{ activeChain.evmChain.name }}. Native
-                    {{ activeChain.nativeSymbol }} is supported directly.
+                    <template v-if="venue === 'v2'">
+                        Provide or withdraw liquidity on Ritual (Uniswap V2) on
+                        {{ activeChain.evmChain.name }}. Native
+                        {{ activeChain.nativeSymbol }} is supported directly.
+                    </template>
+                    <template v-else>
+                        Provide or withdraw concentrated liquidity on Cyberia V3
+                        on {{ activeChain.evmChain.name }}: a position is a
+                        price range, and it earns only while the price is inside
+                        it.
+                    </template>
                 </p>
             </header>
 
@@ -902,6 +922,28 @@ watch(
                 </button>
             </div>
 
+            <!-- VENUE: both hold real liquidity, so this is a choice and not
+                 an upgrade path. Hidden where there is only one. -->
+            <div
+                v-if="activeChain.v3"
+                class="mb-4 inline-flex rounded-lg border p-1 text-sm"
+            >
+                <button
+                    v-for="option in ['v2', 'v3'] as const"
+                    :key="option"
+                    type="button"
+                    class="rounded-md px-4 py-1.5 font-medium transition"
+                    :class="
+                        venue === option
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                    "
+                    @click="venue = option"
+                >
+                    {{ option === 'v2' ? 'V2 pairs' : 'V3 ranges' }}
+                </button>
+            </div>
+
             <div class="mb-4 flex gap-2">
                 <Button
                     :variant="tab === 'add' ? 'default' : 'outline'"
@@ -913,7 +955,7 @@ watch(
                     :variant="tab === 'remove' ? 'default' : 'outline'"
                     @click="tab = 'remove'"
                 >
-                    Remove
+                    {{ venue === 'v3' ? 'Positions' : 'Remove' }}
                 </Button>
                 <div class="ml-auto flex items-center gap-2 text-sm">
                     <span class="text-muted-foreground">Slippage %</span>
@@ -921,8 +963,11 @@ watch(
                 </div>
             </div>
 
-            <!-- ADD -->
-            <div v-if="tab === 'add'" class="space-y-3 rounded-lg border p-4">
+            <!-- ADD (v2) -->
+            <div
+                v-if="venue === 'v2' && tab === 'add'"
+                class="space-y-3 rounded-lg border p-4"
+            >
                 <div
                     v-for="side in ['A', 'B'] as const"
                     :key="side"
@@ -1034,8 +1079,11 @@ watch(
                 </div>
             </div>
 
-            <!-- REMOVE -->
-            <div v-else class="space-y-3 rounded-lg border p-4">
+            <!-- REMOVE (v2) -->
+            <div
+                v-else-if="venue === 'v2'"
+                class="space-y-3 rounded-lg border p-4"
+            >
                 <Button
                     v-if="!wallet.isConnected.value"
                     class="w-full"
@@ -1146,10 +1194,19 @@ watch(
                 </template>
             </div>
 
+            <!-- V3 -->
+            <V3Liquidity
+                v-else-if="activeChain.v3"
+                :chain="activeChain"
+                :tokens="tokens"
+                :slippage-bps="slippageBps"
+                :tab="tab"
+            />
+
             <p v-if="status" class="mt-3 text-sm">{{ status }}</p>
             <p v-if="error" class="mt-3 text-sm text-red-500">{{ error }}</p>
 
-            <p class="mt-4 text-xs text-muted-foreground">
+            <p v-if="venue === 'v2'" class="mt-4 text-xs text-muted-foreground">
                 Router
                 <a
                     :href="`${activeChain.explorer}/address/${activeChain.router}`"

@@ -30,6 +30,7 @@ from bot.config import (
     AI_ENABLED, AI_API_KEY, AI_MODEL, AI_MODEL_CHOICE,
     WALLET_MINI_APP_URL, WALLET_MINI_APP_MENU,
 )
+from bot.rps import rps_command, rps_callback, expiry_loop, ensure_schema as ensure_rps_schema
 from bot.db import ensure_schema
 from bot.nft import (
     channel_post_handler, set_channel_wallet_command, channel_wallet_command,
@@ -66,6 +67,7 @@ async def post_init(application: Application):
             BotCommand("unset_wallet", "Unlink your wallet (keep pending)"),
             BotCommand("wallet", "Show your linked wallet"),
             BotCommand("balance", "Show TG, chat tokens, and pending rewards"),
+            BotCommand("rps", "Камень–ножницы–бумага на токены чата"),
             BotCommand("claim", "Collect your accrued chat-token rewards"),
             BotCommand("token", "Show this chat's reward token"),
             BotCommand("cancel", "Cancel an interactive prompt"),
@@ -89,6 +91,7 @@ async def post_init(application: Application):
             BotCommand("set_channel_wallet", "(channel admins) Wallet to receive post NFTs"),
         ]
     )
+    application.create_task(expiry_loop(application))
     logger.info("Bot commands published to Telegram")
 
     # The ☰ beside the input box becomes the wallet. This is the entry point
@@ -248,6 +251,8 @@ def run_dispatcher():
     application.add_handler(CommandHandler("cancel", cancel_command))
     application.add_handler(CommandHandler("balance", balance_command))
     application.add_handler(CommandHandler("claim", claim_command))
+    application.add_handler(CommandHandler("rps", rps_command))
+    application.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps:"))
     application.add_handler(CommandHandler("token", token_command))
     application.add_handler(CommandHandler("github", github_command))
     application.add_handler(CommandHandler("website", website_command))
@@ -363,7 +368,7 @@ def run_dispatcher():
 
     try:
         application.run_polling(
-            allowed_updates=["message", "chat_member", "channel_post"]
+            allowed_updates=["message", "chat_member", "channel_post", "callback_query"]
         )
     except Exception as e:
         logger.error(f"Polling error: {e}")
@@ -374,6 +379,7 @@ def main() -> None:
     """Entry point shared by `python -m bot` and the legacy shim."""
     logger.info("Starting bot...")
     ensure_schema()
+    ensure_rps_schema()
     if "--snapshot-once" in sys.argv:
         run_snapshot_once()
     else:

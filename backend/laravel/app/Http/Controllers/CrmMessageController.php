@@ -6,7 +6,9 @@ use App\Http\Requests\StoreCrmMessageRequest;
 use App\Models\CrmContact;
 use App\Models\CrmMessage;
 use App\Services\Console\ConsoleFeed;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The correspondence with one person.
@@ -27,16 +29,28 @@ class CrmMessageController extends Controller
     {
         $data = $request->validated();
 
-        $contact->messages()->create([
-            // Who wrote the line *down*. An inbound line was said by the
-            // contact, so the operator is a scribe there and not its author —
-            // but the row still records which desk entered it.
-            'user_id' => $request->user()?->id,
-            'direction' => $data['direction'],
-            'channel' => $data['channel'],
-            'body' => $data['body'],
-            'sent_at' => $data['sent_at'] ?? now(),
-        ]);
+        DB::transaction(function () use ($contact, $request, $data): void {
+            $contact->messages()->create([
+                // Who wrote the line *down*. An inbound line was said by the
+                // contact, so the operator is a scribe there and not its author —
+                // but the row still records which desk entered it.
+                'user_id' => $request->user()?->id,
+                'direction' => $data['direction'],
+                'channel' => $data['channel'],
+                'body' => $data['body'],
+                'sent_at' => isset($data['sent_at']) ? CarbonImmutable::parse($data['sent_at'])->setTimezone(config('app.timezone')) : now(),
+            ]);
+
+            if (! empty($data['follow_up'])) {
+                $contact->tasks()->create([
+                    ...$data['follow_up'],
+                    'due_at' => CarbonImmutable::parse($data['follow_up']['due_at'])->setTimezone(config('app.timezone')),
+                    'created_by_user_id' => $request->user()?->id,
+                    'status' => 'open',
+                    'priority' => 'normal',
+                ]);
+            }
+        });
 
         // The queue counts a whale who has been waiting on us, so a line
         // written here can change what "Сейчас" says.

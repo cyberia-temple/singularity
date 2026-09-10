@@ -4,6 +4,7 @@ import type { NftChain } from '@/lib/nftChains';
 import { ipfsHttpUrl } from '@/lib/wallet/ipfs';
 import { evmSigner } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
+import { explorerFailure } from '@/lib/wallet/readError';
 
 /**
  * NFTs in the wallet: what this account owns, and minting one.
@@ -178,7 +179,7 @@ export const fetchOwnedNfts = async (
     });
 
     if (!response.ok) {
-        throw new Error(`Explorer returned ${response.status}`);
+        throw explorerFailure(response.status);
     }
 
     const body = (await response.json()) as { items?: unknown };

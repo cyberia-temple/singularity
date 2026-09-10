@@ -7,6 +7,7 @@ import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useSecureClipboard } from '@/composables/useSecureClipboard';
 import { walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
+import { addressGroups } from '@/lib/wallet/format';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -140,15 +141,20 @@ const payoutOffered = computed(
             <div class="cw-label" style="margin-bottom: 8px">
                 {{ t('addressLabel') }}
             </div>
-            <p
-                style="
-                    margin: 0;
-                    font: 400 12px/1.7 var(--cw-mono);
-                    color: var(--cw-text);
-                    word-break: break-all;
-                "
-            >
-                {{ account.address }}
+            <!--
+              In fours, like a card number. This is the screen where somebody
+              reads an address back to a person on a phone or checks it against
+              what they have already pasted somewhere else, and one unbroken
+              42-character run wrapping mid-string is the shape that loses
+              them. `title` keeps the whole thing available to a mouse, and the
+              copy button below is what actually moves it.
+            -->
+            <p class="cw-addr" style="margin: 0" :title="account.address">
+                <span
+                    v-for="(group, at) in addressGroups(account.address)"
+                    :key="at"
+                    >{{ group }}</span
+                >
             </p>
             <div style="display: flex; gap: 8px; margin-top: 14px">
                 <button

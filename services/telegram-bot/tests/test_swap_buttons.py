@@ -7,7 +7,11 @@ in. A `web_app` button is legal only in a private chat; Telegram rejects the
 whole message otherwise, which would turn a helpful button into a /balance that
 answers nothing in a group.
 """
+import asyncio
 import unittest
+from types import SimpleNamespace
+from urllib.parse import urlparse, parse_qs
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
 from sqlalchemy import create_engine, text
@@ -26,14 +30,14 @@ class SwapMarkupTests(unittest.TestCase):
         self.assertIsNone(button.url)
         self.assertIn(f"swap={TOKEN}", button.web_app.url)
 
-    def test_a_group_gets_a_plain_link_instead(self):
+    def test_a_group_links_to_the_bot_instead_of_the_site(self):
         # Telegram rejects a message carrying a web_app button outside a
         # private chat, so the whole /balance answer would fail to send.
-        markup = handlers.swap_markup(False, [("ROOM", TOKEN)])
+        markup = handlers.swap_markup(False, [("ROOM", TOKEN)], "example_bot")
         button = markup.inline_keyboard[0][0]
 
         self.assertIsNone(button.web_app)
-        self.assertIn(f"swap={TOKEN}", button.url)
+        self.assertEqual(button.url, f"https://t.me/example_bot?start=swap_{TOKEN}")
 
     def test_nothing_to_swap_is_no_keyboard_at_all(self):
         self.assertIsNone(handlers.swap_markup(True, []))
@@ -49,6 +53,33 @@ class SwapMarkupTests(unittest.TestCase):
         self.assertEqual(len(markup.inline_keyboard), 2)
         self.assertIn("Swap A", markup.inline_keyboard[0][0].text)
         self.assertIn("Swap B", markup.inline_keyboard[1][0].text)
+
+
+class SwapHandoffTests(unittest.TestCase):
+    def test_group_link_opens_private_mini_app_with_the_same_token(self):
+        button = handlers.swap_markup(False, [("SOC23", TOKEN)]).inline_keyboard[0][0]
+        payload = parse_qs(urlparse(button.url).query)['start'][0]
+        self.assertLessEqual(len(payload), 64)
+        update = SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
+                                 message=SimpleNamespace(reply_text=AsyncMock()))
+        context = SimpleNamespace(args=[payload])
+        asyncio.run(handlers.start_command(update, context))
+        reply = update.message.reply_text.call_args.kwargs['reply_markup'].inline_keyboard[0][0]
+        self.assertIsNone(reply.url)
+        self.assertEqual(parse_qs(urlparse(reply.web_app.url).query)['swap'], [TOKEN])
+
+    def test_bad_payload_never_opens_a_wallet(self):
+        update = SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
+                                 message=SimpleNamespace(reply_text=AsyncMock()))
+        for payload in ('swap_https://example.org', 'swap_0x123', 'swap_' + TOKEN + '?evil=1'):
+            asyncio.run(handlers.start_command(update, SimpleNamespace(args=[payload])))
+            self.assertNotIn('reply_markup', update.message.reply_text.call_args.kwargs)
+
+    def test_payload_in_group_never_emits_a_web_app_button(self):
+        update = SimpleNamespace(effective_chat=SimpleNamespace(type="supergroup"),
+                                 message=SimpleNamespace(reply_text=AsyncMock()))
+        asyncio.run(handlers.start_command(update, SimpleNamespace(args=['swap_' + TOKEN])))
+        self.assertNotIn('reply_markup', update.message.reply_text.call_args.kwargs)
 
 
 class TokenAddressLookupTests(unittest.TestCase):

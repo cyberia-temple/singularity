@@ -1,5 +1,6 @@
 import { Contract, getAddress, isAddress } from 'ethers';
 import type { JsonRpcProvider, Signer } from 'ethers';
+import { explorerFailure } from '@/lib/wallet/readError';
 
 /**
  * ERC20 assets on an EVM network.
@@ -187,7 +188,7 @@ export const blockscoutTokens = async (
     const response = await fetch(`${apiUrl}?${query}`);
 
     if (!response.ok) {
-        throw new Error(`Explorer returned ${response.status}`);
+        throw explorerFailure(response.status);
     }
 
     const body = (await response.json()) as { result?: unknown };

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
-import { formatUnits, walletChain } from '@/lib/wallet';
+import { describeReadError, formatUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
 import { formatUsd, usdValue } from '@/lib/wallet/format';
 import { walletMessages } from '@/lib/walletMessages';
@@ -49,6 +49,17 @@ const problem = ref<string | null>(null);
 const chain = computed(() => walletChain(props.chain));
 
 const state = computed(() => props.wallet.tokens.value[props.chain]);
+
+/**
+ * A failed read, said in words plus the status it came back with.
+ *
+ * The status used to be the whole sentence — "Explorer returned 429" dropped
+ * into the middle of a Russian one. It is still printed, because it is what an
+ * operator reads off a screenshot, but after the part a person can act on.
+ */
+const readFailure = computed(() =>
+    state.value?.error ? describeReadError(state.value.error, t) : null,
+);
 
 const rows = computed(() =>
     (state.value?.items ?? []).map((token) => ({
@@ -108,11 +119,18 @@ const add = async (): Promise<void> => {
         </p>
 
         <p
-            v-else-if="state?.error"
+            v-else-if="readFailure"
             class="cw-note cw-note-warn"
             style="margin-bottom: 8px"
         >
-            <span>{{ t('tokensUnavailable', { reason: state.error }) }}</span>
+            <span>
+                {{ t('tokensUnavailable', { reason: readFailure.text }) }}
+                <span
+                    v-if="readFailure.detail"
+                    style="color: var(--cw-faint)"
+                    >{{ readFailure.detail }}</span
+                >
+            </span>
         </p>
 
         <div class="cw-stack" style="gap: 8px">
@@ -225,8 +243,20 @@ const add = async (): Promise<void> => {
                 </div>
             </div>
 
+            <!--
+              "No tokens here" is a claim about a balance, and it is only ours
+              to make when the index answered. Printed under a read that failed
+              — which is exactly where it appeared, directly below "Tokens
+              could not be listed" — it is the one sentence on this screen that
+              nobody has any basis for.
+            -->
             <p
-                v-if="rows.length === 0 && !state?.loading && !chain.tokensNote"
+                v-if="
+                    rows.length === 0 &&
+                    !state?.loading &&
+                    !state?.error &&
+                    !chain.tokensNote
+                "
                 class="cw-prose"
                 style="padding: 4px 0 8px"
             >

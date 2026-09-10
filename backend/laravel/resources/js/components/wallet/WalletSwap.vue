@@ -2594,7 +2594,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                     display: block;
                                     margin-top: 3px;
                                     font: 400 10px/1 var(--cw-mono);
-                                    color: var(--cw-fainter);
+                                    color: var(--cw-faint);
                                 "
                                 >{{ shortAddress(row.asset.address) }}</span
                             >

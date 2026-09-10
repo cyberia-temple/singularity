@@ -145,6 +145,7 @@ def distribute():
         # silently promotes the sum to a lossy REAL, and caps the running total.
         if members:
             with engine.begin() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
                 for (uid,) in members:
                     row = conn.execute(
                         text("SELECT amount FROM pending_rewards WHERE chat_id = :c AND user_id = :u"),

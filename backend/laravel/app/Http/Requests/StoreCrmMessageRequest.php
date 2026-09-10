@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\CrmMessage;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,6 +32,10 @@ class StoreCrmMessageRequest extends FormRequest
              * is three hours away from the desk that typed it.
              */
             'sent_at' => ['nullable', 'date'],
+            'follow_up' => ['nullable', 'array:title,due_at,assigned_to_user_id'],
+            'follow_up.title' => ['required_with:follow_up', 'string', 'max:255'],
+            'follow_up.due_at' => ['required_with:follow_up', 'date', 'after:now'],
+            'follow_up.assigned_to_user_id' => ['required_with:follow_up', 'integer', Rule::in(User::crmOperators()->pluck('id')->all())],
         ];
     }
 }

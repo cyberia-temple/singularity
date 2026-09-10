@@ -76,8 +76,16 @@
             <meta data-inertia="twitter:description" name="twitter:description" content="{{ $seo['description'] }}">
             <script data-inertia="faq-json" type="application/ld+json">{!! json_encode($seo['structuredData'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
         @else
+            {{-- `data-inertia` is what makes this title a *default* rather than a
+                 second one. Inertia's head manager only ever removes elements
+                 carrying that attribute; an untagged <title> stays in the head
+                 forever, in front of the one every page sets through <Head>,
+                 and the browser honours the first. Which is why the wallet, the
+                 swap and everything else were all called "Singularity" in the
+                 tab, the history and the bookmarks whatever their own title
+                 said. The $seo branch above has always tagged its own. --}}
             <x-inertia::head>
-                <title>{{ config('app.name', 'Laravel') }}</title>
+                <title data-inertia="">{{ config('app.name', 'Laravel') }}</title>
             </x-inertia::head>
         @endif
     </head>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RotateCw, Settings } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import { useLocale } from '@/composables/useLocale';
@@ -43,6 +44,7 @@ const emit = defineEmits<{
     accounts: [];
     addNetwork: [];
     refresh: [];
+    preferences: [];
 }>();
 
 const { locale, t } = useLocale(walletMessages);
@@ -53,8 +55,14 @@ const { locale, t } = useLocale(walletMessages);
  * bar lost that argument to arithmetic: on a 393px phone the account chip, the
  * network chip and Refresh already fill the row, and the theme button wrapped
  * onto a second one — thirty-four pixels of button costing fifty-four of
- * height, above the fold, on every screen. It is a setting and it lives in
- * Preferences now, next to the language.
+ * height, above the fold, on every screen.
+ *
+ * The prediction in that argument then came true on its author: with the theme
+ * in Preferences and Preferences one tile among eleven, nobody could find
+ * either. So what is on the bar is the *door* rather than the setting — one
+ * 40px gear, on every screen, next to a Refresh that gave up its word to pay
+ * for it. Two icons cost less width than the one label did, and the thing they
+ * reach is the whole of Preferences instead of one of its rows.
  */
 const open = ref<'account' | 'network' | null>(null);
 
@@ -139,9 +147,23 @@ const activeAccount = computed(
  */
 const price = computed(() => props.prices[props.chain] ?? null);
 
-const chainTag = computed(() => {
+/**
+ * What the network chip says.
+ *
+ * The *network*, and never its ticker. It used to print the account's symbol —
+ * which made Robinhood, Base and forty catalogue chains all read "ETH" in the
+ * one control that decides where money goes, separated by a 7px dot. The
+ * ticker was never missing: it is in the balance card directly below, twice.
+ * The two-letter mark tag is the fallback for a chain that is not in the
+ * registry at all, which is the only case where there is no name to print.
+ */
+const chainName = computed(() => {
+    if (activeAccount.value) {
+        return activeAccount.value.label;
+    }
+
     try {
-        return walletChain(props.chain).mark.tag;
+        return walletChain(props.chain).label;
     } catch {
         return '';
     }
@@ -206,9 +228,7 @@ const use = async (id: string): Promise<void> => {
                 @click="toggle('network')"
             >
                 <NetworkMark :chain="chain" dot :size="7" />
-                <span class="cw-chip-net">{{
-                    activeAccount?.symbol ?? chainTag
-                }}</span>
+                <span class="cw-chip-net">{{ chainName }}</span>
                 <span class="cw-chip-chev">{{
                     open === 'network' ? '▴' : '▾'
                 }}</span>
@@ -233,11 +253,28 @@ const use = async (id: string): Promise<void> => {
             <button
                 v-if="showNetwork"
                 type="button"
-                class="cw-back"
-                style="letter-spacing: 0.12em"
+                class="cw-icon-btn cw-icon-btn-bare"
+                :title="t('refresh')"
+                :aria-label="t('refresh')"
                 @click="emit('refresh')"
             >
-                {{ t('refresh') }}
+                <RotateCw :size="15" aria-hidden="true" />
+            </button>
+
+            <!--
+              The one entrance to Preferences that does not depend on being on
+              the portfolio and scrolling to the right tile: theme, language and
+              alerts are settings for the whole app, so their door is on the bar
+              the whole app carries.
+            -->
+            <button
+                type="button"
+                class="cw-icon-btn cw-icon-btn-bare"
+                :title="t('navPreferences')"
+                :aria-label="t('navPreferences')"
+                @click="emit('preferences')"
+            >
+                <Settings :size="15" aria-hidden="true" />
             </button>
         </div>
 

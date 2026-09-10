@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
+import ContactWays from '@/components/console/ContactWays.vue';
+import type { ContactWay } from '@/components/console/ContactWays.vue';
 import CopyValue from '@/components/console/CopyValue.vue';
-import ContactWays, {
-    type ContactWay,
-} from '@/components/console/ContactWays.vue';
 import Linked from '@/components/console/Linked.vue';
 import Rule from '@/components/console/Rule.vue';
 import { useConsoleLive } from '@/composables/useConsolePulse';
@@ -19,6 +18,7 @@ import {
 } from '@/lib/console';
 import { consoleMessages } from '@/lib/consoleMessages';
 import contactLinks from '@/routes/crm/contact-links';
+import { store as recordMessage } from '@/routes/crm/messages';
 
 /**
  * One person's dossier.
@@ -436,7 +436,12 @@ function closeTask(id: number) {
  * filter on the same rows — the orders are opposite and the questions are
  * different — so it is a switch and not a fourth segment beside the filters.
  */
-const pane = ref<'feed' | 'thread'>('feed');
+const pane = ref<'feed' | 'thread'>(
+    new URL(usePage().url, 'https://console.local').searchParams.get('pane') ===
+        'thread'
+        ? 'thread'
+        : 'feed',
+);
 
 const thread = useTemplateRef<HTMLDivElement>('thread');
 
@@ -489,11 +494,19 @@ const viewLabels: Record<string, string> = {
  * with this desk's offset — a bare `Y-m-d H:i` is read by the server in the
  * app's timezone, which is three hours from here.
  */
+const page = usePage();
+const planFollowUp = ref(false);
 const message = useForm({
     body: '',
     direction: 'out',
-    channel: 'telegram',
+    channel: props.conversation.last?.channel ?? 'telegram',
     sent_at: '',
+    follow_up: {
+        title: '',
+        due_at: '',
+        assigned_to_user_id:
+            page.props.auth.user?.id ?? (null as number | null),
+    },
 });
 
 function sendMessage() {
@@ -504,15 +517,24 @@ function sendMessage() {
     message
         .transform((data) => ({
             ...data,
+            follow_up: planFollowUp.value
+                ? {
+                      ...data.follow_up,
+                      due_at: data.follow_up.due_at
+                          ? new Date(data.follow_up.due_at).toISOString()
+                          : '',
+                  }
+                : null,
             sent_at:
                 data.sent_at === ''
                     ? null
                     : new Date(data.sent_at).toISOString(),
         }))
-        .post(`/crm/${props.contact.id}/messages`, {
+        .post(recordMessage.url(props.contact.id), {
             preserveScroll: true,
             onSuccess: () => {
-                message.reset('body', 'sent_at');
+                message.reset('body', 'sent_at', 'follow_up');
+                planFollowUp.value = false;
                 scrollThread();
             },
         });
@@ -1503,7 +1525,10 @@ function remove() {
             </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; min-width: 0">
+        <div
+            id="conversation"
+            style="display: flex; flex-direction: column; min-width: 0"
+        >
             <Rule
                 :label="
                     pane === 'feed'
@@ -1908,6 +1933,48 @@ function remove() {
                             @keydown="messageKeydown"
                         />
 
+                        <label class="mk-t3" style="font-size: 12px">
+                            <input v-model="planFollowUp" type="checkbox" />
+                            {{ t('people.planWithMessage') }}
+                        </label>
+                        <div v-if="planFollowUp" class="lead-follow-up">
+                            <label
+                                >{{ t('people.followTitle') }}
+                                <input
+                                    v-model="message.follow_up.title"
+                                    class="mk-input"
+                                    required
+                                    maxlength="255"
+                                />
+                            </label>
+                            <label
+                                >{{ t('people.followWhen') }}
+                                <input
+                                    v-model="message.follow_up.due_at"
+                                    type="datetime-local"
+                                    class="mk-input"
+                                    required
+                                />
+                            </label>
+                            <label
+                                >{{ t('people.followWho') }}
+                                <select
+                                    v-model="
+                                        message.follow_up.assigned_to_user_id
+                                    "
+                                    class="mk-input"
+                                    required
+                                >
+                                    <option
+                                        v-for="operator in options.assignees"
+                                        :key="operator.id"
+                                        :value="operator.id"
+                                    >
+                                        {{ operator.name }}
+                                    </option>
+                                </select>
+                            </label>
+                        </div>
                         <p
                             v-if="Object.keys(message.errors).length"
                             style="
@@ -1925,7 +1992,13 @@ function remove() {
                         class="mk-btn mk-act"
                         :disabled="message.processing || !message.body.trim()"
                     >
-                        {{ t('person.lineSave') }}
+                        {{
+                            t(
+                                planFollowUp
+                                    ? 'people.saveAndPlan'
+                                    : 'person.lineSave',
+                            )
+                        }}
                     </button>
                 </form>
 
@@ -1936,3 +2009,18 @@ function remove() {
         </div>
     </div>
 </template>
+
+<style scoped>
+.lead-follow-up {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.lead-follow-up label {
+    display: flex;
+    flex: 1 1 180px;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+}
+</style>
