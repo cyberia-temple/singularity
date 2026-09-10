@@ -158,6 +158,20 @@ const authUser = computed(
         page.props.auth?.user as { wallet_address?: string | null } | undefined,
 );
 
+/**
+ * Whether the person reading this runs the place.
+ *
+ * The same flag the console gate shares on every page, reused rather than
+ * re-derived: there is one definition of who the operators are and it lives in
+ * `config/crm.php`.
+ *
+ * It hides the *itemised* fee line and nothing else. Every number that decides
+ * the trade stays exactly as true for everyone: the output shown is already net
+ * of the fee, and so is the minimum received — this only stops the breakdown
+ * being printed beside them.
+ */
+const operator = computed(() => page.props.auth?.canAccessCrm === true);
+
 const status = ref<string | null>(null);
 const error = ref<string | null>(null);
 const busy = ref(false);
@@ -2604,7 +2618,7 @@ onBeforeUnmount(() => {
                         }}</span>
                         {{ symbolOf(tokenIn) }} ({{ feeNote }})
                     </p>
-                    <p v-if="appFee">
+                    <p v-if="appFee && operator">
                         Cyberia fee:
                         <span class="font-mono">{{
                             fmt(appFee.amount, decOut, 8)

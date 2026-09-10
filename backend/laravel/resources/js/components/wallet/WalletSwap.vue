@@ -101,6 +101,13 @@ const props = defineProps<{
      * the chain before it is used, so its decimals are never assumed.
      */
     contract?: string | null;
+    /**
+     * Whether the reader runs the place, which decides one line on this screen.
+     *
+     * It hides the *itemised* fee and nothing else: what the trade pays and the
+     * minimum it will accept are already net of it, and stay true for everyone.
+     */
+    operator?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -2297,7 +2304,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 {{ receiveAsset?.symbol }}</span
                             >
                         </div>
-                        <div v-if="appFee" class="cw-kv">
+                        <div v-if="appFee && props.operator" class="cw-kv">
                             <span class="cw-kv-key">{{
                                 t('swapAppFee', {
                                     pct: (appFee.bps / 100).toFixed(2),

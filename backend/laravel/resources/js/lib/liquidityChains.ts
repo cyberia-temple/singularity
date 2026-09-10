@@ -195,7 +195,11 @@ export const LIQUIDITY_CHAINS: readonly LiquidityChainConfig[] = [
              * deploy that silently forgets it.
              */
             fee: {
-                bps: 75,
+                // The ceiling: Uniswap's `PeripheryPaymentsWithFee` requires
+                // `feeBips > 0 && feeBips <= 100`, so one per cent is the most
+                // this hook will ever take and anything above it is a revert
+                // rather than a smaller cut.
+                bps: 100,
                 recipient: '0x54BB8a86Fc001d5BB3e6C7ad2e2f153E5Fa6d7f6',
             },
         },

@@ -135,6 +135,13 @@ const page = usePage();
 /** Signing in adds only the XMR payout binding; the wallet itself needs none. */
 const authenticated = computed(() => !!page.props.auth?.user);
 
+/**
+ * Whether the reader runs the place — the console gate's own flag, shared on
+ * every page. It decides one line on the swap screen and nothing else: what a
+ * trade pays is already net of this project's fee, for everybody.
+ */
+const operator = computed(() => page.props.auth?.canAccessCrm === true);
+
 /** Inside the desktop or mobile app the wallet owns the whole window. */
 const native = isNativeShell();
 
@@ -1452,6 +1459,7 @@ watch(
                         :token-prices="tokenPrices"
                         :token="swapToken"
                         :contract="swapContract"
+                        :operator="operator"
                         @back="overlay = null"
                         @pick="chain = $event"
                         @swapped="load()"
