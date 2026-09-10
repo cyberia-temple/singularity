@@ -1704,6 +1704,15 @@ const setMaxIn = async (): Promise<void> => {
     scheduleQuote();
 };
 
+/** The network picker's value is a string, as every `Select` here is. */
+const pickChain = (val: unknown): void => {
+    const chainId = Number(val);
+
+    if (Number.isFinite(chainId) && chainId !== activeChainId.value) {
+        switchChain(chainId);
+    }
+};
+
 const pickToken = (side: 'in' | 'out', val: unknown): void => {
     const v = String(val ?? '');
 
@@ -2171,28 +2180,6 @@ onBeforeUnmount(() => {
             </p>
         </header>
 
-        <!-- CHAIN SWITCHER: markets/balances are per-chain and never mix -->
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-            <button
-                v-for="chain in DEX_CHAINS"
-                :key="chain.chainId"
-                type="button"
-                class="rounded-full border px-4 py-1.5 text-sm font-medium transition"
-                :class="
-                    chain.chainId === activeChainId
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-card hover:border-foreground/30'
-                "
-                @click="switchChain(chain.chainId)"
-            >
-                {{ chain.evmChain.name }}
-            </button>
-            <div class="ml-auto flex items-center gap-2 text-sm">
-                <span class="text-muted-foreground">Slippage %</span>
-                <Input v-model="slippage" class="w-16" />
-            </div>
-        </div>
-
         <div
             class="grid gap-4 lg:grid-cols-[1fr_28rem] lg:items-start xl:gap-6"
         >
@@ -2489,6 +2476,48 @@ onBeforeUnmount(() => {
             </section>
 
             <div class="space-y-3 rounded-lg border p-4">
+                <!--
+                  The network and the slippage belong to the trade, so they sit
+                  in the card that makes one. They used to own a whole row of
+                  their own above the fold — two large pills for two networks —
+                  which spent about fifty pixels of every screen to say
+                  something the page title already said, and pushed the chart
+                  down by exactly that much.
+                -->
+                <div class="flex items-center justify-between gap-2">
+                    <Select
+                        :model-value="String(activeChainId)"
+                        @update:model-value="pickChain($event)"
+                    >
+                        <SelectTrigger
+                            class="h-8 w-auto gap-2 border-0 bg-muted/60 px-2.5 text-xs font-medium shadow-none focus:ring-0"
+                        >
+                            <span class="flex items-center gap-2">
+                                <span
+                                    class="size-1.5 rounded-full bg-primary"
+                                />
+                                {{ activeChain.evmChain.name }}
+                            </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem
+                                v-for="chain in DEX_CHAINS"
+                                :key="chain.chainId"
+                                :value="String(chain.chainId)"
+                            >
+                                {{ chain.evmChain.name }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <div
+                        class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    >
+                        <span>Slippage %</span>
+                        <Input v-model="slippage" class="h-8 w-14 text-xs" />
+                    </div>
+                </div>
+
                 <!-- FROM -->
                 <div class="rounded-md border p-3">
                     <div class="mb-2 flex items-center justify-between text-sm">
