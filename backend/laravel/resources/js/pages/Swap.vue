@@ -1461,8 +1461,22 @@ const loadBalance = async (token: string): Promise<bigint | null> => {
     }
 };
 
+/**
+ * One counter per side, so a slow answer cannot land on top of a fast one.
+ *
+ * Two reads of the same side are in flight all the time — a token is picked
+ * while the balance poll is out, a link fills both fields a tick after the
+ * watchers already fired for the defaults — and they resolve in whatever order
+ * the node answers. Without this, the *older* read wins whenever it is slower,
+ * and it carries the previous token's `decimals` with it: a six-decimal
+ * stablecoin's scale applied to an eighteen-decimal token renders the amount a
+ * trillion times too large, on a screen somebody is about to trade from.
+ */
+const sideSeq = { in: 0, out: 0 };
+
 const loadSide = async (side: 'in' | 'out'): Promise<void> => {
     const token = side === 'in' ? tokenIn.value : tokenOut.value;
+    const seq = ++sideSeq[side];
 
     if (!token) {
         if (side === 'in') {
@@ -1478,6 +1492,11 @@ const loadSide = async (side: 'in' | 'out'): Promise<void> => {
         tokenMeta(token),
         loadBalance(token),
     ]);
+
+    // Something newer has already answered for this side; this one is history.
+    if (seq !== sideSeq[side]) {
+        return;
+    }
 
     if (side === 'in') {
         decIn.value = meta.decimals;
@@ -1918,6 +1937,9 @@ const takeLinkedPair = (): void => {
             ROUTER_ABI,
             readProvider,
         );
+        // The cache is keyed by address alone, and the provider it was read
+        // through has just changed underneath it.
+        metaCache.clear();
         tokenOut.value = defaultTokenOut(activeChain.value);
         tokenIn.value = NATIVE;
     }
