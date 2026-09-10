@@ -120,6 +120,11 @@ const CHAIN_SLUGS: Partial<Record<WalletChainId, string>> = {
     solana: 'solana',
     bnb: 'bsc',
     base: 'base',
+    // Robinhood Chain: the index carries it, which is the only reason the
+    // tokenised stocks have a price history anywhere on this site — nothing
+    // here can rebuild one, since their pools are concentrated and emit no
+    // `Sync` for a page to walk.
+    robinhood: 'robinhood',
 
     abstract: 'abstract',
     'arbitrum-one': 'arbitrum',

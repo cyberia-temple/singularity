@@ -29,6 +29,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useAppearance } from '@/composables/useAppearance';
 import { useWallet } from '@/composables/useWallet';
 import {
     KNOWN_TOKENS,
@@ -71,6 +72,14 @@ import type {
 } from '@/lib/marketCandles';
 import { logoForToken } from '@/lib/tokenLogos';
 import { track } from '@/lib/track';
+import { walletChains } from '@/lib/wallet/chains';
+import type { WalletChainId } from '@/lib/wallet/chains';
+import type { DexMarket } from '@/lib/wallet/dexscreener';
+import {
+    dexScreenerChartUrl,
+    dexScreenerSlug,
+    fetchDexMarkets,
+} from '@/lib/wallet/dexscreener';
 
 // Router/factory/wrapped-native/pools are per-chain (DEX_CHAINS); the page
 // reads, quotes and swaps entirely within the wallet's chain, so Robinhood
@@ -142,6 +151,7 @@ const poolApr = (pairAddress?: string | null): number | null =>
         : null;
 
 const wallet = useWallet();
+const { resolvedAppearance } = useAppearance();
 const page = usePage();
 const authUser = computed(
     () =>
@@ -1419,6 +1429,96 @@ const onAmountEdited = (side: 'in' | 'out'): void => {
     scheduleQuote();
 };
 
+/* ------------------------------------------------------- indexed chart -- */
+
+/**
+ * A price history for the pairs this page cannot draw one for.
+ *
+ * The chart above is rebuilt from the v2 pools' own `Sync` events, which works
+ * because this project runs that exchange. A concentrated pool emits no such
+ * event, and the pools holding the tokenised stocks belong to somebody else
+ * entirely — so for those pairs the panel had nothing to show but a sentence
+ * about having nothing to show, directly beside a live quote.
+ *
+ * The venue that does index them draws it, in a frame on its own origin. That
+ * shape is the security argument and not a convenience: a third party's script
+ * tag would run inside this page, and a frame is another origin. `?embed=1` is
+ * load-bearing too — the ordinary page answers a frame with `403` and
+ * `X-Frame-Options: SAMEORIGIN`.
+ */
+const activeWalletChain = computed<WalletChainId | null>(
+    () =>
+        walletChains().find((chain) => chain.chainId === activeChainId.value)
+            ?.id ?? null,
+);
+
+/**
+ * Which of the two sides is worth a chart.
+ *
+ * The one that is not the money: buying NVDA with ether should draw NVDA, and
+ * so should selling it. Output first, because that is what somebody who came
+ * here by link is looking at.
+ */
+const dexChartToken = computed<string | null>(() => {
+    const cfg = activeChain.value;
+    const dollar = cfg.dollar?.toLowerCase() ?? null;
+    const wrapped = cfg.wrappedNative.toLowerCase();
+    const sides = [tokenOut.value, tokenIn.value]
+        .filter((token): token is string => !!token)
+        .map((token) => (token === NATIVE ? wrapped : token.toLowerCase()));
+
+    return (
+        sides.find((token) => token !== dollar && token !== wrapped) ??
+        sides[0] ??
+        null
+    );
+});
+
+const dexMarket = ref<DexMarket | null>(null);
+let dexSeq = 0;
+
+watch(
+    [dexChartToken, activeChainId],
+    async () => {
+        const seq = ++dexSeq;
+        dexMarket.value = null;
+
+        const chain = activeWalletChain.value;
+        const token = dexChartToken.value;
+
+        if (!chain || !token || dexScreenerSlug(chain) === null) {
+            return;
+        }
+
+        try {
+            const markets = await fetchDexMarkets(chain, [token]);
+
+            // A slower answer for a pair nobody is looking at any more must not
+            // land on top of the one on screen.
+            if (seq === dexSeq) {
+                dexMarket.value = markets[0] ?? null;
+            }
+        } catch {
+            // An index that did not answer is a missing chart, never a broken
+            // page: everything that decides a trade came from the chain.
+        }
+    },
+    { immediate: true },
+);
+
+const dexChartUrl = computed<string | null>(() =>
+    dexMarket.value
+        ? dexScreenerChartUrl(dexMarket.value, {
+              theme: resolvedAppearance.value,
+          })
+        : null,
+);
+
+/** Whether the panel is showing somebody else's chart rather than ours. */
+const showsIndexedChart = computed(
+    () => candles.value.length === 0 && dexChartUrl.value !== null,
+);
+
 watch([tokenIn, tokenOut], scheduleQuote);
 watch([tokenIn, tokenOut], () => void resolveLivePairAddress(), {
     immediate: true,
@@ -2068,8 +2168,16 @@ onBeforeUnmount(() => {
             <section class="space-y-4 rounded-lg border p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
+                        <!--
+                          Two charts and two captions, because they are drawn
+                          by different people. Ours is rebuilt from the pools'
+                          own reserves; the other is somebody else's index of
+                          somebody else's pool, and saying "Ritual market" over
+                          it would take credit for a market this project has
+                          nothing in.
+                        -->
                         <h2 class="font-semibold">
-                            Ritual market
+                            {{ showsIndexedChart ? 'Market' : 'Ritual market' }}
                             <span
                                 v-if="chartPairKey"
                                 class="font-mono text-sm text-muted-foreground"
@@ -2080,7 +2188,12 @@ onBeforeUnmount(() => {
                             </span>
                         </h2>
                         <p class="text-xs text-muted-foreground">
-                            <template v-if="marketRouteSymbols.length > 2">
+                            <template v-if="showsIndexedChart">
+                                This pair trades in concentrated pools, whose
+                                history this page cannot rebuild — the chart
+                                below is the index's own, of its deepest pool.
+                            </template>
+                            <template v-else-if="marketRouteSymbols.length > 2">
                                 Routed
                                 {{ marketRouteSymbols.join(' → ') }} — candles
                                 come from the pools' on-chain reserves, so the
@@ -2093,7 +2206,7 @@ onBeforeUnmount(() => {
                         </p>
                     </div>
                     <span
-                        v-if="selectedPoolPairAddress"
+                        v-if="selectedPoolPairAddress && !showsIndexedChart"
                         class="rounded bg-muted px-2 py-1 font-mono text-xs"
                         title="Direct pool for this pair"
                     >
@@ -2191,6 +2304,37 @@ onBeforeUnmount(() => {
                             :quote-symbol="symbolOf(chartQuote)"
                         />
                     </template>
+                    <!--
+                      Somebody else's index, for the pools this page cannot
+                      rebuild a history from. Keyed on the pool so a change of
+                      token drops the frame instead of leaving the previous
+                      pair's chart up while a new one loads — the one thing a
+                      price chart must never do.
+                    -->
+                    <div v-else-if="dexChartUrl" class="space-y-2">
+                        <div class="flex items-baseline justify-between px-1">
+                            <h3 class="text-sm font-medium">
+                                {{ dexMarket?.symbol }} · {{ dexMarket?.dex }}
+                            </h3>
+                            <a
+                                :href="dexMarket?.url ?? undefined"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-[0.7rem] text-muted-foreground hover:underline"
+                            >
+                                Chart by DEX Screener ↗
+                            </a>
+                        </div>
+                        <iframe
+                            :key="dexChartUrl"
+                            :src="dexChartUrl"
+                            class="h-[420px] w-full rounded border border-border"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                            sandbox="allow-scripts allow-same-origin allow-popups"
+                            title="Price history"
+                        />
+                    </div>
                     <div
                         v-else
                         class="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground"
@@ -2212,10 +2356,10 @@ onBeforeUnmount(() => {
                           saying "no route" about it would contradict the price
                           sitting beside it.
                         -->
-                        <span v-else-if="!marketRoute && quote">
+                        <span v-else-if="!marketRoute && activeChain.v3">
                             No chart for this pair: it trades in the
                             concentrated pools, whose history this page cannot
-                            rebuild.
+                            rebuild, and no index carries it either.
                         </span>
                         <span v-else-if="!marketRoute">
                             No route between these tokens yet — add liquidity to
