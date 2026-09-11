@@ -37,6 +37,25 @@ test('native SOL is offered on both Solana routes', function () {
     expect($service->tokensForRoute('evm_to_sol'))->toHaveKey('SOL');
 });
 
+test('USDG is offered only on its Solana and Robinhood corridors', function () {
+    $service = app(BridgeConfigService::class);
+
+    foreach (['sol_to_evm', 'evm_to_sol', 'robinhood_to_evm', 'evm_to_robinhood'] as $direction) {
+        expect($service->tokensForRoute($direction))->toHaveKey('USDG');
+    }
+    foreach (['base_to_evm', 'evm_to_base', 'bnb_to_evm', 'evm_to_bnb'] as $direction) {
+        expect($service->tokensForRoute($direction))->not->toHaveKey('USDG');
+    }
+
+    $token = collect($service->publicTokens())->firstWhere('symbol', 'USDG');
+    expect($token['model'])->toBe('mint')
+        ->and($token['chains']['cyberia']['address'])->toBe('0xDaDa615b767120cC0767067f075Ac799957508Da')
+        ->and($token['chains']['solana']['mint'])->toBe('2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH')
+        ->and($token['chains']['solana']['tokenProgram'])->toBe('token-2022')
+        ->and($token['chains']['robinhood']['address'])->toBe('0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168')
+        ->and($token['chains']['robinhood']['decimals'])->toBe(6);
+});
+
 test('hides Yenten routes until the relayer WIF is configured', function () {
     config()->set('bridge.chains.yenten.relayer_wif', null);
 

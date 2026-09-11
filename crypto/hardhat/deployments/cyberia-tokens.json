@@ -212,6 +212,13 @@
       "artifact": "contracts/Orbserv.sol/Orbserv.json",
       "address": "0x19E92D8475522FF6c8f3660372B9dc6674d85cC8",
       "burnable": true
+    },
+    {
+      "symbol": "USDG",
+      "contract": "USDG",
+      "artifact": "contracts/USDG.sol/USDG.json",
+      "address": "0xDaDa615b767120cC0767067f075Ac799957508Da",
+      "burnable": true
     }
   ]
 }

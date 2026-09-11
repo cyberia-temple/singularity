@@ -26,6 +26,19 @@ test('USDT fee is denominated in USD', function () {
     expect($result['fee_amount'])->toContain('0.1');
 });
 
+test('USDG charges the larger of the flat and percentage stablecoin fees', function () {
+    $service = app(BridgeFeeService::class);
+
+    expect($service->isFeeBearing('USDG'))->toBeTrue();
+    $flat = $service->feeForBridge('USDG', '5');
+    expect($flat['token_price_usd'])->toBe('1')
+        ->and($flat['fee_amount'])->toBe('0.100000000000000000');
+
+    config()->set('bridge.fee.rate_bps', 100);
+    $rate = $service->feeForBridge('USDG', '1000');
+    expect($rate['fee_amount'])->toBe('10.000000000000000000');
+});
+
 test('flat USD fee combined with rate takes the maximum', function () {
     config()->set('bridge.fee.flat_usd', '0.10');
     config()->set('bridge.fee.rate_bps', 100); // 1%

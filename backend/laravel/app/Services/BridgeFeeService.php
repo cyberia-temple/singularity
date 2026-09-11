@@ -16,7 +16,7 @@ class BridgeFeeService
      * and expressed in token units. Returns [feeAmountToken, feeUsd, tokenPriceUsd].
      *
      * CYBER.sol bridges are fee-free by policy — only USD-pegged stablecoins
-     * (USDC/USDT) carry the bridge fee.
+     * (USDC/USDT/USDG) carry the bridge fee.
      */
     public function feeForBridge(string $token, string $amount, ?string $direction = null): array
     {
@@ -187,7 +187,7 @@ class BridgeFeeService
      */
     public function priceUsd(string $token): string
     {
-        if (in_array($token, ['USDC', 'USDT'], true)) {
+        if (in_array($token, ['USDC', 'USDT', 'USDG'], true)) {
             return '1';
         }
 

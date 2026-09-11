@@ -3,6 +3,7 @@ export type BridgeTokenSymbol =
     | 'SOL'
     | 'USDC'
     | 'USDT'
+    | 'USDG'
     | 'HATCHER'
     | 'ORBV'
     | 'YTN'
@@ -73,6 +74,15 @@ export const BRIDGE_TOKENS: Record<string, BridgeTokenInfo> = {
         solanaDecimals: 6,
         model: 'mint',
         solanaTokenProgram: 'token',
+    },
+    USDG: {
+        symbol: 'USDG',
+        evmAddress: '0xDaDa615b767120cC0767067f075Ac799957508Da',
+        solanaMint: '2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH',
+        evmDecimals: 6,
+        solanaDecimals: 6,
+        model: 'mint',
+        solanaTokenProgram: 'token-2022',
     },
     USDT: {
         symbol: 'USDT',
@@ -214,6 +224,7 @@ export const SUPPORTED_TOKEN_SYMBOLS: BridgeTokenSymbol[] = [
     'SOL',
     'USDC',
     'USDT',
+    'USDG',
     'HATCHER',
     'ORBV',
     'YTN',
