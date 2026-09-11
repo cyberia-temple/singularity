@@ -76,6 +76,8 @@ export type VaultContents = {
     accounts: WalletAccountRecord[];
     /** Which account the app is currently acting as. */
     activeId: string;
+    /** Unrevealed Arena moves; protected according to this vault's storage mode. */
+    arenaSecrets: ArenaSecretRecord[];
     /**
      * Whether the phrase has been written down somewhere off this device.
      *
@@ -85,6 +87,15 @@ export type VaultContents = {
      * the phrase has actually been copied out.
      */
     backedUp?: boolean;
+};
+
+export type ArenaSecretRecord = {
+    contract: string;
+    gameId: string;
+    player: string;
+    move: 1 | 2 | 3;
+    secret: string;
+    createdAt: string;
 };
 
 /**
@@ -260,6 +271,7 @@ const freshContents = (phrase: string, backedUp: boolean): VaultContents => ({
     accounts: defaultAccountRecords(),
     activeId: PRIMARY_ACCOUNT_ID,
     backedUp,
+    arenaSecrets: [],
 });
 
 const validPhrase = (phrase: string): string => {
@@ -372,6 +384,7 @@ const readContents = (plaintext: string): VaultContents => {
         phrase: plaintext,
         accounts: defaultAccountRecords(),
         activeId: PRIMARY_ACCOUNT_ID,
+        arenaSecrets: [],
     };
 
     let parsed: unknown;
@@ -403,6 +416,9 @@ const readContents = (plaintext: string): VaultContents => {
             ? accounts
             : [...defaultAccountRecords(), ...accounts],
         activeId: contents.activeId || PRIMARY_ACCOUNT_ID,
+        arenaSecrets: Array.isArray(contents.arenaSecrets)
+            ? contents.arenaSecrets
+            : [],
         // Absent means backed up: the field only started being written once
         // the check could be declined, and everything older had passed it.
         backedUp: contents.backedUp !== false,

@@ -109,11 +109,65 @@ jobs:
       - name: Tests
         run: npx hardhat test
 
+  # Workflows nested under game/SDK are invisible to GitHub Actions. Keep the
+  # Arcade gate here so pull requests and production pushes run it for real.
+  arcade-sdk:
+    name: Cyberia Arcade SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: game/SDK
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: game/SDK/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check peer dependencies
+        run: pnpm peers check
+
+      - name: Lint and formatting
+        run: pnpm lint
+
+      - name: Clean build
+        run: |
+          pnpm clean
+          pnpm build
+
+      - name: Contract tests
+        run: pnpm test
+
+      # Deployment uses the optimized profile, so CI compiles that exact
+      # profile as a separate gate instead of validating development only.
+      - name: Production contract build
+        run: |
+          pnpm clean
+          pnpm exec hardhat build --build-profile production
+
   deploy:
     name: Deploy to prod
+    # The production checkout contains both contract projects. Do not publish
+    # it when either the shared EVM suite or Arcade SDK validation has failed.
     needs:
       - docs
       - laravel
+      - hardhat
+      - arcade-sdk
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: production

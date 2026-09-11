@@ -258,6 +258,61 @@ export type { CatalogueNetwork, NetworkChoices } from '@/lib/wallet/catalogue';
 export { describeReadError } from '@/lib/wallet/readError';
 export type { UtxoAddressType } from '@/lib/wallet/utxo';
 export {
+    ARENA_ABI,
+    arenaCommitment,
+    arenaHasOpponent,
+    arenaRecentGameIds,
+    commitArenaMove,
+    createArenaGame,
+    createArenaSecret,
+    joinArenaGame,
+    mapArenaConcurrently,
+    readArenaGame,
+    readArenaRules,
+    readRecentArenaGames,
+    revealArenaMove,
+    settleArenaGame,
+} from '@/lib/wallet/arena';
+export {
+    ARENA_LEGACY_CONTRACT,
+    arenaContractForLink,
+    arenaMatchPath,
+    arenaShareUrl,
+    parseArenaGameId,
+} from '@/lib/wallet/arenaLinks';
+export {
+    arenaSecondsRemaining,
+    formatArenaCountdown,
+} from '@/lib/wallet/arenaTime';
+export {
+    arenaErrorCode,
+    arenaTransactionUrl,
+} from '@/lib/wallet/arenaPresentation';
+export type { ArenaErrorCode } from '@/lib/wallet/arenaPresentation';
+export {
+    arenaAction,
+    arenaCanCancel,
+    arenaComplete,
+    arenaPhaseExpired,
+    arenaReadyUntil,
+    arenaGameLists,
+    arenaNeedsAction,
+    arenaRole,
+} from '@/lib/wallet/arenaState';
+export type {
+    ArenaAction,
+    ArenaGameLists,
+    ArenaRole,
+} from '@/lib/wallet/arenaState';
+export type {
+    ArenaGame,
+    ArenaMove,
+    ArenaResult,
+    ArenaRules,
+    ArenaSettlement,
+    ArenaState,
+} from '@/lib/wallet/arena';
+export {
     ERC20_TRANSFER_GAS_CAP,
     blockscoutTokens,
     erc20Balance,
@@ -362,6 +417,7 @@ export {
 } from '@/lib/wallet/vault';
 export type {
     OpenVaultRecord,
+    ArenaSecretRecord,
     OpenedVault,
     SealedVaultRecord,
     VaultContents,
