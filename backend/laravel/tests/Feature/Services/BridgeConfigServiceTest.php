@@ -56,6 +56,23 @@ test('USDG is offered only on its Solana and Robinhood corridors', function () {
         ->and($token['chains']['robinhood']['decimals'])->toBe(6);
 });
 
+test('JupUSD uses the existing wrapper and canonical SPL mint only on Solana routes', function () {
+    $service = app(BridgeConfigService::class);
+    foreach (['sol_to_evm', 'evm_to_sol'] as $direction) {
+        expect($service->tokensForRoute($direction))->toHaveKey('JupUSD');
+    }
+    foreach (['base_to_evm', 'evm_to_base', 'bnb_to_evm', 'evm_to_bnb', 'robinhood_to_evm', 'evm_to_robinhood'] as $direction) {
+        expect($service->tokensForRoute($direction))->not->toHaveKey('JupUSD');
+    }
+    $token = collect($service->publicTokens())->firstWhere('symbol', 'JupUSD');
+    expect($token['model'])->toBe('mint')
+        ->and($token['chains']['cyberia']['address'])->toBe('0x03EB2fb8473C0370c8F6463efEE5f5Cf4EC011c7')
+        ->and($token['chains']['cyberia']['decimals'])->toBe(6)
+        ->and($token['chains']['solana']['mint'])->toBe('JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD')
+        ->and($token['chains']['solana']['decimals'])->toBe(6)
+        ->and($token['chains']['solana']['tokenProgram'])->toBe('token');
+});
+
 test('hides Yenten routes until the relayer WIF is configured', function () {
     config()->set('bridge.chains.yenten.relayer_wif', null);
 

@@ -624,6 +624,16 @@ return [
                 'robinhood' => ['address' => '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168', 'decimals' => 6],
             ],
         ],
+        // Jupiter USD on Solana, represented by the existing relayer-owned wrapper.
+        'JupUSD' => [
+            'symbol' => 'JupUSD',
+            'model' => 'mint',
+            'fee_bearing' => true,
+            'chains' => [
+                'cyberia' => ['address' => '0x03EB2fb8473C0370c8F6463efEE5f5Cf4EC011c7', 'decimals' => 6],
+                'solana' => ['mint' => 'JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD', 'decimals' => 6, 'token_program' => 'token'],
+            ],
+        ],
         // USDT — one unified wrapper across Solana + BNB Chain (pooled reserves,
         // rebalanceable). The Cyberia wrapper is 6-dec; BSC-USDT is 18-dec, so
         // the bridge scales each side by its own decimals (like CYBER.sol 18/6).
