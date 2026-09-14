@@ -1,0 +1,12 @@
+{
+  "contract": "RockPaperScissors",
+  "chainId": 49406,
+  "address": "0xd21edE559b49A6f6cDF57060456474D100D53e45",
+  "deployer": "0x45Cd99E5b7a242a63e1a6B73A4c62D51E3926a0C",
+  "transactionHash": "0x07dd16971095124b2fda9d3d7a44659c44b3bc50260d7d34785237c7c66581aa",
+  "blockNumber": 17451783,
+  "blockHash": "0xf9101cc1ee6548e3a5f7a086f1a38ef3629cea55cd93e31d24b8c2c219fc2885",
+  "constructorArguments": ["300"],
+  "creationBytecodeHash": "0x787b3f7f03ba223c537e004670051031b100517f66633fde91b5505f822d0c1c",
+  "runtimeBytecodeHash": "0xc281a746b76182293e70f0a65e13a49087eb6d57d0d27ff6761e7853ebbf5d6f"
+}

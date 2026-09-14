@@ -5,6 +5,7 @@ import StatusPill from '@/components/wallet/StatusPill.vue';
 import TxList from '@/components/wallet/TxList.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { arenaMessages } from '@/lib/arenaMessages';
 import { canOpenProxySettings, openProxySettings } from '@/lib/native';
 import { WALLET_FAMILY_GROUPS, formatUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTxStatus } from '@/lib/wallet';
@@ -57,11 +58,13 @@ const emit = defineEmits<{
     earn: [];
     stocks: [];
     browse: [];
+    arena: [];
     daily: [];
     preferences: [];
 }>();
 
 const { locale, t } = useLocale(walletMessages);
+const { t: arenaT } = useLocale(arenaMessages);
 
 const activeRecord = computed(() => props.wallet.activeAccount.value);
 
@@ -547,6 +550,18 @@ const recent = computed(() =>
                 {{ t('showAddress') }}
             </button>
         </div>
+
+        <button
+            type="button"
+            class="cw-card cw-card-button"
+            style="margin: 10px 0; padding: 14px 16px"
+            @click="emit('arena')"
+        >
+            <span class="cw-row"
+                ><span>{{ arenaT('tile') }}</span
+                ><span class="cw-label">{{ arenaT('tileHint') }}</span></span
+            >
+        </button>
 
         <div class="cw-row" style="margin-bottom: 10px">
             <span class="cw-label">{{ t('networks') }}</span>
