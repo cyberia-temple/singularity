@@ -14,6 +14,7 @@ import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import TxList from '@/components/wallet/TxList.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { arenaMessages } from '@/lib/arenaMessages';
 import { canOpenProxySettings, openProxySettings } from '@/lib/native';
 import { WALLET_FAMILY_GROUPS, formatUnits } from '@/lib/wallet';
 import type { WalletChainId, WalletTxStatus } from '@/lib/wallet';
@@ -55,6 +56,10 @@ const emit = defineEmits<{
     stocks: [];
     bridge: [];
     earn: [];
+    browse: [];
+    arena: [];
+    daily: [];
+    preferences: [];
     launchpad: [];
     /** Everything that is not one of the eight, one level down. */
     more: [];
@@ -63,6 +68,7 @@ const emit = defineEmits<{
 }>();
 
 const { locale, t } = useLocale(walletMessages);
+const { t: arenaT } = useLocale(arenaMessages);
 
 const activeRecord = computed(() => props.wallet.activeAccount.value);
 
@@ -488,6 +494,44 @@ const recent = computed(() =>
           "СЕТИ" makes clearer, and "ВЫВЕДЕНО: 1" counted a thing nobody asked
           about.
         -->
+        <div
+            v-else-if="isEmpty"
+            style="
+                margin: 4px 0 26px;
+                padding: 28px 20px;
+                border: 1px dashed var(--cw-border-soft);
+                text-align: center;
+            "
+        >
+            <div class="cw-label" style="margin-bottom: 10px">
+                {{ t('emptyTitle') }}
+            </div>
+            <p class="cw-prose" style="max-width: 34ch; margin: 0 auto 18px">
+                {{ t('emptyBody') }}
+            </p>
+            <button type="button" class="cw-ghost" @click="emit('receive')">
+                {{ t('showAddress') }}
+            </button>
+        </div>
+
+        <button
+            type="button"
+            class="cw-card cw-card-button"
+            style="margin: 10px 0; padding: 14px 16px"
+            @click="emit('arena')"
+        >
+            <span class="cw-row"
+                ><span>{{ arenaT('tile') }}</span
+                ><span class="cw-label">{{ arenaT('tileHint') }}</span></span
+            >
+        </button>
+
+        <div class="cw-row" style="margin-bottom: 10px">
+            <span class="cw-label">{{ t('networks') }}</span>
+            <span class="cw-label" style="color: var(--cw-faint)">{{
+                t('derivedCount', { count: cards.length })
+            }}</span>
+        </div>
         <div class="cw-stack" style="gap: 8px">
             <template v-for="card in groupedCards" :key="card.account.chain">
                 <button

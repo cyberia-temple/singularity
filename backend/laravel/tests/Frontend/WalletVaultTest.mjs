@@ -100,6 +100,40 @@ test('a fresh vault holds exactly one account, and it is the phrase', async () =
     assert.equal(created.activeId, PRIMARY_ACCOUNT_ID);
 });
 
+for (const protectedVault of [true, false]) {
+    test(`Arena secrets survive resealing with backup metadata (password: ${protectedVault})`, async () => {
+        const disk = storage();
+        const phrase = createMnemonic();
+        const password = 'arena test password';
+        const created = protectedVault
+            ? await saveVault(phrase, password, disk, false)
+            : await saveOpenVault(phrase, disk, false);
+        assert.deepEqual(created.arenaSecrets, []);
+        const record = {
+            contract: '0x1111111111111111111111111111111111111111',
+            player: '0x2222222222222222222222222222222222222222',
+            gameId: '7',
+            move: 1,
+            secret: `0x${'ab'.repeat(32)}`,
+            createdAt: '2026-09-10T00:00:00Z',
+        };
+        await created.reseal({ ...created, arenaSecrets: [record] });
+        const reopened = protectedVault
+            ? await unsealVault(password, disk)
+            : openUnprotectedVault(disk);
+        assert.deepEqual(reopened.arenaSecrets, [record]);
+        assert.equal(reopened.backedUp, false);
+        assert.equal(disk.dump().includes(record.secret), !protectedVault);
+        if (!protectedVault) {
+            await protectVault(reopened, password, disk);
+            assert.deepEqual((await unsealVault(password, disk)).arenaSecrets, [
+                record,
+            ]);
+            assert.equal(disk.dump().includes(record.secret), false);
+        }
+    });
+}
+
 test('an imported key is sealed under the same password as the seed', async () => {
     const disk = storage();
     const phrase = createMnemonic();
@@ -260,7 +294,6 @@ test('forgetting a wallet leaves nothing behind', async () => {
     assert.equal(readVault(disk), null);
     assert.equal(disk.dump(), '');
 });
-
 
 /* --------------------------------------------------- declining a password -- */
 
