@@ -659,6 +659,8 @@ export const walletMessages: Messages = {
         earnSignClaim:
             'Collect {amount} {symbol} earned in the {pool} farm, leaving the stake where it is and paying up to {fee} in network fees.',
         earnSent: 'Signed and broadcast.',
+        earnSettling:
+            'Signed and broadcast. Waiting for the block before the stake is read back — broadcast is not settlement.',
         earnImpermanent:
             'This is a two-sided pool. If the two assets move apart in price you get back a different mix than you put in, and that difference is not in the APR above.',
         earnAddLiquidityNote:
@@ -2364,6 +2366,8 @@ export const walletMessages: Messages = {
         earnSignClaim:
             'Забрать {amount} {symbol}, накопленные в фарме {pool}, оставив долю на месте; комиссия сети — до {fee}.',
         earnSent: 'Подписано и отправлено.',
+        earnSettling:
+            'Подписано и отправлено. Ждём блок, прежде чем перечитать долю: отправить — ещё не значит попасть в блок.',
         earnImpermanent:
             'Это двусторонний пул. Если цены двух активов разойдутся, обратно вы получите другой набор, чем внесли, — и этой разницы в APR выше нет.',
         earnAddLiquidityNote:
@@ -4002,6 +4006,8 @@ export const walletMessages: Messages = {
         earnSignClaim:
             '领取在 {pool} 农场赚到的 {amount} {symbol}，质押原样留着，网络手续费最多 {fee}。',
         earnSent: '已签名并广播。',
+        earnSettling:
+            '已签名并广播。等这一笔进块之后再重新读取质押 — 广播不等于入账。',
         earnImpermanent:
             '这是一个双边池子。如果两种资产的价格走开，你拿回来的组合会和投进去的不一样，而上面的 APR 没有把这个差额扣掉。',
         earnAddLiquidityNote:

@@ -799,7 +799,7 @@ const removeSentence = computed(() => {
     const { position: entry } = answer;
 
     return t('poolSignRemove', {
-        amount: formatUnits(answer.liquidity, 18, 6),
+        amount: formatUnits(answer.liquidity, 18, 12),
         pair: `${entry.symbols[0]} / ${entry.symbols[1]}`,
         first: `${formatUnits(answer.amounts[0], entry.decimals[0], 6)} ${entry.symbols[0]}`,
         second: `${formatUnits(answer.amounts[1], entry.decimals[1], 6)} ${entry.symbols[1]}`,
@@ -1051,7 +1051,7 @@ const back = (): void => {
                     <div class="cw-kv">
                         <span class="cw-kv-key">{{ t('poolYouGet') }}</span>
                         <span class="cw-kv-val"
-                            >{{ formatUnits(quote.minted, 18, 6) }} LP</span
+                            >{{ formatUnits(quote.minted, 18, 12) }} LP</span
                         >
                     </div>
                     <div class="cw-kv">
@@ -1265,7 +1265,7 @@ const back = (): void => {
                         {{ position.symbols[0] }} / {{ position.symbols[1] }}
                     </h3>
                     <p class="cw-label" style="color: var(--cw-faint)">
-                        {{ formatUnits(position.balance, 18, 8) }} LP
+                        {{ formatUnits(position.balance, 18, 12) }} LP
                     </p>
 
                     <div class="cw-row" style="margin-top: 18px">

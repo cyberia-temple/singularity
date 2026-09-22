@@ -1,0 +1,102 @@
+1
+00:00:00,000 --> 00:00:03,449
+The Cyberia wallet. Two assets in it,
+and nothing else.
+
+2
+00:00:03,569 --> 00:00:11,179
+Liquidity is one level down.
+
+3
+00:00:11,299 --> 00:00:14,980
+A pool is two assets held together at
+one price.
+
+4
+00:00:15,100 --> 00:00:20,470
+CYBER on one side.
+
+5
+00:00:20,590 --> 00:00:24,643
+USDC on the other — a dollar on this
+chain.
+
+6
+00:00:24,763 --> 00:00:30,052
+You type one amount.
+
+7
+00:00:30,172 --> 00:00:33,850
+The pool’s own price fills the other.
+Arriving at any other ratio would be
+partly handed back.
+
+8
+00:00:33,970 --> 00:00:38,051
+That is 0.0724% of the pool —
+0.000000035962 LP.
+
+9
+00:00:38,171 --> 00:00:41,652
+Both sides get a floor, and both are
+written into the transaction.
+
+10
+00:00:41,772 --> 00:00:48,179
+Hold to sign. A tap is something a thumb
+does by accident.
+
+11
+00:00:48,299 --> 00:00:55,154
+Broadcast is not settlement, so the
+wallet waits for the block before it
+reads the position back.
+
+12
+00:00:55,274 --> 00:01:00,454
+The LP token is the position. It earns
+the pool’s trading fees on its own.
+
+13
+00:01:00,574 --> 00:01:07,851
+Staked in the farm, it earns the chain’s
+emission as well.
+
+14
+00:01:07,971 --> 00:01:15,156
+The farm lists every pool, and what this
+account holds in them.
+
+15
+00:01:15,276 --> 00:01:18,859
+All of it.
+
+16
+00:01:18,979 --> 00:01:27,283
+The farm cannot move the LP yet, so an
+allowance is signed first — for exactly
+this amount.
+
+17
+00:01:27,403 --> 00:01:35,405
+Two transactions: the allowance, then
+the stake.
+
+18
+00:01:35,525 --> 00:01:38,405
+And now it pays.
+
+19
+00:01:38,525 --> 00:01:50,519
+The reward moves every block — the
+chain’s own arithmetic, carried forward
+from the last read rather than animated.
+
+20
+00:01:50,639 --> 00:02:04,578
+Claiming takes what has accrued and
+leaves the stake where it is.
+
+21
+00:02:04,698 --> 00:02:09,864
+Claimed, and already accruing again.

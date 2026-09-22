@@ -97,6 +97,7 @@ type Act = 'stake' | 'unstake' | 'claim';
 const act = ref<Act>('stake');
 const amount = ref('');
 const busy = ref(false);
+const settling = ref(false);
 const sent = ref<{ hash: string; url: string } | null>(null);
 const gasPrice = ref<bigint | null>(null);
 
@@ -555,7 +556,27 @@ const sign = async (): Promise<void> => {
             duration_ms: Date.now() - startedAt,
         });
 
-        // The position on screen belongs to the block before this one.
+        /*
+         * The block first.
+         *
+         * `farm.stake` resolves when the transaction is *broadcast* — that is
+         * the moment a hash exists — and reading the chef at that point reads
+         * the state from before the stake. It drew a fresh stake as nothing
+         * staked and a reward of zero, with the ticker sitting still on top of
+         * it because a stake of zero accrues zero. The wait is the chain
+         * adapter's own, and a wait that times out still re-reads: a timeout
+         * is a fact about the watching, not about the transaction.
+         */
+        settling.value = true;
+
+        try {
+            await chainMeta.value.awaitOutcome?.(receipt.hash);
+        } catch {
+            // Timed out watching. The re-read below is still the right move.
+        } finally {
+            settling.value = false;
+        }
+
         await load();
         await props.wallet.refreshBalances();
     } catch (failure) {
@@ -711,7 +732,11 @@ const sign = async (): Promise<void> => {
                             <template v-if="entry.staked > 0n"
                                 >{{ t('earnYours') }}
                                 {{
-                                    formatUnits(entry.staked, entry.decimals, 4)
+                                    formatUnits(
+                                        entry.staked,
+                                        entry.decimals,
+                                        10,
+                                    )
                                 }}</template
                             >
                             <template v-else-if="entry.idle > 0n">{{
@@ -767,7 +792,7 @@ const sign = async (): Promise<void> => {
                 <div class="cw-kv">
                     <span class="cw-kv-key">{{ t('earnStaked') }}</span>
                     <span class="cw-kv-val"
-                        >{{ formatUnits(pool.staked, pool.decimals, 6) }}
+                        >{{ formatUnits(pool.staked, pool.decimals, 12) }}
                         {{ pool.isPair ? 'LP' : pool.label }}</span
                     >
                 </div>
@@ -780,7 +805,7 @@ const sign = async (): Promise<void> => {
                                 ? { color: 'var(--cw-pending)' }
                                 : undefined
                         "
-                        >{{ formatUnits(pool.idle, pool.decimals, 6) }}</span
+                        >{{ formatUnits(pool.idle, pool.decimals, 12) }}</span
                     >
                 </div>
                 <div v-if="position" class="cw-kv">
@@ -917,7 +942,7 @@ const sign = async (): Promise<void> => {
 
             <div v-if="sent" class="cw-note" style="margin-top: 14px">
                 <span>
-                    {{ t('earnSent') }}
+                    {{ settling ? t('earnSettling') : t('earnSent') }}
                     <a :href="sent.url" target="_blank" rel="noopener">{{
                         t('viewInExplorer')
                     }}</a>
