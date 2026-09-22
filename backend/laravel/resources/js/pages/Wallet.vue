@@ -153,7 +153,7 @@ const native = isNativeShell();
  * on, so a screen never renders half-swapped: one element changes and every
  * colour under it is already the other palette.
  */
-const { scheme } = useWalletTheme();
+const { scheme, palette } = useWalletTheme();
 
 const desktop = useMediaQuery('(min-width: 1024px)');
 
@@ -1409,6 +1409,7 @@ watch(
     <div
         class="cw cw-frame flex flex-col"
         :data-cw-theme="scheme"
+        :data-cw-palette="palette"
         :class="native ? 'p-3 sm:p-4' : 'p-3 sm:p-5'"
     >
         <!--

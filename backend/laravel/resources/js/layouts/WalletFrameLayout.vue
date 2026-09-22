@@ -42,7 +42,7 @@ import { onBeforeUnmount, onMounted, watch } from 'vue';
 import { useWalletTheme } from '@/composables/useWalletTheme';
 import { isNativeShell } from '@/lib/native';
 
-const { scheme } = useWalletTheme();
+const { scheme, palette } = useWalletTheme();
 
 /**
  * The window as it was before this file touched anything, kept for the readout
@@ -234,7 +234,12 @@ onMounted(() => {
     }
 });
 
-watch(scheme, () => paintWindowChrome());
+/*
+ * Both of them, because both change what `--cw-app` resolves to: the scheme
+ * picks the face and the palette picks the colours, and the band the system
+ * paints around the window is read off that token rather than written down here.
+ */
+watch([scheme, palette], () => paintWindowChrome());
 
 onBeforeUnmount(() => {
     const viewport = metaTag('viewport');
