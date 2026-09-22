@@ -1,4 +1,4 @@
-# DEX — Swapping and Liquidity
+# DEX — Swapping
 
 There are two trading surfaces, backed by the same on-chain QuickSwap-style (Uniswap v2) pools:
 
@@ -30,13 +30,14 @@ Tips:
 
 ## Providing liquidity
 
-On the **Pools** page (Ritual) or **/liquidity** (main site):
+Adding liquidity, staking the LP token you get back and claiming what it earns
+have a page of their own, with a video of the whole sequence:
+[Liquidity and farming](liquidity.md).
 
-1. Pick a pair and deposit both tokens at the current pool ratio.
-2. You receive LP tokens representing your share; trading fees accrue to the pool.
-3. Remove liquidity any time by redeeming the LP tokens.
-
-The value of a liquidity position follows the pool's token ratio, and displayed APR uses recent trading activity. Review the current pair ratio and pool figures before confirming a deposit.
+The short version: you deposit both tokens at the current pool ratio and receive
+LP tokens representing your share, trading fees accrue to the pool, and you can
+redeem the LP tokens at any time. The value of the position follows the pool's
+token ratio, and a displayed APR is backward-looking.
 
 To add liquidity:
 
