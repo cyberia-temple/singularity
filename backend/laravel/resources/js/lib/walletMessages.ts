@@ -1327,6 +1327,84 @@ export const walletMessages: Messages = {
         launchBuy: 'Buy in the wallet',
         launchTrade: 'Trade on the DEX',
         launchExplorer: 'Explorer',
+        launchLockedBodyV3:
+            'The liquidity behind this token is a position locked forever at launch. Nobody can withdraw it; the fees it earns go to its creator, its holders and the protocol.',
+        launchNewOpen: 'Launch a token',
+        launchNewTitle: 'Launch a token',
+        launchNewBodyV2:
+            'One transaction creates the token and puts its whole supply into a pool against the coin you send. The coin is burned into that pool, so nobody can take the liquidity out — you included. You keep none of the supply: to hold your own token, you buy it like everyone else.',
+        launchNewBodyV3:
+            'One transaction creates the token and puts its whole supply into a pool against the coin you send. That liquidity is locked forever — you cannot take it out either — and it earns the trading fee you set below. You keep none of the supply: to hold your own token, you buy it like everyone else.',
+        launchNewNoLaunchpad: 'There is no launchpad on this network yet.',
+        launchNewNoAccount:
+            'This account has no address on Cyberia, so it cannot launch here.',
+        launchNewWatchOnly:
+            'This is a watch-only account. It can see launches but cannot sign one.',
+        launchNewName: 'Name',
+        launchNewSymbol: 'Ticker',
+        launchNewSupplyNote:
+            'All of it goes into the pool. Nothing is kept back.',
+        launchNewPaired: 'Liquidity',
+        launchNewPairedNote:
+            'Coin paired with the supply. It sets the starting price and does not come back.',
+        launchNewPairedMin:
+            'At least {amount} {symbol}. It sets the starting price and does not come back.',
+        launchNewCreatorFee: 'Your trading fee, % (0–{max})',
+        launchNewHoldersShare: 'Share of your fee paid to holders, %',
+        launchNewTradeFee: 'Trading fee',
+        launchNewToYou: 'To you',
+        launchNewToHolders: 'To holders',
+        launchNewToProtocol: 'To the protocol',
+        launchNewSplitNote:
+            'Split of every fee the pool collects. A trader pays your fee plus the protocol’s 1%. These terms cannot be changed after launch.',
+        launchNewAbout: 'About (optional)',
+        launchNewAboutNote:
+            'Shown on the token’s page. Saved after the launch by signing a message, which costs nothing and proves you created the token.',
+        launchNewLogo: 'Logo',
+        launchNewWebsite: 'Website',
+        launchNewImageTooLarge: 'The logo must be 2 MB or less.',
+        launchNewErrName: 'Enter a name, {max} characters at most.',
+        launchNewErrSymbol:
+            'Enter a ticker with no spaces, {max} characters at most.',
+        launchNewErrSupply: 'Enter a supply greater than zero.',
+        launchNewErrLiquidity: 'Enter how much liquidity to add.',
+        launchNewErrMin:
+            'This launchpad needs at least {amount} {symbol} of liquidity.',
+        launchNewErrFee: 'The fee must be between 0 and {max}%.',
+        launchNewErrShare: 'The holders’ share must be between 0 and 100%.',
+        launchNewErrFunds:
+            'This account does not have enough {symbol} for the liquidity plus the network fee.',
+        launchNewErrGas:
+            'This launch would cost more gas than this wallet will spend on one.',
+        launchNewErrReverted: 'The network would reject this launch: {reason}',
+        launchNewChecking: 'Checking…',
+        launchNewContinue: 'Review launch',
+        launchNewConfirmTitle: 'Confirm launch',
+        launchNewToken: 'Token',
+        launchNewNetwork: 'Network',
+        launchNewPermanentV2:
+            'The {amount} {symbol} goes into the pool and is burned there. You cannot get it back, and you cannot undo this launch.',
+        launchNewPermanentV3:
+            'The {amount} {symbol} goes into the pool and is locked there forever. You cannot get it back, and you cannot undo this launch or change its fee.',
+        launchNewAboutAfter:
+            'Once the launch is confirmed, the wallet will sign a message to save the description and links.',
+        launchNewHold: 'Hold to launch',
+        launchNewMiningTitle: 'Launching…',
+        launchNewMiningBody:
+            'The transaction has been sent. Waiting for the network to confirm it — keep this screen open.',
+        launchNewReverted:
+            'The network rejected the launch. The liquidity was not spent; only the network fee was.',
+        launchNewDoneTitle: 'Token launched',
+        launchNewDoneBody:
+            'Your token exists and is already trading. The pool is its only market.',
+        launchNewSentTitle: 'Launch sent',
+        launchNewUnreadBody:
+            'The transaction was sent, but the wallet could not confirm the result yet. Check it in the explorer before trying again, or you may launch it twice.',
+        launchNewAboutSaving: 'Saving the description…',
+        launchNewAboutSaved: 'Description and links saved.',
+        launchNewAboutFailed:
+            'The token launched, but the description was not saved: {reason}',
+        launchNewBackToList: 'Back to launches',
 
         // Feed
         feed: 'Feed',
@@ -3002,6 +3080,84 @@ export const walletMessages: Messages = {
         launchBuy: 'Купить в кошельке',
         launchTrade: 'Торговать на DEX',
         launchExplorer: 'Обозреватель',
+        launchLockedBodyV3:
+            'Ликвидность за этим токеном — позиция, заблокированная навсегда при запуске. Вывести её не может никто; комиссии с неё получают создатель, держатели и протокол.',
+        launchNewOpen: 'Запустить токен',
+        launchNewTitle: 'Запуск токена',
+        launchNewBodyV2:
+            'Одна транзакция создаёт токен и кладёт всю эмиссию в пул против монеты, которую вы отправляете. Монета сжигается в этом пуле, поэтому ликвидность не может вывести никто — и вы тоже. Себе вы не оставляете ничего: чтобы держать свой токен, его покупают, как все.',
+        launchNewBodyV3:
+            'Одна транзакция создаёт токен и кладёт всю эмиссию в пул против монеты, которую вы отправляете. Эта ликвидность заблокирована навсегда — вывести её не сможете и вы — и приносит торговую комиссию, которую вы зададите ниже. Себе вы не оставляете ничего: чтобы держать свой токен, его покупают, как все.',
+        launchNewNoLaunchpad: 'В этой сети пока нет лаунчпада.',
+        launchNewNoAccount:
+            'У этого счёта нет адреса в Cyberia, запустить отсюда нельзя.',
+        launchNewWatchOnly:
+            'Это счёт только для наблюдения. Он видит запуски, но подписать запуск не может.',
+        launchNewName: 'Название',
+        launchNewSymbol: 'Тикер',
+        launchNewSupplyNote:
+            'Вся эмиссия идёт в пул. Ничего не остаётся в стороне.',
+        launchNewPaired: 'Ликвидность',
+        launchNewPairedNote:
+            'Монета в паре с эмиссией. Она задаёт стартовую цену и не возвращается.',
+        launchNewPairedMin:
+            'Не меньше {amount} {symbol}. Она задаёт стартовую цену и не возвращается.',
+        launchNewCreatorFee: 'Ваша торговая комиссия, % (0–{max})',
+        launchNewHoldersShare: 'Доля вашей комиссии держателям, %',
+        launchNewTradeFee: 'Торговая комиссия',
+        launchNewToYou: 'Вам',
+        launchNewToHolders: 'Держателям',
+        launchNewToProtocol: 'Протоколу',
+        launchNewSplitNote:
+            'Так делится каждая комиссия, которую собирает пул. Трейдер платит вашу комиссию плюс 1% протокола. После запуска эти условия не меняются.',
+        launchNewAbout: 'О токене (необязательно)',
+        launchNewAboutNote:
+            'Показывается на странице токена. Сохраняется после запуска подписью сообщения — это бесплатно и доказывает, что токен создали вы.',
+        launchNewLogo: 'Логотип',
+        launchNewWebsite: 'Сайт',
+        launchNewImageTooLarge: 'Логотип должен быть не больше 2 МБ.',
+        launchNewErrName: 'Введите название, не длиннее {max} символов.',
+        launchNewErrSymbol:
+            'Введите тикер без пробелов, не длиннее {max} символов.',
+        launchNewErrSupply: 'Введите эмиссию больше нуля.',
+        launchNewErrLiquidity: 'Введите, сколько ликвидности добавить.',
+        launchNewErrMin:
+            'Этому лаунчпаду нужно не меньше {amount} {symbol} ликвидности.',
+        launchNewErrFee: 'Комиссия должна быть от 0 до {max}%.',
+        launchNewErrShare: 'Доля держателей должна быть от 0 до 100%.',
+        launchNewErrFunds:
+            'На счёте не хватает {symbol} на ликвидность и комиссию сети.',
+        launchNewErrGas:
+            'Этот запуск потратил бы больше газа, чем кошелёк готов потратить на запуск.',
+        launchNewErrReverted: 'Сеть отклонила бы этот запуск: {reason}',
+        launchNewChecking: 'Проверяю…',
+        launchNewContinue: 'Проверить запуск',
+        launchNewConfirmTitle: 'Подтвердите запуск',
+        launchNewToken: 'Токен',
+        launchNewNetwork: 'Сеть',
+        launchNewPermanentV2:
+            '{amount} {symbol} уходят в пул и сжигаются там. Вернуть их нельзя, отменить запуск нельзя.',
+        launchNewPermanentV3:
+            '{amount} {symbol} уходят в пул и блокируются там навсегда. Вернуть их нельзя; отменить запуск или поменять комиссию тоже нельзя.',
+        launchNewAboutAfter:
+            'Когда запуск подтвердится, кошелёк подпишет сообщение, чтобы сохранить описание и ссылки.',
+        launchNewHold: 'Удерживайте для запуска',
+        launchNewMiningTitle: 'Запускаю…',
+        launchNewMiningBody:
+            'Транзакция отправлена. Жду подтверждения сети — не закрывайте этот экран.',
+        launchNewReverted:
+            'Сеть отклонила запуск. Ликвидность не потрачена, списана только комиссия сети.',
+        launchNewDoneTitle: 'Токен запущен',
+        launchNewDoneBody:
+            'Токен существует и уже торгуется. Пул — его единственный рынок.',
+        launchNewSentTitle: 'Запуск отправлен',
+        launchNewUnreadBody:
+            'Транзакция отправлена, но кошелёк пока не смог подтвердить результат. Проверьте её в обозревателе, прежде чем пробовать снова, — иначе можно запустить токен дважды.',
+        launchNewAboutSaving: 'Сохраняю описание…',
+        launchNewAboutSaved: 'Описание и ссылки сохранены.',
+        launchNewAboutFailed:
+            'Токен запущен, но описание не сохранилось: {reason}',
+        launchNewBackToList: 'К запускам',
 
         // Feed
         feed: 'Лента',
@@ -4605,6 +4761,75 @@ export const walletMessages: Messages = {
         launchBuy: '在钱包里买入',
         launchTrade: '在 DEX 交易',
         launchExplorer: '区块浏览器',
+        launchLockedBodyV3:
+            '这个代币背后的流动性是发射时永久锁定的头寸。没有人能把它取出来；它赚取的手续费归创建者、持有者和协议。',
+        launchNewOpen: '发射代币',
+        launchNewTitle: '发射代币',
+        launchNewBodyV2:
+            '一笔交易创建代币，并把全部供应量和你发送的币一起放进池子。这些币在池子里被销毁，所以没有人能取出流动性 — 包括你。你一个代币也不保留：想持有自己的代币，就和别人一样去买。',
+        launchNewBodyV3:
+            '一笔交易创建代币，并把全部供应量和你发送的币一起放进池子。这份流动性永久锁定 — 你也取不出来 — 并按你在下面设定的交易手续费赚钱。你一个代币也不保留：想持有自己的代币，就和别人一样去买。',
+        launchNewNoLaunchpad: '这个网络上还没有发射台。',
+        launchNewNoAccount: '这个账户在 Cyberia 上没有地址，无法在这里发射。',
+        launchNewWatchOnly: '这是只读观察账户。它能看到发射，但不能签名发射。',
+        launchNewName: '名称',
+        launchNewSymbol: '代码',
+        launchNewSupplyNote: '全部进入池子，一个也不留。',
+        launchNewPaired: '流动性',
+        launchNewPairedNote: '与供应量配对的币。它决定起始价格，并且不会退回。',
+        launchNewPairedMin:
+            '至少 {amount} {symbol}。它决定起始价格，并且不会退回。',
+        launchNewCreatorFee: '你的交易手续费，%（0–{max}）',
+        launchNewHoldersShare: '分给持有者的手续费比例，%',
+        launchNewTradeFee: '交易手续费',
+        launchNewToYou: '给你',
+        launchNewToHolders: '给持有者',
+        launchNewToProtocol: '给协议',
+        launchNewSplitNote:
+            '池子收取的每笔手续费都这样分配。交易者支付你的手续费加上协议的 1%。发射后这些条款不能更改。',
+        launchNewAbout: '简介（可选）',
+        launchNewAboutNote:
+            '显示在代币页面上。发射后通过签名一条消息保存 — 不花钱，并证明代币是你创建的。',
+        launchNewLogo: '图标',
+        launchNewWebsite: '网站',
+        launchNewImageTooLarge: '图标不能超过 2 MB。',
+        launchNewErrName: '请输入名称，最多 {max} 个字符。',
+        launchNewErrSymbol: '请输入不含空格的代码，最多 {max} 个字符。',
+        launchNewErrSupply: '请输入大于零的供应量。',
+        launchNewErrLiquidity: '请输入要添加的流动性。',
+        launchNewErrMin: '这个发射台至少需要 {amount} {symbol} 的流动性。',
+        launchNewErrFee: '手续费必须在 0 到 {max}% 之间。',
+        launchNewErrShare: '持有者比例必须在 0 到 100% 之间。',
+        launchNewErrFunds: '这个账户的 {symbol} 不够支付流动性和网络费用。',
+        launchNewErrGas:
+            '这次发射消耗的 gas 超过了钱包愿意为一次发射支付的上限。',
+        launchNewErrReverted: '网络会拒绝这次发射：{reason}',
+        launchNewChecking: '正在检查…',
+        launchNewContinue: '检查发射',
+        launchNewConfirmTitle: '确认发射',
+        launchNewToken: '代币',
+        launchNewNetwork: '网络',
+        launchNewPermanentV2:
+            '{amount} {symbol} 会进入池子并在那里被销毁。无法取回，发射也无法撤销。',
+        launchNewPermanentV3:
+            '{amount} {symbol} 会进入池子并永久锁定。无法取回，发射无法撤销，手续费也无法更改。',
+        launchNewAboutAfter: '发射确认后，钱包会签名一条消息来保存简介和链接。',
+        launchNewHold: '按住以发射',
+        launchNewMiningTitle: '正在发射…',
+        launchNewMiningBody:
+            '交易已发送。正在等待网络确认 — 请不要关闭这个页面。',
+        launchNewReverted:
+            '网络拒绝了这次发射。流动性没有花掉，只扣了网络费用。',
+        launchNewDoneTitle: '代币已发射',
+        launchNewDoneBody:
+            '你的代币已经存在并开始交易。这个池子是它唯一的市场。',
+        launchNewSentTitle: '发射已发送',
+        launchNewUnreadBody:
+            '交易已发送，但钱包暂时无法确认结果。再次尝试前请先在区块浏览器里查看，否则可能会发射两次。',
+        launchNewAboutSaving: '正在保存简介…',
+        launchNewAboutSaved: '简介和链接已保存。',
+        launchNewAboutFailed: '代币已发射，但简介没有保存：{reason}',
+        launchNewBackToList: '返回发射列表',
 
         // Feed
         feed: '动态',

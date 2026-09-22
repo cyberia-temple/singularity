@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ExternalLink } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
+import WalletLaunchCreate from '@/components/wallet/WalletLaunchCreate.vue';
 import { useLocale } from '@/composables/useLocale';
+import type { MultiWallet } from '@/composables/useMultiWallet';
 import { formatUnits } from '@/lib/wallet';
 import { formatUsd, shortAddress } from '@/lib/wallet/format';
 import { fetchLaunches, launchpadChains } from '@/lib/wallet/launchpad';
@@ -15,7 +17,8 @@ import { walletMessages } from '@/lib/walletMessages';
  * paid for it is burned into locked liquidity, and after that it is a pool like
  * any other. There is nothing to reserve, nothing to allocate and nothing to
  * vest, so this screen has no controls for those — it lists what exists and
- * what it costs.
+ * what it costs, and it can launch one (`WalletLaunchCreate`), signed by the
+ * key in this vault.
  *
  * Buying is a swap, and the wallet has one — so the detail hands the launch's
  * contract to the swap screen, which reads it from the chain before quoting
@@ -24,6 +27,7 @@ import { walletMessages } from '@/lib/walletMessages';
  */
 
 const props = defineProps<{
+    wallet: MultiWallet;
     /** Chain id → (lowercased contract → USD price), for pricing the coin. */
     prices: Record<string, number | null>;
 }>();
@@ -34,6 +38,8 @@ const { locale, t } = useLocale(walletMessages);
 
 const launches = ref<WalletLaunch[]>([]);
 const selected = ref<string | null>(null);
+/** The launch composer is open instead of the list. */
+const creating = ref(false);
 const loading = ref(true);
 const failure = ref<string | null>(null);
 
@@ -78,7 +84,15 @@ onMounted(load);
 
 <template>
     <div class="cw-stack">
-        <template v-if="detail">
+        <WalletLaunchCreate
+            v-if="creating"
+            :wallet="wallet"
+            @back="creating = false"
+            @launched="load"
+            @swap="(contract) => emit('swap', contract)"
+        />
+
+        <template v-else-if="detail">
             <button type="button" class="cw-back" @click="selected = null">
                 ← {{ t('launchpad') }}
             </button>
@@ -149,6 +163,10 @@ onMounted(load);
                             : `${detail.marketCapNative.toFixed(2)} ${symbol}`)
                     }}</span>
                 </div>
+                <div v-if="detail.feePct !== null" class="cw-kv">
+                    <span class="cw-kv-key">{{ t('launchNewTradeFee') }}</span>
+                    <span class="cw-kv-val">{{ detail.feePct }}%</span>
+                </div>
                 <div class="cw-kv">
                     <span class="cw-kv-key">{{ t('launchSupply') }}</span>
                     <span class="cw-kv-val">{{
@@ -164,7 +182,13 @@ onMounted(load);
             </div>
 
             <p class="cw-note" style="margin-top: 14px">
-                <span>{{ t('launchLockedBody') }}</span>
+                <span>{{
+                    t(
+                        detail.venue === 'v3'
+                            ? 'launchLockedBodyV3'
+                            : 'launchLockedBody',
+                    )
+                }}</span>
             </p>
 
             <p class="cw-note cw-note-warn" style="margin-top: 12px">
@@ -220,6 +244,16 @@ onMounted(load);
             <p class="cw-prose" style="margin-top: 8px">
                 {{ t('launchpadBody') }}
             </p>
+
+            <button
+                v-if="chain"
+                type="button"
+                class="cw-btn cw-btn-primary"
+                style="margin-top: 16px"
+                @click="creating = true"
+            >
+                {{ t('launchNewOpen') }}
+            </button>
 
             <p
                 v-if="failure"

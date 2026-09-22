@@ -2090,6 +2090,7 @@ watch(
 
                     <WalletLaunchpad
                         v-else-if="section === 'launchpad'"
+                        :wallet="wallet"
                         :prices="prices"
                         @swap="openSwapContract"
                     />

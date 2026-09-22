@@ -85,6 +85,8 @@ import {
     unstake as unstakeLp,
 } from '@/lib/wallet/earn';
 import type { EarnReceipt } from '@/lib/wallet/earn';
+import { executeLaunch } from '@/lib/wallet/launchpad';
+import type { LaunchQuote } from '@/lib/wallet/launchpad';
 import {
     executeAddLiquidity,
     executeRemoveLiquidity,
@@ -1522,6 +1524,29 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
     };
 
+    /**
+     * Launch a token: deploy it and pair its whole supply with the coin in
+     * `quote`, for good. Through the same door as every other signature — the
+     * key source never leaves this closure.
+     */
+    const launchToken = async (
+        chainId: WalletChainId,
+        quote: LaunchQuote,
+    ): Promise<string> => {
+        const source = sourceFor(chainId);
+
+        busy.value = true;
+
+        try {
+            return await executeLaunch(source, {
+                quote,
+                rpcUrl: rpcFor(chainId),
+            });
+        } finally {
+            busy.value = false;
+        }
+    };
+
     /* ---------------------------------------------------------------- chat --- */
 
     /**
@@ -1728,6 +1753,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         pool,
         bridgeDeposit,
         wrap,
+        launchToken,
         /** Encrypted chat: the public identity, and sealing under it. */
         chatIdentity,
         chatSeal,
