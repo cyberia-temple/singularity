@@ -583,6 +583,45 @@ const ready = computed(
         !quoting.value,
 );
 
+/* ------------------------------------------------------------- settling --- */
+
+/**
+ * True while a signed transaction is on its way into a block.
+ *
+ * This exists because of a real bug and not for decoration. `pool.add` returns
+ * as soon as the transaction is *broadcast* — that is the point at which a
+ * hash exists — and the screen then went straight on to re-read the chain, so
+ * it read the state from before its own deposit and drew a fresh position as
+ * "0 LP". It stayed wrong until somebody pressed F5, which is exactly how long
+ * it took the block to arrive and the reader to be run again by hand.
+ *
+ * Broadcast is not settlement. The wait is the chain adapter's own
+ * `awaitOutcome`, and its timeout says something about the watching rather
+ * than about the transaction — so a wait that gives up still re-reads, because
+ * the deposit is very probably in by then and a stale zero is the worse
+ * answer.
+ */
+const settling = ref(false);
+
+const settle = async (hash: string): Promise<void> => {
+    const chain = chainMeta.value;
+
+    if (!chain.awaitOutcome) {
+        return;
+    }
+
+    settling.value = true;
+
+    try {
+        await chain.awaitOutcome(hash);
+    } catch {
+        // Timed out watching. Nothing is known about the transaction from
+        // that, so the re-read below is still the right next move.
+    } finally {
+        settling.value = false;
+    }
+};
+
 /* ------------------------------------------------------------- signing --- */
 
 const traits = () => ({
@@ -628,6 +667,11 @@ const add = async (): Promise<void> => {
             ...traits(),
             duration_ms: Date.now() - startedAt,
         });
+
+        // The block first: reading the chain here without waiting is reading
+        // it before this deposit is in it, which is what drew a brand new
+        // position as zero until the page was reloaded by hand.
+        await settle(receipt.hash);
 
         // A pool that did not exist a moment ago is one the cached factory
         // listing has never heard of, and it is exactly the pool whose
@@ -795,6 +839,7 @@ const remove = async (): Promise<void> => {
 
         removal.value = null;
         selected.value = null;
+        await settle(receipt.hash);
         await loadPositions();
         await props.wallet.refreshBalances();
     } catch (failure) {
@@ -1332,7 +1377,7 @@ const back = (): void => {
 
             <div v-if="sent" class="cw-note" style="margin-top: 16px">
                 <span>
-                    {{ t('poolSent') }}
+                    {{ settling ? t('poolSettling') : t('poolSent') }}
                     <a :href="sent.url" target="_blank" rel="noopener">{{
                         t('viewInExplorer')
                     }}</a>

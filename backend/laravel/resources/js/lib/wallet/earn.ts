@@ -38,6 +38,7 @@ const MASTERCHEF_ABI = [
     'function pendingReward(uint256, address) view returns (uint256)',
     'function totalAllocPoint() view returns (uint256)',
     'function rewardToken() view returns (address)',
+    'function rewardPerBlock() view returns (uint256)',
     'function deposit(uint256 pid, uint256 amount)',
     'function withdraw(uint256 pid, uint256 amount)',
 ];
@@ -89,6 +90,13 @@ export type EarnPool = {
     isPair: boolean;
     /** Share of the farm's emission this pool is allocated, 0–1. */
     share: number;
+    /**
+     * The same share as the chef holds it: an integer weight, not a rounded
+     * fraction. `share` above is for printing; this is for arithmetic, and the
+     * two must never be swapped — a reward derived from a float that lost the
+     * last digits of a ratio is a reward that drifts from the contract's.
+     */
+    allocPoint: bigint;
     /** Staked by this account. */
     staked: bigint;
     /** Reward accrued and not yet claimed. */
@@ -106,6 +114,21 @@ export type EarnSnapshot = {
     reward: { symbol: string; decimals: number };
     /** Pools whose reads failed outright, so the screen can say how many. */
     unreadable: number;
+    /**
+     * What the farm pays per block, and the denominator every pool's share is
+     * measured against — the two numbers that let a screen carry a reward
+     * forward between reads instead of freezing it until somebody refreshes.
+     *
+     * `null` when the chef would not answer for them. A reward that cannot be
+     * projected is shown as the figure that was actually read, never as a
+     * number invented to keep moving.
+     */
+    emission: { rewardPerBlock: bigint; totalAllocPoint: bigint } | null;
+    /**
+     * The block `pending` was read at. It is the anchor the projection counts
+     * from, so it has to be the chain's own number and not a clock reading.
+     */
+    block: number;
 };
 
 /* ------------------------------------------------------------ registry -- */
@@ -129,11 +152,38 @@ export const hasEarn = (chainId: number | undefined): boolean =>
     chainId !== undefined &&
     FARM_CHAINS.some((candidate) => candidate.chainId === chainId);
 
-const provider = (config: FarmChainConfig, rpcUrl?: string): JsonRpcProvider =>
-    new JsonRpcProvider(rpcUrl || config.readRpcUrl, config.chainId, {
+/**
+ * One provider per endpoint, kept rather than rebuilt.
+ *
+ * It used to be a fresh `JsonRpcProvider` per call, which was invisible while
+ * the only caller was a screen load. The reward ticker asks for the chain's
+ * head once a second, and a new provider per second is thousands of objects an
+ * hour for one number. The key carries the endpoint, so a custom RPC still
+ * gets its own.
+ */
+const providers = new Map<string, JsonRpcProvider>();
+
+const provider = (
+    config: FarmChainConfig,
+    rpcUrl?: string,
+): JsonRpcProvider => {
+    const endpoint = rpcUrl || config.readRpcUrl;
+    const key = `${config.chainId}:${endpoint}`;
+    const known = providers.get(key);
+
+    if (known) {
+        return known;
+    }
+
+    const made = new JsonRpcProvider(endpoint, config.chainId, {
         staticNetwork: true,
         batchMaxCount: BATCH_MAX,
     });
+
+    providers.set(key, made);
+
+    return made;
+};
 
 /* ---------------------------------------------------------------- pure -- */
 
@@ -163,6 +213,55 @@ export const poolShare = (
             (reserves[1] * lpAmount) / totalSupply,
         ],
     };
+};
+
+/**
+ * What a stake earns over a span of blocks, as the chef itself would compute it.
+ *
+ * A MasterChef reward is not a rate per second, it is a step per block, and the
+ * screen exists because a number read once and then frozen until somebody
+ * presses refresh tells a farmer nothing about whether their position is
+ * working. So the reward is *carried forward* between reads rather than
+ * animated: the chain's own block number is polled, and this is the arithmetic
+ * that turns a difference in blocks into a difference in reward.
+ *
+ * It is the contract's arithmetic in the contract's order, deliberately — the
+ * whole span is priced in one go and never a block at a time, because integer
+ * division applied per block and then summed is not the same number the chef
+ * will pay. `blocks * rewardPerBlock * allocPoint / totalAllocPoint`, scaled
+ * through the same 1e12 accumulator, then multiplied by this account's stake.
+ *
+ * Zero whenever any denominator is zero: a pool nobody has staked in pays
+ * nothing, and an unstaked account earns nothing. Never a projection out of a
+ * divisor that does not exist.
+ */
+export const REWARD_PRECISION = 1_000_000_000_000n;
+
+export const accrue = (input: {
+    blocks: number;
+    rewardPerBlock: bigint;
+    allocPoint: bigint;
+    totalAllocPoint: bigint;
+    staked: bigint;
+    totalStaked: bigint;
+}): bigint => {
+    if (
+        input.blocks <= 0 ||
+        input.totalAllocPoint <= 0n ||
+        input.totalStaked <= 0n ||
+        input.staked <= 0n ||
+        input.rewardPerBlock <= 0n ||
+        input.allocPoint <= 0n
+    ) {
+        return 0n;
+    }
+
+    const reward =
+        (BigInt(input.blocks) * input.rewardPerBlock * input.allocPoint) /
+        input.totalAllocPoint;
+    const perShare = (reward * REWARD_PRECISION) / input.totalStaked;
+
+    return (input.staked * perShare) / REWARD_PRECISION;
 };
 
 /**
@@ -206,11 +305,24 @@ export const readEarnPools = async (
     const rpc = provider(config, rpcUrl);
     const chef = new Contract(config.masterchef, MASTERCHEF_ABI, rpc);
 
-    const [length, totalAlloc, rewardAddress] = await Promise.all([
+    const [length, totalAlloc, rewardAddress, block] = await Promise.all([
         chef.poolLength() as Promise<bigint>,
         chef.totalAllocPoint() as Promise<bigint>,
         chef.rewardToken() as Promise<string>,
+        rpc.getBlockNumber(),
     ]);
+
+    /*
+     * The emission rate, and a farm that will not name it.
+     *
+     * Caught rather than allowed to fail the snapshot: every position on this
+     * screen is perfectly readable without it, and the only thing lost is the
+     * projection between reads. A chef with no `rewardPerBlock` gets a figure
+     * that sits still, which is the truth about what this browser knows.
+     */
+    const rewardPerBlock = await (
+        chef.rewardPerBlock() as Promise<bigint>
+    ).catch(() => null);
 
     const rewardToken = new Contract(rewardAddress, ERC20_ABI, rpc);
     const [rewardSymbol, rewardDecimals] = await Promise.all([
@@ -289,6 +401,7 @@ export const readEarnPools = async (
                         ? Number((info.allocPoint * 10_000n) / totalAlloc) /
                           10_000
                         : 0,
+                allocPoint: info.allocPoint,
                 staked: staked.amount,
                 pending,
                 idle,
@@ -325,8 +438,25 @@ export const readEarnPools = async (
         pools,
         reward: { symbol: rewardSymbol, decimals: Number(rewardDecimals) },
         unreadable,
+        emission:
+            rewardPerBlock === null
+                ? null
+                : { rewardPerBlock, totalAllocPoint: totalAlloc },
+        block,
     };
 };
+
+/**
+ * The chain's head, for carrying a reward forward.
+ *
+ * One small call, asked on a timer while the farm is on screen. The block
+ * number and not a clock: a reward steps when the chain does, and a wallet
+ * that counted seconds would run ahead of a chain that stalled.
+ */
+export const readBlockNumber = async (
+    chainId: number,
+    rpcUrl?: string,
+): Promise<number> => provider(earnChainFor(chainId), rpcUrl).getBlockNumber();
 
 /** Reserves and supply behind one LP token, for what a position is made of. */
 export const readPairComposition = async (

@@ -717,6 +717,8 @@ export const walletMessages: Messages = {
         poolSignRemove:
             'Burn {amount} LP of the {pair} pool and take {first} and {second} back to this account, paying up to {fee} in network fees.',
         poolSent: 'Signed and broadcast.',
+        poolSettling:
+            'Signed and broadcast. Waiting for the block before this position is read back — broadcast is not settlement.',
 
         // Bridge. One transfer signed here, one payout made there, and no
         // cancel in between — which is the sentence the screen is built around.
@@ -2419,6 +2421,8 @@ export const walletMessages: Messages = {
         poolSignRemove:
             'Сжечь {amount} LP пула {pair} и забрать {first} и {second} на этот счёт; комиссия сети — до {fee}.',
         poolSent: 'Подписано и отправлено.',
+        poolSettling:
+            'Подписано и отправлено. Ждём блок, прежде чем перечитать позицию: отправить — ещё не значит попасть в блок.',
 
         // Мост: одна подпись здесь, одна выплата там и никакой отмены между.
         bridgeTitle: 'Мост',
@@ -4052,6 +4056,8 @@ export const walletMessages: Messages = {
         poolSignRemove:
             '销毁 {pair} 池子的 {amount} LP，把 {first} 和 {second} 取回这个账户，网络手续费最多 {fee}。',
         poolSent: '已签名并广播。',
+        poolSettling:
+            '已签名并广播。等这一笔进块之后再重新读取仓位 — 广播不等于入账。',
 
         // 跨链桥：这边签一笔，那边付一笔，中间没有取消。
         bridgeTitle: '跨链桥',

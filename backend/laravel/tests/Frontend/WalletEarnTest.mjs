@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     STAKE_GAS_CAP,
+    accrue,
     canStake,
     canUnstake,
     earnChainFor,
@@ -89,4 +90,100 @@ test('the gas ceiling is a promise, not a guess', () => {
     // the accrued reward on the way — well inside this, and the unused part
     // comes back.
     assert.ok(STAKE_GAS_CAP >= 200_000n);
+});
+
+/**
+ * Carrying a reward forward between reads.
+ *
+ * The screen polls the chain's head and projects the reward from the block it
+ * last read a real figure at, so a farm shows that it is working instead of a
+ * frozen number that only moves when somebody reloads. Everything below is
+ * about that projection agreeing with the chef rather than approximating it.
+ */
+
+test('a span of blocks is priced the way the chef prices it', () => {
+    // rewardPerBlock 1 CYBER, this pool holds a third of the emission, and the
+    // account holds the whole pool: three blocks pay one whole reward.
+    assert.equal(
+        accrue({
+            blocks: 3,
+            rewardPerBlock: ONE,
+            allocPoint: 1n,
+            totalAllocPoint: 3n,
+            staked: ONE,
+            totalStaked: ONE,
+        }),
+        ONE,
+    );
+});
+
+test('the whole span is divided once, never a block at a time', () => {
+    const span = {
+        rewardPerBlock: 10n,
+        allocPoint: 1n,
+        totalAllocPoint: 3n,
+        staked: 1n,
+        totalStaked: 1n,
+    };
+
+    // Three blocks in one go: 30/3 = 10, exactly.
+    assert.equal(accrue({ ...span, blocks: 3 }), 10n);
+
+    // The same three blocks counted one at a time lose the remainder every
+    // time — 10/3 = 3, three times, is 9. This is why the projection takes the
+    // block *difference* and never loops, and why a ticker built the obvious
+    // way would quietly under-report a farm forever.
+    const looped = accrue({ ...span, blocks: 1 }) * 3n;
+
+    assert.equal(looped, 9n);
+    assert.notEqual(looped, accrue({ ...span, blocks: 3 }));
+});
+
+test('a share of the pool is a share of the reward', () => {
+    const base = {
+        blocks: 10,
+        rewardPerBlock: ONE,
+        allocPoint: 1n,
+        totalAllocPoint: 1n,
+        totalStaked: ONE * 4n,
+    };
+
+    assert.equal(accrue({ ...base, staked: ONE }), (ONE * 10n) / 4n);
+    assert.equal(accrue({ ...base, staked: ONE * 4n }), ONE * 10n);
+});
+
+test('nothing is projected out of a denominator that does not exist', () => {
+    const base = {
+        blocks: 5,
+        rewardPerBlock: ONE,
+        allocPoint: 1n,
+        totalAllocPoint: 1n,
+        staked: ONE,
+        totalStaked: ONE,
+    };
+
+    // A pool nobody has staked in pays nothing, and an account with no stake
+    // earns nothing — neither is a division this is allowed to attempt.
+    assert.equal(accrue({ ...base, totalStaked: 0n }), 0n);
+    assert.equal(accrue({ ...base, staked: 0n }), 0n);
+    assert.equal(accrue({ ...base, totalAllocPoint: 0n }), 0n);
+    // A pool carrying no weight is switched off, not merely quiet.
+    assert.equal(accrue({ ...base, allocPoint: 0n }), 0n);
+    // A farm that pays nothing per block projects nothing.
+    assert.equal(accrue({ ...base, rewardPerBlock: 0n }), 0n);
+});
+
+test('a chain that has not moved, or moved backwards, adds nothing', () => {
+    const base = {
+        rewardPerBlock: ONE,
+        allocPoint: 1n,
+        totalAllocPoint: 1n,
+        staked: ONE,
+        totalStaked: ONE,
+    };
+
+    assert.equal(accrue({ ...base, blocks: 0 }), 0n);
+    // A reorg, or a node behind the one the anchor came from. Either way the
+    // reward does not run backwards on screen.
+    assert.equal(accrue({ ...base, blocks: -4 }), 0n);
 });

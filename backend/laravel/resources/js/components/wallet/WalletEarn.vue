@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import { useLocale } from '@/composables/useLocale';
@@ -11,12 +11,14 @@ import { formatUnits, parseUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
 import {
     STAKE_GAS_CAP,
+    accrue,
     canStake,
     canUnstake,
     earnChainFor,
     earnTxUrl,
     hasEarn,
     poolShare,
+    readBlockNumber,
     readEarnPools,
     readPairComposition,
 } from '@/lib/wallet/earn';
@@ -101,6 +103,77 @@ const gasPrice = ref<bigint | null>(null);
 /** The composition of the selected pool's LP token, when it is a pair. */
 const composition = ref<Awaited<ReturnType<typeof readPairComposition>>>(null);
 
+/* ------------------------------------------------------------- ticking -- */
+
+/**
+ * The chain's head, polled while this screen is open.
+ *
+ * A reward read once and then frozen until somebody presses refresh is the
+ * complaint this answers: a farm whose only sign of life is a page reload
+ * looks like a farm that has stopped. So the reward is carried forward from
+ * the block it was read at, by the chef's own arithmetic (`accrue`), and
+ * re-anchored on every real read — the projection can never drift, because it
+ * is only ever the distance from the last thing the chain actually said.
+ *
+ * The head and not a clock. A reward steps when the chain does, so a wallet
+ * counting seconds would keep paying out through a stall; this simply stops,
+ * which is what is really happening.
+ */
+const head = ref<number | null>(null);
+let ticker: ReturnType<typeof setInterval> | null = null;
+
+const readHead = async (): Promise<void> => {
+    const chainId = chainMeta.value.chainId;
+
+    if (!chainId || document.visibilityState === 'hidden') {
+        return;
+    }
+
+    try {
+        head.value = await readBlockNumber(chainId);
+    } catch {
+        // A head nobody could read leaves the last one standing: the reward
+        // stops moving rather than moving on a number this browser invented.
+    }
+};
+
+/** Blocks since the snapshot every `pending` on this screen was read at. */
+const blocksSince = computed(() => {
+    const snap = snapshot.value;
+
+    return snap === null || head.value === null
+        ? 0
+        : Math.max(0, head.value - snap.block);
+});
+
+/**
+ * One pool's reward as of the current block.
+ *
+ * The figure that was read, plus what the chef owes for the blocks since. A
+ * farm that would not name its emission rate has no projection and shows the
+ * figure it read, which is the honest answer rather than a still number
+ * pretending to be live.
+ */
+const pendingFor = (entry: EarnPool): bigint => {
+    const emission = snapshot.value?.emission ?? null;
+
+    if (emission === null) {
+        return entry.pending;
+    }
+
+    return (
+        entry.pending +
+        accrue({
+            blocks: blocksSince.value,
+            rewardPerBlock: emission.rewardPerBlock,
+            allocPoint: entry.allocPoint,
+            totalAllocPoint: emission.totalAllocPoint,
+            staked: entry.staked,
+            totalStaked: entry.totalStaked,
+        })
+    );
+};
+
 const load = async (): Promise<void> => {
     const address = account.value?.address;
     const chainId = chainMeta.value.chainId;
@@ -156,6 +229,21 @@ onMounted(() => {
     void load();
     void loadApr();
     void loadGasPrice();
+    void readHead();
+
+    // A second, because that is roughly a Cyberia block. Paused while the tab
+    // is hidden — `readHead` checks that itself, so a backgrounded wallet is
+    // not polling a node nobody is looking at.
+    ticker = setInterval(() => void readHead(), 1_000);
+    document.addEventListener('visibilitychange', readHead);
+});
+
+onBeforeUnmount(() => {
+    if (ticker !== null) {
+        clearInterval(ticker);
+    }
+
+    document.removeEventListener('visibilitychange', readHead);
 });
 
 // A different account is a different set of positions; a different network is
@@ -166,6 +254,7 @@ watch([() => props.wallet.activeAccountId.value, active], () => {
     sent.value = null;
     void load();
     void loadGasPrice();
+    void readHead();
 });
 
 /** Only Cyberia's farm is indexed, so only Cyberia carries an APR. */
@@ -220,7 +309,7 @@ const staking = computed(() =>
 const idle = computed(() => pools.value.filter((entry) => entry.idle > 0n));
 
 const unclaimed = computed(() =>
-    pools.value.reduce((sum, entry) => sum + entry.pending, 0n),
+    pools.value.reduce((sum, entry) => sum + pendingFor(entry), 0n),
 );
 
 const suppliedUsd = computed(() => {
@@ -319,7 +408,7 @@ const refusal = computed(() => {
     }
 
     if (act.value === 'claim') {
-        return entry.pending <= 0n ? 'empty' : 'ok';
+        return pendingFor(entry) <= 0n ? 'empty' : 'ok';
     }
 
     if (amountUnits.value < 0n) {
@@ -376,7 +465,7 @@ const sentence = computed(() => {
 
     if (act.value === 'claim') {
         return t('earnSignClaim', {
-            amount: formatUnits(entry.pending, reward.value.decimals, 6),
+            amount: formatUnits(pendingFor(entry), reward.value.decimals, 6),
             symbol: reward.value.symbol,
             pool: entry.label,
             fee: gas,
@@ -705,11 +794,11 @@ const sign = async (): Promise<void> => {
                     <span
                         class="cw-kv-val"
                         :style="
-                            pool.pending > 0n
+                            pendingFor(pool) > 0n
                                 ? { color: 'var(--cw-accent)' }
                                 : undefined
                         "
-                        >{{ formatUnits(pool.pending, reward.decimals, 6) }}
+                        >{{ formatUnits(pendingFor(pool), reward.decimals, 8) }}
                         {{ reward.symbol }}</span
                     >
                 </div>
@@ -779,7 +868,7 @@ const sign = async (): Promise<void> => {
             </div>
 
             <p
-                v-else-if="pool.pending <= 0n"
+                v-else-if="pendingFor(pool) <= 0n"
                 class="cw-prose"
                 style="margin-top: 16px"
             >
