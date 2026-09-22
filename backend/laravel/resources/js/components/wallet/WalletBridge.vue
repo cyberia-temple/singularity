@@ -639,7 +639,7 @@ const sign = async (): Promise<void> => {
                 <div class="cw-row">
                     <span
                         style="
-                            font: 500 13px/1.2 var(--cw-sans);
+                            font: 500 15px/1.2 var(--cw-sans);
                             color: var(--cw-text);
                         "
                         >{{ entry.sourceLabel }} →
@@ -901,7 +901,7 @@ const sign = async (): Promise<void> => {
                     <span
                         style="
                             display: block;
-                            font: 400 11px/1.4 var(--cw-mono);
+                            font: 500 13px/1.4 var(--cw-mono);
                             color: var(--cw-faint);
                         "
                         >{{ group.reason }}</span
@@ -910,7 +910,7 @@ const sign = async (): Promise<void> => {
                         style="
                             display: block;
                             margin-top: 5px;
-                            font: 400 12px/1.5 var(--cw-sans);
+                            font: 400 14px/1.5 var(--cw-sans);
                             color: var(--cw-muted);
                         "
                         >{{ group.routes.join(' · ') }}</span

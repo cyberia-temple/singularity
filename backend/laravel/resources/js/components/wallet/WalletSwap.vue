@@ -1735,7 +1735,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                             <span
                                 style="
                                     display: block;
-                                    font: 600 14px/1 var(--cw-sans);
+                                    font: 600 16px/1 var(--cw-sans);
                                 "
                                 >{{ payAsset.symbol }} /
                                 {{ receiveAsset?.symbol ?? '—' }}</span
@@ -1745,8 +1745,8 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 style="
                                     display: block;
                                     margin-top: 6px;
-                                    font-size: 9px;
-                                    letter-spacing: 0.1em;
+                                    font-size: 12px;
+                                    letter-spacing: 0.07em;
                                 "
                                 >{{ venueLine }}</span
                             >
@@ -1755,7 +1755,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                             <span
                                 style="
                                     display: block;
-                                    font: 500 17px/1 var(--cw-mono);
+                                    font: 500 18px/1 var(--cw-mono);
                                     color: var(--cw-bright);
                                 "
                                 >{{
@@ -1771,7 +1771,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 style="
                                     display: block;
                                     margin-top: 6px;
-                                    font: 400 10px/1 var(--cw-mono);
+                                    font: 500 12px/1 var(--cw-mono);
                                 "
                                 :style="{
                                     color:
@@ -1865,7 +1865,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                         >
                             <span
                                 style="
-                                    font: 400 10px/1 var(--cw-mono);
+                                    font: 500 12px/1 var(--cw-mono);
                                     color: var(--cw-dim);
                                 "
                                 >{{
@@ -1933,14 +1933,14 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                     <div class="cw-row" style="margin-top: 9px">
                         <span
                             style="
-                                font: 400 9px/1 var(--cw-mono);
+                                font: 500 12px/1 var(--cw-mono);
                                 color: var(--cw-faint);
                             "
                             >{{ assetKind(payAsset) }}</span
                         >
                         <span
                             style="
-                                font: 400 10px/1 var(--cw-mono);
+                                font: 500 12px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{
@@ -1979,7 +1979,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                         <span class="cw-label">{{ t('swapReceive') }}</span>
                         <span
                             style="
-                                font: 400 10px/1 var(--cw-mono);
+                                font: 500 12px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                                 flex: none;
                             "
@@ -2032,14 +2032,14 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                     <div class="cw-row" style="margin-top: 9px">
                         <span
                             style="
-                                font: 400 9px/1 var(--cw-mono);
+                                font: 500 12px/1 var(--cw-mono);
                                 color: var(--cw-faint);
                             "
                             >{{ assetKind(receiveAsset) }}</span
                         >
                         <span
                             style="
-                                font: 400 10px/1 var(--cw-mono);
+                                font: 500 12px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{
@@ -2067,14 +2067,14 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                 >
                     <span
                         style="
-                            font: 400 11px/1.4 var(--cw-mono);
+                            font: 500 13px/1.4 var(--cw-mono);
                             color: var(--cw-muted);
                         "
                         >{{ rateLine }}</span
                     >
                     <span
                         style="
-                            font: 400 10px/1.4 var(--cw-mono);
+                            font: 500 12px/1.4 var(--cw-mono);
                             color: var(--cw-faint);
                             text-align: right;
                             flex: none;
@@ -2200,7 +2200,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                     <p
                         style="
                             margin: 0;
-                            font: 400 13px/1.65 var(--cw-sans);
+                            font: 400 15px/1.65 var(--cw-sans);
                             color: var(--cw-body);
                             text-wrap: pretty;
                         "
@@ -2231,22 +2231,22 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                 >
                     <span
                         style="
-                            font: 500 10px/1 var(--cw-mono);
-                            letter-spacing: 0.14em;
+                            font: 500 12px/1 var(--cw-mono);
+                            letter-spacing: 0.07em;
                             color: var(--cw-accent);
                         "
                         >+{{ swapXp }} XP</span
                     >
                     <span
                         style="
-                            font: 400 10px/1 var(--cw-mono);
+                            font: 500 12px/1 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                         >·</span
                     >
                     <span
                         style="
-                            font: 400 11px/1.4 var(--cw-sans);
+                            font: 400 13px/1.4 var(--cw-sans);
                             color: var(--cw-muted);
                         "
                         >{{ t('swapXpNote') }}</span
@@ -2397,7 +2397,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                     <span
                                         style="
                                             display: block;
-                                            font: 500 11px/1.4 var(--cw-mono);
+                                            font: 500 13px/1.4 var(--cw-mono);
                                             overflow-wrap: anywhere;
                                         "
                                         >{{ route.symbols.join(' → ') }}</span
@@ -2407,7 +2407,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                         style="
                                             display: block;
                                             margin-top: 5px;
-                                            font: 400 10px/1 var(--cw-mono);
+                                            font: 500 12px/1 var(--cw-mono);
                                             color: var(--cw-dim);
                                         "
                                         >{{
@@ -2420,7 +2420,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 <span
                                     style="
                                         flex: none;
-                                        font: 400 11px/1 var(--cw-mono);
+                                        font: 500 13px/1 var(--cw-mono);
                                         color: var(--cw-body);
                                     "
                                     >{{ route.out }}</span
@@ -2437,7 +2437,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                             }}</span>
                             <span
                                 style="
-                                    font: 400 11px/1 var(--cw-mono);
+                                    font: 500 13px/1 var(--cw-mono);
                                     color: var(--cw-dim);
                                 "
                                 >{{ (slippageBps / 100).toFixed(2) }}%</span
@@ -2590,7 +2590,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
         <div v-if="picking !== null" class="cw-sheet">
             <div class="cw-sheet-panel">
                 <div class="cw-row" style="margin-bottom: 14px">
-                    <h3 class="cw-title" style="font-size: 17px">
+                    <h3 class="cw-title" style="font-size: 18px">
                         {{ t('swapPickAsset') }}
                     </h3>
                     <button
@@ -2627,7 +2627,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                             <span
                                 style="
                                     display: block;
-                                    font: 500 13px/1.2 var(--cw-mono);
+                                    font: 500 15px/1.2 var(--cw-mono);
                                     color: var(--cw-text);
                                 "
                                 >{{ row.asset.symbol }}</span
@@ -2637,7 +2637,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                                 style="
                                     display: block;
                                     margin-top: 3px;
-                                    font: 400 10px/1 var(--cw-mono);
+                                    font: 500 12px/1 var(--cw-mono);
                                     color: var(--cw-faint);
                                 "
                                 >{{ shortAddress(row.asset.address) }}</span
@@ -2645,7 +2645,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                         </span>
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 500 13px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{
@@ -2703,7 +2703,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                 <div class="cw-row" style="margin-bottom: 6px">
                     <h3
                         class="cw-title"
-                        style="font-size: 19px; line-height: 1.2"
+                        style="font-size: 20px; line-height: 1.2"
                     >
                         {{ t('confirmTransaction') }}
                     </h3>
@@ -2797,7 +2797,7 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                     <p
                         style="
                             margin: 0;
-                            font: 400 12px/1.6 var(--cw-sans);
+                            font: 400 14px/1.6 var(--cw-sans);
                             color: #b6bec6;
                         "
                     >

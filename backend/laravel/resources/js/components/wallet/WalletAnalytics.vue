@@ -247,7 +247,7 @@ const stats = computed(() => [
             v-if="unpriced > 0"
             style="
                 margin-top: 8px;
-                font: 400 11px/1.5 var(--cw-mono);
+                font: 500 13px/1.5 var(--cw-mono);
                 color: var(--cw-pending);
             "
         >
@@ -256,18 +256,18 @@ const stats = computed(() => [
 
         <div style="display: flex; gap: 8px; margin-top: 18px">
             <div class="cw-card" style="flex: 1; padding: 13px 14px">
-                <div class="cw-label" style="font-size: 9px">
+                <div class="cw-label" style="font-size: 12px">
                     {{ t('shareNetworks') }}
                 </div>
-                <div class="cw-num" style="margin-top: 8px; font-size: 15px">
+                <div class="cw-num" style="margin-top: 8px; font-size: 16px">
                     {{ formatUsd(coinsTotal, locale) }}
                 </div>
             </div>
             <div class="cw-card" style="flex: 1; padding: 13px 14px">
-                <div class="cw-label" style="font-size: 9px">
+                <div class="cw-label" style="font-size: 12px">
                     {{ t('shareTokens') }}
                 </div>
-                <div class="cw-num" style="margin-top: 8px; font-size: 15px">
+                <div class="cw-num" style="margin-top: 8px; font-size: 16px">
                     {{ formatUsd(tokensTotal, locale) }}
                 </div>
             </div>
@@ -292,7 +292,7 @@ const stats = computed(() => [
                     >
                         <span
                             style="
-                                font: 500 12px/1 var(--cw-mono);
+                                font: 500 14px/1 var(--cw-mono);
                                 color: var(--cw-text);
                             "
                             >{{ slice.label }}</span
@@ -301,7 +301,7 @@ const stats = computed(() => [
                             class="cw-label"
                             style="
                                 overflow: hidden;
-                                font-size: 9px;
+                                font-size: 12px;
                                 color: var(--cw-faint);
                                 text-overflow: ellipsis;
                                 white-space: nowrap;
@@ -312,7 +312,7 @@ const stats = computed(() => [
                     <span style="display: flex; flex: none; gap: 10px">
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 500 13px/1 var(--cw-mono);
                                 color: var(--cw-muted);
                             "
                             >{{ formatUsd(slice.usd, locale) }}</span
@@ -320,7 +320,7 @@ const stats = computed(() => [
                         <span
                             style="
                                 width: 44px;
-                                font: 500 11px/1 var(--cw-mono);
+                                font: 500 13px/1 var(--cw-mono);
                                 color: var(--cw-body);
                                 text-align: right;
                             "
@@ -385,7 +385,7 @@ const stats = computed(() => [
                 v-for="day in week"
                 :key="day.start"
                 class="cw-label"
-                style="flex: 1; font-size: 9px; text-align: center"
+                style="flex: 1; font-size: 12px; text-align: center"
                 >{{ day.label }}</span
             >
         </div>
@@ -393,18 +393,18 @@ const stats = computed(() => [
           Half of these networks have no index a browser can read, so the bars
           are a count of what can be seen from here — not of what happened.
         -->
-        <p class="cw-prose" style="margin-top: 10px; font-size: 12px">
+        <p class="cw-prose" style="margin-top: 10px; font-size: 14px">
             {{ t('flowNote', { indexed: indexed.length, total: networks }) }}
         </p>
 
         <div class="cw-grid" style="margin-top: 24px">
             <div v-for="stat in stats" :key="stat.key">
-                <div class="cw-label" style="font-size: 9px">
+                <div class="cw-label" style="font-size: 12px">
                     {{ stat.label }}
                 </div>
                 <div
                     class="cw-num"
-                    style="margin-top: 8px; font-size: 13px"
+                    style="margin-top: 8px; font-size: 15px"
                     :style="{ color: stat.tone }"
                 >
                     {{ stat.value }}

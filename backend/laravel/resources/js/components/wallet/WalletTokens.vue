@@ -112,7 +112,7 @@ onMounted(() => {
                 v-if="unpriced > 0"
                 style="
                     margin-top: 6px;
-                    font: 400 11px/1.5 var(--cw-mono);
+                    font: 500 13px/1.5 var(--cw-mono);
                     color: var(--cw-pending);
                 "
             >

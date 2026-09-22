@@ -70,7 +70,7 @@ defineProps<{
                     rel="noopener noreferrer"
                     style="
                         display: block;
-                        font: 400 13px/1.3 var(--cw-sans);
+                        font: 400 15px/1.3 var(--cw-sans);
                         color: var(--cw-body);
                         text-decoration: none;
                     "
@@ -82,7 +82,7 @@ defineProps<{
                     style="
                         display: block;
                         margin-top: 2px;
-                        font: 400 10px/1.4 var(--cw-mono);
+                        font: 500 12px/1.4 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                 >
@@ -102,7 +102,7 @@ defineProps<{
                 <span
                     style="
                         display: block;
-                        font: 500 12px/1.3 var(--cw-mono);
+                        font: 500 14px/1.3 var(--cw-mono);
                         font-variant-numeric: tabular-nums;
                     "
                     :style="{

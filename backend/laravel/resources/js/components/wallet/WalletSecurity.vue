@@ -191,14 +191,14 @@ onBeforeUnmount(() => {
             style="margin-bottom: 10px; padding: 16px"
         >
             <div
-                style="font: 400 14px/1.3 var(--cw-sans); color: var(--cw-text)"
+                style="font: 400 16px/1.3 var(--cw-sans); color: var(--cw-text)"
             >
                 {{ t('noPasswordTitle') }}
             </div>
             <p
                 style="
                     margin: 6px 0 0;
-                    font: 400 11px/1.6 var(--cw-mono);
+                    font: 400 14px/1.55 var(--cw-sans);
                     color: var(--cw-dim);
                     text-wrap: pretty;
                 "
@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
             <div style="padding: 16px; border-bottom: 1px solid var(--cw-line)">
                 <div
                     style="
-                        font: 400 14px/1.3 var(--cw-sans);
+                        font: 400 16px/1.3 var(--cw-sans);
                         color: var(--cw-text);
                     "
                 >
@@ -264,7 +264,7 @@ onBeforeUnmount(() => {
                 <div
                     style="
                         margin-top: 3px;
-                        font: 400 11px/1.4 var(--cw-mono);
+                        font: 400 14px/1.45 var(--cw-sans);
                         color: var(--cw-dim);
                     "
                 >
@@ -332,7 +332,7 @@ onBeforeUnmount(() => {
                                 gap: 8px;
                                 padding: 9px 10px;
                                 background: var(--cw-surface);
-                                font: 500 13px/1 var(--cw-mono);
+                                font: 500 15px/1 var(--cw-mono);
                             "
                         >
                             <span style="color: var(--cw-faint)">{{
@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
                 <div style="flex: 1">
                     <div
                         style="
-                            font: 400 14px/1.3 var(--cw-sans);
+                            font: 400 16px/1.3 var(--cw-sans);
                             color: var(--cw-text);
                         "
                     >
@@ -391,7 +391,7 @@ onBeforeUnmount(() => {
                     <div
                         style="
                             margin-top: 3px;
-                            font: 400 11px/1.4 var(--cw-mono);
+                            font: 500 13px/1.4 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                     >
@@ -419,7 +419,7 @@ onBeforeUnmount(() => {
                     <span
                         style="
                             display: block;
-                            font: 400 14px/1.3 var(--cw-sans);
+                            font: 400 16px/1.3 var(--cw-sans);
                             color: var(--cw-text);
                         "
                         >{{ t('clipboardRow') }}</span
@@ -428,7 +428,7 @@ onBeforeUnmount(() => {
                         style="
                             display: block;
                             margin-top: 3px;
-                            font: 400 11px/1.4 var(--cw-mono);
+                            font: 500 13px/1.4 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                         >{{ t('clipboardHint') }}</span
@@ -463,7 +463,7 @@ onBeforeUnmount(() => {
                     <span
                         style="
                             display: block;
-                            font: 400 14px/1.3 var(--cw-sans);
+                            font: 400 16px/1.3 var(--cw-sans);
                             color: var(--cw-text);
                         "
                         >{{ t('analyticsRow') }}</span
@@ -472,7 +472,7 @@ onBeforeUnmount(() => {
                         style="
                             display: block;
                             margin-top: 3px;
-                            font: 400 11px/1.4 var(--cw-mono);
+                            font: 500 13px/1.4 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                         >{{
@@ -522,14 +522,14 @@ onBeforeUnmount(() => {
                 <span
                     style="
                         flex: 1;
-                        font: 400 13px/1.3 var(--cw-sans);
+                        font: 400 15px/1.3 var(--cw-sans);
                         color: var(--cw-text);
                     "
                     >{{ row.label }}</span
                 >
                 <span
                     style="
-                        font: 400 11px/1.4 var(--cw-mono);
+                        font: 500 13px/1.4 var(--cw-mono);
                         color: var(--cw-dim);
                         text-align: right;
                         word-break: break-all;
@@ -567,7 +567,7 @@ onBeforeUnmount(() => {
                     <div style="flex: 1">
                         <div
                             style="
-                                font: 400 14px/1.3 var(--cw-sans);
+                                font: 400 16px/1.3 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                         >
@@ -576,7 +576,7 @@ onBeforeUnmount(() => {
                         <div
                             style="
                                 margin-top: 3px;
-                                font: 400 11px/1.4 var(--cw-mono);
+                                font: 500 13px/1.4 var(--cw-mono);
                                 color: var(--cw-dim);
                                 word-break: break-all;
                             "
@@ -606,7 +606,7 @@ onBeforeUnmount(() => {
                         margin: 0;
                         padding: 12px 16px;
                         border-bottom: 1px solid var(--cw-line);
-                        font-size: 11px;
+                        font-size: 13px;
                     "
                 >
                     {{ t('removeNetworkHint') }}
@@ -636,7 +636,7 @@ onBeforeUnmount(() => {
                     <span
                         style="
                             display: block;
-                            font: 400 14px/1.3 var(--cw-sans);
+                            font: 400 16px/1.3 var(--cw-sans);
                             color: var(--cw-text);
                         "
                         >{{ t('proxyTitle') }}</span
@@ -645,7 +645,7 @@ onBeforeUnmount(() => {
                         style="
                             display: block;
                             margin-top: 3px;
-                            font: 400 11px/1.4 var(--cw-mono);
+                            font: 500 13px/1.4 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                         >{{ t('proxyRowHint') }}</span
@@ -653,7 +653,7 @@ onBeforeUnmount(() => {
                 </span>
                 <span
                     style="
-                        font: 400 12px/1 var(--cw-mono);
+                        font: 400 14px/1 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                     >→</span
@@ -697,13 +697,13 @@ onBeforeUnmount(() => {
             >
                 <div
                     style="
-                        font: 400 14px/1.3 var(--cw-sans);
+                        font: 400 16px/1.3 var(--cw-sans);
                         color: var(--cw-bad-soft);
                     "
                 >
                     {{ t('deleteVault') }}
                 </div>
-                <p class="cw-prose" style="margin-top: 6px; font-size: 12px">
+                <p class="cw-prose" style="margin-top: 6px; font-size: 14px">
                     {{ t('deleteVaultBody') }}
                 </p>
                 <button
@@ -737,7 +737,7 @@ onBeforeUnmount(() => {
                 >
                     {{ t('irreversible') }}
                 </div>
-                <h3 class="cw-title" style="font-size: 19px">
+                <h3 class="cw-title" style="font-size: 20px">
                     {{ t('deleteTitle') }}
                 </h3>
                 <p class="cw-prose" style="margin: 10px 0 18px">

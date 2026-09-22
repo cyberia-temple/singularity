@@ -104,10 +104,16 @@ const again = (): void => {
             ← {{ t('nftTitle') }}
         </button>
 
-        <h2 class="cw-title" style="margin: 22px 0 8px">{{ t('ipfsTitle') }}</h2>
+        <h2 class="cw-title" style="margin: 22px 0 8px">
+            {{ t('ipfsTitle') }}
+        </h2>
         <p class="cw-prose">{{ t('ipfsBody') }}</p>
 
-        <p v-if="!ipfs.enabled" class="cw-note cw-note-warn" style="margin-top: 16px">
+        <p
+            v-if="!ipfs.enabled"
+            class="cw-note cw-note-warn"
+            style="margin-top: 16px"
+        >
             <span>{{ t('ipfsOff') }}</span>
         </p>
 
@@ -124,7 +130,9 @@ const again = (): void => {
                 </div>
                 <div class="cw-kv">
                     <span class="cw-kv-key">{{ t('ipfsSize') }}</span>
-                    <span class="cw-kv-val">{{ formatBytes(result.bytes) }}</span>
+                    <span class="cw-kv-val">{{
+                        formatBytes(result.bytes)
+                    }}</span>
                 </div>
             </div>
 
@@ -165,7 +173,12 @@ const again = (): void => {
             >
                 {{ t('ipfsMintThis') }}
             </button>
-            <button type="button" class="cw-ghost" style="margin-top: 10px" @click="again">
+            <button
+                type="button"
+                class="cw-ghost"
+                style="margin-top: 10px"
+                @click="again"
+            >
                 {{ t('ipfsAgain') }}
             </button>
         </template>
@@ -195,7 +208,12 @@ const again = (): void => {
                 <p class="cw-prose" style="margin-top: 14px">
                     {{ t('ipfsFileBody') }}
                 </p>
-                <input class="cw-input" style="margin-top: 14px" type="file" @change="pick" />
+                <input
+                    class="cw-input"
+                    style="margin-top: 14px"
+                    type="file"
+                    @change="pick"
+                />
                 <p class="cw-data" style="margin-top: 6px">
                     {{
                         file
@@ -214,7 +232,7 @@ const again = (): void => {
                     class="cw-textarea"
                     rows="10"
                     spellcheck="false"
-                    style="margin-top: 14px; font: 400 12px/1.6 var(--cw-mono)"
+                    style="margin-top: 14px; font: 400 14px/1.6 var(--cw-mono)"
                     placeholder="<!doctype html>…"
                 ></textarea>
                 <p class="cw-data" style="margin-top: 6px">
@@ -222,7 +240,11 @@ const again = (): void => {
                 </p>
             </template>
 
-            <p v-if="failure" class="cw-note cw-note-bad" style="margin-top: 16px">
+            <p
+                v-if="failure"
+                class="cw-note cw-note-bad"
+                style="margin-top: 16px"
+            >
                 <span>{{ failure }}</span>
             </p>
 

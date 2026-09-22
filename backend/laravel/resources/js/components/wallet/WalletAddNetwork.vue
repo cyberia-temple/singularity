@@ -209,7 +209,7 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
             <button type="button" class="cw-back" @click="emit('back')">
                 ← {{ t('back') }}
             </button>
-            <span style="font: 500 12px/1 var(--cw-sans)">{{
+            <span style="font: 500 14px/1 var(--cw-sans)">{{
                 t('addNetwork')
             }}</span>
             <span style="width: 44px"></span>
@@ -259,8 +259,8 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                 <span
                     style="
                         display: block;
-                        font: 500 11px/1 var(--cw-mono);
-                        letter-spacing: 0.1em;
+                        font: 500 13px/1 var(--cw-mono);
+                        letter-spacing: 0.07em;
                         text-transform: uppercase;
                     "
                     :style="{
@@ -275,7 +275,7 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                     style="
                         display: block;
                         margin-top: 4px;
-                        font: 400 10px/1 var(--cw-mono);
+                        font: 500 12px/1 var(--cw-mono);
                         color: var(--cw-faint);
                     "
                     >{{ entry.hint }}</span
@@ -483,7 +483,7 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                         <span
                             style="
                                 display: block;
-                                font: 500 10px/1.2 var(--cw-mono);
+                                font: 500 12px/1.2 var(--cw-mono);
                                 letter-spacing: 0.06em;
                                 text-transform: uppercase;
                             "
@@ -499,7 +499,7 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                             style="
                                 display: block;
                                 margin-top: 5px;
-                                font: 400 10px/1.3 var(--cw-mono);
+                                font: 500 12px/1.3 var(--cw-mono);
                                 color: var(--cw-faint);
                             "
                             >{{ entry.note() }}</span
@@ -549,7 +549,7 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                 />
                 <span
                     class="cw-prose"
-                    style="margin-top: 8px; font-size: 11px"
+                    style="margin-top: 8px; font-size: 13px"
                     >{{ t('prefixHint') }}</span
                 >
             </label>
@@ -568,7 +568,7 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                 />
                 <span
                     class="cw-prose"
-                    style="margin-top: 8px; font-size: 11px"
+                    style="margin-top: 8px; font-size: 13px"
                     >{{ t('apiHint') }}</span
                 >
             </label>
@@ -604,14 +604,14 @@ const digits = (value: string): string => value.replace(/[^0-9]/g, '');
                 />
                 <span
                     style="
-                        font: 400 12px/1.6 var(--cw-mono);
+                        font: 400 14px/1.6 var(--cw-mono);
                         color: var(--cw-body);
                         word-break: break-all;
                     "
                     >{{ path }}</span
                 >
             </div>
-            <p class="cw-prose" style="margin-top: 8px; font-size: 11px">
+            <p class="cw-prose" style="margin-top: 8px; font-size: 13px">
                 {{ t('derivationPathBody') }}
             </p>
         </div>

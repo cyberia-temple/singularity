@@ -236,7 +236,7 @@ const rows = computed(() =>
                     <span
                         style="
                             display: block;
-                            font: 500 13px/1.2 var(--cw-sans);
+                            font: 500 15px/1.2 var(--cw-sans);
                             color: var(--cw-text);
                         "
                         >{{ row.label }}</span
@@ -245,7 +245,7 @@ const rows = computed(() =>
                         style="
                             display: block;
                             margin-top: 4px;
-                            font: 400 10px/1.5 var(--cw-mono);
+                            font: 500 12px/1.5 var(--cw-mono);
                             color: var(--cw-dim);
                             word-break: break-all;
                         "
@@ -263,7 +263,7 @@ const rows = computed(() =>
                         style="
                             display: block;
                             margin-top: 4px;
-                            font: 400 10px/1.5 var(--cw-mono);
+                            font: 500 12px/1.5 var(--cw-mono);
                             color: var(--cw-net-custom);
                         "
                         >{{ t('endpointUnverified') }}</span

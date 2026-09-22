@@ -119,8 +119,8 @@ onBeforeUnmount(stop);
         <span
             style="
                 position: relative;
-                font: 600 13px/1 var(--cw-mono);
-                letter-spacing: 0.16em;
+                font: 600 15px/1 var(--cw-mono);
+                letter-spacing: 0.07em;
                 color: var(--cw-text);
                 mix-blend-mode: difference;
             "

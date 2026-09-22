@@ -148,7 +148,7 @@ const charted = (market: Market): boolean => market.source !== 'none';
                             networkOf(market)
                         }}</span>
                     </span>
-                    <span class="cw-label" style="letter-spacing: 0.1em">{{
+                    <span class="cw-label" style="letter-spacing: 0.07em">{{
                         sourceLabel(market)
                     }}</span>
                 </span>

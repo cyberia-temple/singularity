@@ -243,18 +243,18 @@ watch(
 
             <div class="cw-tiles" style="margin-top: 12px">
                 <button type="button" class="cw-tile" @click="emit('ipfs')">
-                    <span style="font: 500 12px/1 var(--cw-sans)">{{
+                    <span style="font: 500 14px/1 var(--cw-sans)">{{
                         t('ipfsTitle')
                     }}</span>
-                    <span class="cw-label" style="font-size: 9px">{{
+                    <span class="cw-label" style="font-size: 12px">{{
                         t('tileIpfsHint')
                     }}</span>
                 </button>
                 <button type="button" class="cw-tile" @click="emit('torrents')">
-                    <span style="font: 500 12px/1 var(--cw-sans)">{{
+                    <span style="font: 500 14px/1 var(--cw-sans)">{{
                         t('torrentTitle')
                     }}</span>
-                    <span class="cw-label" style="font-size: 9px">{{
+                    <span class="cw-label" style="font-size: 12px">{{
                         t('tileTorrentHint')
                     }}</span>
                 </button>
@@ -349,7 +349,7 @@ watch(
                                 style="
                                     display: block;
                                     overflow: hidden;
-                                    font: 500 12px/1.3 var(--cw-sans);
+                                    font: 500 14px/1.3 var(--cw-sans);
                                     color: var(--cw-text);
                                     text-overflow: ellipsis;
                                     white-space: nowrap;
@@ -361,7 +361,7 @@ watch(
                                 style="
                                     display: block;
                                     margin-top: 3px;
-                                    font-size: 10px;
+                                    font-size: 12px;
                                 "
                                 >{{
                                     item.native

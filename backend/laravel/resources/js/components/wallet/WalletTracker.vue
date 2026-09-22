@@ -392,13 +392,13 @@ onBeforeUnmount(() => {
                                 flex: 1;
                                 min-width: 0;
                                 overflow: hidden;
-                                font-size: 10px;
+                                font-size: 12px;
                                 text-overflow: ellipsis;
                                 white-space: nowrap;
                             "
                             >{{ file.path }}</span
                         >
-                        <span class="cw-data" style="font-size: 10px">{{
+                        <span class="cw-data" style="font-size: 12px">{{
                             formatBytes(file.length)
                         }}</span>
                     </div>
@@ -528,7 +528,7 @@ onBeforeUnmount(() => {
                                     flex: 1;
                                     min-width: 0;
                                     overflow: hidden;
-                                    font: 500 13px/1.3 var(--cw-sans);
+                                    font: 500 15px/1.3 var(--cw-sans);
                                     text-overflow: ellipsis;
                                     white-space: nowrap;
                                 "
@@ -540,7 +540,7 @@ onBeforeUnmount(() => {
                         </div>
                         <div
                             class="cw-data"
-                            style="margin-top: 6px; font-size: 10px"
+                            style="margin-top: 6px; font-size: 12px"
                         >
                             {{ t(`trackerCat_${release.category}`) }} ·
                             {{ formatBytes(release.size_bytes) }} ·

@@ -332,7 +332,7 @@ const recent = computed(() =>
                 }}</strong>
                 <span
                     style="
-                        font: 400 11px/1.5 var(--cw-mono);
+                        font: 500 13px/1.5 var(--cw-mono);
                         color: var(--cw-muted);
                     "
                     >{{ t('rpcErrorBody') }}</span
@@ -397,7 +397,7 @@ const recent = computed(() =>
             <span
                 v-if="unaccounted > 0"
                 style="
-                    font: 400 11px/1 var(--cw-mono);
+                    font: 500 13px/1 var(--cw-mono);
                     color: var(--cw-pending);
                 "
                 >{{ t('pricePartial') }}</span
@@ -502,7 +502,7 @@ const recent = computed(() =>
                             <span
                                 style="
                                     display: block;
-                                    font: 500 14px/1.2 var(--cw-sans);
+                                    font: 500 16px/1.2 var(--cw-sans);
                                     color: var(--cw-text);
                                 "
                                 >{{ card.account.label }}</span
@@ -511,7 +511,7 @@ const recent = computed(() =>
                                 style="
                                     display: block;
                                     margin-top: 3px;
-                                    font: 400 11px/1.4 var(--cw-mono);
+                                    font: 500 13px/1.4 var(--cw-mono);
                                     color: var(--cw-dim);
                                 "
                                 >{{ card.account.symbol
@@ -542,7 +542,7 @@ const recent = computed(() =>
                                 style="
                                     display: block;
                                     margin-top: 2px;
-                                    font: 400 11px/1.4 var(--cw-mono);
+                                    font: 500 13px/1.4 var(--cw-mono);
                                     color: var(--cw-dim);
                                 "
                             >
@@ -567,7 +567,7 @@ const recent = computed(() =>
                             margin-top: 11px;
                             padding-top: 10px;
                             border-top: 1px solid var(--cw-line);
-                            font: 400 11px/1.2 var(--cw-mono);
+                            font: 500 13px/1.2 var(--cw-mono);
                             letter-spacing: 0.08em;
                             color: var(--cw-meta);
                             text-transform: uppercase;
@@ -586,12 +586,12 @@ const recent = computed(() =>
             >
                 <span
                     style="
-                        font: 400 15px/1 var(--cw-mono);
+                        font: 400 16px/1 var(--cw-mono);
                         color: var(--cw-muted);
                     "
                     >+</span
                 >
-                <span style="flex: 1; font: 400 13px/1.2 var(--cw-sans)">{{
+                <span style="flex: 1; font: 400 15px/1.2 var(--cw-sans)">{{
                     t('addNetwork')
                 }}</span>
             </button>

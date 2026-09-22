@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
 
         <div class="cw-row" style="margin-top: 10px">
             <span
-                style="font: 400 11px/1.4 var(--cw-mono)"
+                style="font: 500 13px/1.4 var(--cw-mono)"
                 :style="{
                     color:
                         importWords === 0
@@ -191,7 +191,7 @@ onBeforeUnmount(() => {
                     <span class="cw-data">{{ chain.label }}</span>
                     <span
                         style="
-                            font: 400 11px/1 var(--cw-mono);
+                            font: 500 13px/1 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                         >{{ chain.path }}</span
@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="cw-row" style="margin-top: 8px">
             <span
-                style="font: 400 11px/1 var(--cw-mono)"
+                style="font: 500 13px/1 var(--cw-mono)"
                 :style="{
                     color:
                         password.length === 0

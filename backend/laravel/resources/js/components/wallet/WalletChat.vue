@@ -1038,7 +1038,7 @@ onBeforeUnmount(stopPolling);
 
         <!-- Thread header: who, and the fingerprint to check them against. -->
         <template v-if="view === 'thread' && peer">
-            <h2 class="cw-title" style="margin: 18px 0 4px; font-size: 20px">
+            <h2 class="cw-title" style="margin: 18px 0 4px; font-size: 21px">
                 {{ short(peer) }}
             </h2>
             <!--
@@ -1368,7 +1368,7 @@ onBeforeUnmount(stopPolling);
                         <span
                             style="
                                 display: block;
-                                font: 500 14px/1.2 var(--cw-sans);
+                                font: 500 16px/1.2 var(--cw-sans);
                             "
                             >{{ person.name }}</span
                         >
@@ -1376,7 +1376,7 @@ onBeforeUnmount(stopPolling);
                             style="
                                 display: block;
                                 margin-top: 3px;
-                                font: 400 11px/1.4 var(--cw-mono);
+                                font: 500 13px/1.4 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{ shortAddress(person.address)
@@ -1427,7 +1427,7 @@ onBeforeUnmount(stopPolling);
                         v-for="(group, index) in fingerprintGroups"
                         :key="index"
                         style="
-                            font: 500 15px/1 var(--cw-mono);
+                            font: 500 16px/1 var(--cw-mono);
                             letter-spacing: 0.06em;
                             color: var(--cw-text);
                         "

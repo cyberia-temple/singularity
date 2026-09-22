@@ -145,7 +145,7 @@ onMounted(load);
                 <div class="cw-row">
                     <span
                         style="
-                            font: 400 11px/1 var(--cw-mono);
+                            font: 500 13px/1 var(--cw-mono);
                             color: var(--cw-ok);
                         "
                         >{{
@@ -159,7 +159,7 @@ onMounted(load);
                     >
                     <span
                         style="
-                            font: 400 11px/1 var(--cw-mono);
+                            font: 500 13px/1 var(--cw-mono);
                             color: var(--cw-bad-soft);
                         "
                         >{{
@@ -307,7 +307,7 @@ onMounted(load);
                         </div>
                         <div
                             style="
-                                font: 500 15px/1.3 var(--cw-sans);
+                                font: 500 16px/1.3 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                         >
@@ -315,7 +315,7 @@ onMounted(load);
                         </div>
                         <p
                             class="cw-prose"
-                            style="margin: 8px 0 14px; font-size: 12px"
+                            style="margin: 8px 0 14px; font-size: 14px"
                         >
                             {{ proposal.summary }}
                         </p>

@@ -132,9 +132,7 @@ const prepare = async (): Promise<void> => {
         if (direct.value) {
             tokenUri.value = uri.value.trim();
         } else {
-            const pinnedImage = image.value
-                ? await pinFile(image.value)
-                : null;
+            const pinnedImage = image.value ? await pinFile(image.value) : null;
 
             const metadata = await pinJson(
                 buildMetadata({
@@ -318,7 +316,11 @@ onMounted(() => {
                 @funded="onFunded"
             />
 
-            <p v-if="failure" class="cw-note cw-note-bad" style="margin-top: 12px">
+            <p
+                v-if="failure"
+                class="cw-note cw-note-bad"
+                style="margin-top: 12px"
+            >
                 <span>{{ failure }}</span>
             </p>
 
@@ -386,7 +388,10 @@ onMounted(() => {
                 <p class="cw-prose" style="margin-top: 14px">
                     {{ t('mintDirectBody') }}
                 </p>
-                <label class="cw-label" style="display: block; margin: 16px 0 6px">
+                <label
+                    class="cw-label"
+                    style="display: block; margin: 16px 0 6px"
+                >
                     {{ t('mintUri') }}
                 </label>
                 <input
@@ -407,7 +412,10 @@ onMounted(() => {
                     <span>{{ t('ipfsOff') }}</span>
                 </p>
 
-                <label class="cw-label" style="display: block; margin: 18px 0 6px">
+                <label
+                    class="cw-label"
+                    style="display: block; margin: 18px 0 6px"
+                >
                     {{ t('mintName') }}
                 </label>
                 <input
@@ -418,7 +426,10 @@ onMounted(() => {
                     :placeholder="t('mintNamePlaceholder')"
                 />
 
-                <label class="cw-label" style="display: block; margin: 14px 0 6px">
+                <label
+                    class="cw-label"
+                    style="display: block; margin: 14px 0 6px"
+                >
                     {{ t('mintDescription') }}
                 </label>
                 <textarea
@@ -428,7 +439,10 @@ onMounted(() => {
                     maxlength="2000"
                 ></textarea>
 
-                <label class="cw-label" style="display: block; margin: 14px 0 6px">
+                <label
+                    class="cw-label"
+                    style="display: block; margin: 14px 0 6px"
+                >
                     {{ t('mintImage') }}
                 </label>
                 <input
@@ -445,7 +459,10 @@ onMounted(() => {
                     }}
                 </p>
 
-                <label class="cw-label" style="display: block; margin: 14px 0 6px">
+                <label
+                    class="cw-label"
+                    style="display: block; margin: 14px 0 6px"
+                >
                     {{ t('mintLink') }}
                 </label>
                 <input
@@ -457,7 +474,11 @@ onMounted(() => {
                 />
             </template>
 
-            <p v-if="failure" class="cw-note cw-note-bad" style="margin-top: 16px">
+            <p
+                v-if="failure"
+                class="cw-note cw-note-bad"
+                style="margin-top: 16px"
+            >
                 <span>{{ failure }}</span>
             </p>
 

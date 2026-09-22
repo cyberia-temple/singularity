@@ -101,13 +101,13 @@ onMounted(load);
                         padding: 0 9px;
                         border: 1px solid var(--cw-accent);
                         color: var(--cw-accent);
-                        font: 500 11px/1 var(--cw-mono);
+                        font: 500 13px/1 var(--cw-mono);
                         white-space: nowrap;
                     "
                     >{{ detail.symbol || '??' }}</span
                 >
                 <div style="flex: 1; min-width: 0">
-                    <div style="font: 500 18px/1.2 var(--cw-sans)">
+                    <div style="font: 500 19px/1.2 var(--cw-sans)">
                         {{ detail.name || detail.symbol }}
                     </div>
                     <div class="cw-data" style="margin-top: 3px">
@@ -267,7 +267,7 @@ onMounted(load);
                                 padding: 0 8px;
                                 border: 1px solid var(--cw-accent);
                                 color: var(--cw-accent);
-                                font: 500 10px/1 var(--cw-mono);
+                                font: 500 12px/1 var(--cw-mono);
                                 white-space: nowrap;
                             "
                             >{{ launch.symbol || '??' }}</span
@@ -276,7 +276,7 @@ onMounted(load);
                             <span
                                 style="
                                     display: block;
-                                    font: 500 14px/1.2 var(--cw-sans);
+                                    font: 500 16px/1.2 var(--cw-sans);
                                     color: var(--cw-text);
                                 "
                                 >{{ launch.name || launch.symbol }}</span
@@ -286,7 +286,7 @@ onMounted(load);
                                 style="
                                     display: block;
                                     margin-top: 3px;
-                                    font-size: 10px;
+                                    font-size: 12px;
                                 "
                                 >{{ amount(launch.liquidity, 2) }} {{ symbol }}
                                 {{ t('launchLocked') }}</span
@@ -295,7 +295,7 @@ onMounted(load);
                         <span style="text-align: right">
                             <span
                                 class="cw-num"
-                                style="display: block; font-size: 13px"
+                                style="display: block; font-size: 15px"
                                 >{{
                                     launch.priceNative === null
                                         ? '—'
@@ -308,7 +308,7 @@ onMounted(load);
                                 style="
                                     display: block;
                                     margin-top: 3px;
-                                    font-size: 10px;
+                                    font-size: 12px;
                                 "
                                 >{{ usd(launch.marketCapNative) ?? '—' }}</span
                             >

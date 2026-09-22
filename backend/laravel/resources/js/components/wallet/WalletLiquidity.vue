@@ -1046,9 +1046,15 @@ const back = (): void => {
                     </div>
                 </div>
 
-                <div class="cw-row" style="margin-top: 16px">
+                <!--
+                  The label above the chips rather than beside them: four
+                  percentages and a Russian word for "slippage" do not share a
+                  393px row, and the version that tried pushed the last chip
+                  off the screen and gave the whole page a sideways scroll.
+                -->
+                <div style="margin-top: 16px">
                     <span class="cw-label">{{ t('poolSlippage') }}</span>
-                    <span style="display: flex; gap: 6px">
+                    <span style="display: flex; gap: 6px; margin-top: 8px">
                         <button
                             v-for="option in [10, 50, 100, 300]"
                             :key="option"
@@ -1157,7 +1163,7 @@ const back = (): void => {
                             <div class="cw-row">
                                 <span
                                     style="
-                                        font: 500 14px/1.2 var(--cw-sans);
+                                        font: 500 16px/1.2 var(--cw-sans);
                                         color: var(--cw-text);
                                     "
                                     >{{ entry.symbols[0] }} /
@@ -1209,7 +1215,7 @@ const back = (): void => {
                 <template v-else-if="position">
                     <h3
                         class="cw-title"
-                        style="margin: 20px 0 4px; font-size: 17px"
+                        style="margin: 20px 0 4px; font-size: 18px"
                     >
                         {{ position.symbols[0] }} / {{ position.symbols[1] }}
                     </h3>
@@ -1338,7 +1344,7 @@ const back = (): void => {
         <div v-if="picking !== null" class="cw-sheet">
             <div class="cw-sheet-panel">
                 <div class="cw-row" style="margin-bottom: 14px">
-                    <h3 class="cw-title" style="font-size: 17px">
+                    <h3 class="cw-title" style="font-size: 18px">
                         {{ t('poolPick') }}
                     </h3>
                     <button
@@ -1375,7 +1381,7 @@ const back = (): void => {
                             <span
                                 style="
                                     display: block;
-                                    font: 500 13px/1.2 var(--cw-mono);
+                                    font: 500 15px/1.2 var(--cw-mono);
                                     color: var(--cw-text);
                                 "
                                 >{{ row.asset.symbol }}</span
@@ -1385,7 +1391,7 @@ const back = (): void => {
                                 style="
                                     display: block;
                                     margin-top: 3px;
-                                    font: 400 10px/1 var(--cw-mono);
+                                    font: 500 12px/1 var(--cw-mono);
                                     color: var(--cw-faint);
                                 "
                                 >{{ shortAddress(row.asset.address) }}</span
@@ -1393,7 +1399,7 @@ const back = (): void => {
                         </span>
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 500 13px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{

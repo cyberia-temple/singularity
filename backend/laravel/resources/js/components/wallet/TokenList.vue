@@ -188,7 +188,7 @@ const add = async (): Promise<void> => {
                                 display: flex;
                                 align-items: center;
                                 gap: 8px;
-                                font: 500 13px/1.2 var(--cw-sans);
+                                font: 500 15px/1.2 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                             >{{ row.token.symbol }}
@@ -206,7 +206,7 @@ const add = async (): Promise<void> => {
                                 display: block;
                                 overflow: hidden;
                                 margin-top: 2px;
-                                font: 400 10px/1.4 var(--cw-mono);
+                                font: 500 12px/1.4 var(--cw-mono);
                                 color: var(--cw-dim);
                                 text-overflow: ellipsis;
                                 white-space: nowrap;
@@ -222,7 +222,7 @@ const add = async (): Promise<void> => {
                             style="
                                 display: block;
                                 margin-top: 2px;
-                                font: 400 11px/1.4 var(--cw-mono);
+                                font: 500 13px/1.4 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{

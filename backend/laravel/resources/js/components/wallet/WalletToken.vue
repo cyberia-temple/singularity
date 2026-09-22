@@ -144,7 +144,7 @@ const hide = async (): Promise<void> => {
                             display: flex;
                             align-items: center;
                             gap: 8px;
-                            font: 500 18px/1.2 var(--cw-sans);
+                            font: 500 19px/1.2 var(--cw-sans);
                         "
                     >
                         {{ token.symbol }}
@@ -155,7 +155,7 @@ const hide = async (): Promise<void> => {
                     <div
                         style="
                             margin-top: 3px;
-                            font: 400 10px/1.4 var(--cw-mono);
+                            font: 500 12px/1.4 var(--cw-mono);
                             color: var(--cw-dim);
                         "
                     >
@@ -174,7 +174,7 @@ const hide = async (): Promise<void> => {
             >
                 {{ priceLabel }}
             </div>
-            <p class="cw-prose" style="margin-top: 8px; font-size: 12px">
+            <p class="cw-prose" style="margin-top: 8px; font-size: 14px">
                 {{ price === null ? t('tokenNoQuote') : t('tokenQuoteSource') }}
             </p>
 

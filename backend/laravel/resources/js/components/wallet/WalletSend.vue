@@ -550,7 +550,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                 <button type="button" class="cw-back" @click="emit('back')">
                     ← {{ t('back') }}
                 </button>
-                <span style="font: 500 12px/1 var(--cw-sans)">{{
+                <span style="font: 500 14px/1 var(--cw-sans)">{{
                     t('send')
                 }}</span>
                 <span style="width: 44px"></span>
@@ -689,7 +689,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                 </div>
                 <p
                     v-if="to.trim().length > 0"
-                    style="margin: 8px 0 0; font: 400 11px/1.4 var(--cw-mono)"
+                    style="margin: 8px 0 0; font: 500 13px/1.4 var(--cw-mono)"
                     :style="{
                         color: addressValid
                             ? 'var(--cw-ok)'
@@ -735,7 +735,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                         />
                         <span
                             style="
-                                font: 400 14px/1 var(--cw-mono);
+                                font: 400 16px/1 var(--cw-mono);
                                 color: var(--cw-muted);
                             "
                             >{{ symbol }}</span
@@ -776,7 +776,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                     >
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 500 13px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{
@@ -796,7 +796,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                         >
                         <span
                             style="
-                                font: 400 11px/1 var(--cw-mono);
+                                font: 500 13px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{ t('balanceShort') }}
@@ -931,8 +931,8 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                     >
                         <span
                             style="
-                                font: 500 11px/1 var(--cw-mono);
-                                letter-spacing: 0.1em;
+                                font: 500 13px/1 var(--cw-mono);
+                                letter-spacing: 0.07em;
                             "
                             :style="{
                                 color:
@@ -956,7 +956,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                         -->
                         <span
                             style="
-                                font: 400 11px/1.3 var(--cw-mono);
+                                font: 500 13px/1.3 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >{{ formatUnits(quote.fee, account.decimals, 8) }}
@@ -964,7 +964,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                         >
                         <span
                             style="
-                                font: 400 10px/1.3 var(--cw-mono);
+                                font: 500 12px/1.3 var(--cw-mono);
                                 color: var(--cw-faint);
                             "
                             >{{ t(quote.basis.key, quote.basis.params) }}</span
@@ -989,7 +989,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                     <p
                         style="
                             margin: 0;
-                            font: 400 13px/1.65 var(--cw-sans);
+                            font: 400 15px/1.65 var(--cw-sans);
                             color: var(--cw-body);
                             text-wrap: pretty;
                         "
@@ -1173,7 +1173,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                 <div class="cw-row" style="margin-bottom: 6px">
                     <h3
                         class="cw-title"
-                        style="font-size: 19px; line-height: 1.2"
+                        style="font-size: 20px; line-height: 1.2"
                     >
                         {{ t('confirmTransaction') }}
                     </h3>
@@ -1189,7 +1189,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                 </div>
                 <p
                     class="cw-prose"
-                    style="margin-bottom: 18px; font-size: 12px"
+                    style="margin-bottom: 18px; font-size: 14px"
                 >
                     {{ t('reviewBody') }}
                 </p>
@@ -1226,7 +1226,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                     </div>
                     <div class="cw-kv">
                         <span class="cw-kv-key">{{ t('kAmount') }}</span>
-                        <span class="cw-kv-val" style="font-size: 14px"
+                        <span class="cw-kv-val" style="font-size: 16px"
                             >{{ amount }} {{ symbol }}</span
                         >
                     </div>
@@ -1252,7 +1252,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                             <span
                                 style="
                                     display: block;
-                                    font: 600 16px/1 var(--cw-mono);
+                                    font: 600 17px/1 var(--cw-mono);
                                     color: var(--cw-accent);
                                 "
                                 >{{
@@ -1266,7 +1266,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                                 style="
                                     display: block;
                                     margin-top: 4px;
-                                    font: 400 11px/1 var(--cw-mono);
+                                    font: 500 13px/1 var(--cw-mono);
                                     color: var(--cw-dim);
                                 "
                                 >{{
@@ -1306,7 +1306,7 @@ const pickAsset = (next: WalletTokenBalance | null): void => {
                     <p
                         style="
                             margin: 0;
-                            font: 400 12px/1.6 var(--cw-sans);
+                            font: 400 14px/1.6 var(--cw-sans);
                             color: #b6bec6;
                         "
                     >

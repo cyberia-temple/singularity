@@ -1449,8 +1449,8 @@ watch(
                 </span>
                 <span
                     style="
-                        font: 500 13px/1 var(--cw-mono);
-                        letter-spacing: 0.28em;
+                        font: 500 15px/1 var(--cw-mono);
+                        letter-spacing: 0.07em;
                         color: var(--cw-text);
                         text-transform: uppercase;
                     "
@@ -1523,7 +1523,7 @@ watch(
                     </span>
                     <span
                         class="cw-label"
-                        style="letter-spacing: 0.22em; color: var(--cw-text)"
+                        style="letter-spacing: 0.07em; color: var(--cw-text)"
                         >{{ t('vaultTag') }}</span
                     >
                 </div>
@@ -1631,13 +1631,13 @@ watch(
                             />
                             <span
                                 class="cw-label"
-                                style="letter-spacing: 0.14em"
+                                style="letter-spacing: 0.07em"
                                 >{{ t('localVault') }}</span
                             >
                         </div>
                         <div
                             style="
-                                font: 400 10px/1.5 var(--cw-mono);
+                                font: 500 12px/1.5 var(--cw-mono);
                                 color: var(--cw-faint);
                             "
                         >

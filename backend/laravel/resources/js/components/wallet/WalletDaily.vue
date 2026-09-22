@@ -377,8 +377,8 @@ const cooldownHours = computed(() => {
             <h2 class="cw-title" style="margin: 0">{{ t('dailyTitle') }}</h2>
             <span
                 style="
-                    font: 500 10px/1 var(--cw-mono);
-                    letter-spacing: 0.16em;
+                    font: 500 12px/1 var(--cw-mono);
+                    letter-spacing: 0.07em;
                     color: var(--cw-accent);
                     flex: none;
                 "
@@ -400,12 +400,12 @@ const cooldownHours = computed(() => {
             <!-- ---------------------------------------------- standing --- -->
             <div class="cw-card" style="margin-top: 16px; padding: 15px">
                 <div class="cw-row" style="align-items: baseline">
-                    <span style="font: 500 15px/1.2 var(--cw-sans)">{{
+                    <span style="font: 500 16px/1.2 var(--cw-sans)">{{
                         standing?.title ?? t('dailyNoAccount')
                     }}</span>
                     <span
                         style="
-                            font: 400 10px/1 var(--cw-mono);
+                            font: 500 12px/1 var(--cw-mono);
                             color: var(--cw-muted);
                             flex: none;
                         "
@@ -421,7 +421,7 @@ const cooldownHours = computed(() => {
                     v-if="perkNote && standing"
                     style="
                         margin: 0;
-                        font: 400 11px/1.65 var(--cw-sans);
+                        font: 400 13px/1.65 var(--cw-sans);
                         color: var(--cw-muted);
                         text-wrap: pretty;
                     "
@@ -439,7 +439,7 @@ const cooldownHours = computed(() => {
                     <p
                         style="
                             margin: 11px 0 0;
-                            font: 400 11px/1.65 var(--cw-sans);
+                            font: 400 13px/1.65 var(--cw-sans);
                             color: var(--cw-muted);
                             text-wrap: pretty;
                         "
@@ -450,7 +450,7 @@ const cooldownHours = computed(() => {
                         v-if="perkNote"
                         style="
                             margin: 10px 0 0;
-                            font: 400 11px/1.65 var(--cw-sans);
+                            font: 400 13px/1.65 var(--cw-sans);
                             color: var(--cw-faint);
                             text-wrap: pretty;
                         "
@@ -480,7 +480,7 @@ const cooldownHours = computed(() => {
                     <span class="cw-label" style="color: var(--cw-dim)">{{
                         t('dailyRank')
                     }}</span>
-                    <span style="font: 500 12px/1 var(--cw-mono); flex: none"
+                    <span style="font: 500 14px/1 var(--cw-mono); flex: none"
                         >#{{ standing.rank }}</span
                     >
                 </div>
@@ -494,8 +494,8 @@ const cooldownHours = computed(() => {
                     }}</span>
                     <span
                         style="
-                            font: 500 10px/1 var(--cw-mono);
-                            letter-spacing: 0.12em;
+                            font: 500 12px/1 var(--cw-mono);
+                            letter-spacing: 0.07em;
                             color: var(--cw-pending);
                             flex: none;
                         "
@@ -549,7 +549,7 @@ const cooldownHours = computed(() => {
                 <p
                     style="
                         margin: 10px 0 0;
-                        font: 400 10px/1.65 var(--cw-mono);
+                        font: 500 12px/1.65 var(--cw-mono);
                         color: var(--cw-faint);
                         text-wrap: pretty;
                     "
@@ -576,7 +576,7 @@ const cooldownHours = computed(() => {
                 <p
                     style="
                         margin: 9px 0 12px;
-                        font: 400 12px/1.7 var(--cw-sans);
+                        font: 400 14px/1.7 var(--cw-sans);
                         color: var(--cw-body);
                         text-wrap: pretty;
                     "
@@ -651,8 +651,8 @@ const cooldownHours = computed(() => {
                         <div class="cw-row" style="align-items: baseline">
                             <span
                                 style="
-                                    font: 500 11px/1.3 var(--cw-mono);
-                                    letter-spacing: 0.12em;
+                                    font: 500 13px/1.3 var(--cw-mono);
+                                    letter-spacing: 0.07em;
                                 "
                                 :style="{
                                     color: quest.completed
@@ -663,7 +663,7 @@ const cooldownHours = computed(() => {
                             >
                             <span
                                 style="
-                                    font: 400 10px/1 var(--cw-mono);
+                                    font: 500 12px/1 var(--cw-mono);
                                     color: var(--cw-accent);
                                     flex: none;
                                 "
@@ -674,7 +674,7 @@ const cooldownHours = computed(() => {
                         <p
                             style="
                                 margin: 7px 0 10px;
-                                font: 400 11px/1.55 var(--cw-sans);
+                                font: 400 13px/1.55 var(--cw-sans);
                                 color: var(--cw-muted);
                                 text-wrap: pretty;
                             "
@@ -702,7 +702,7 @@ const cooldownHours = computed(() => {
                             </div>
                             <span
                                 style="
-                                    font: 400 9px/1 var(--cw-mono);
+                                    font: 500 12px/1 var(--cw-mono);
                                     color: var(--cw-dim);
                                     flex: none;
                                 "
@@ -719,7 +719,7 @@ const cooldownHours = computed(() => {
                                 "
                                 style="
                                     flex: none;
-                                    font: 400 12px/1 var(--cw-mono);
+                                    font: 400 14px/1 var(--cw-mono);
                                     color: var(--cw-accent);
                                 "
                                 aria-hidden="true"

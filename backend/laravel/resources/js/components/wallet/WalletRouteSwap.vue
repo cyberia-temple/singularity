@@ -714,7 +714,7 @@ const canSign = computed(
                     <span
                         style="
                             display: block;
-                            font: 500 12px/1.2 var(--cw-sans);
+                            font: 500 14px/1.2 var(--cw-sans);
                         "
                     >
                         {{ offer.symbol }}

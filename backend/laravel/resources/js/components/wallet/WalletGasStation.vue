@@ -306,7 +306,7 @@ const tiers = computed(() =>
                 v-if="drips !== null"
                 style="
                     margin-top: 8px;
-                    font: 400 11px/1.5 var(--cw-mono);
+                    font: 500 13px/1.5 var(--cw-mono);
                     color: var(--cw-dim);
                 "
             >
@@ -337,7 +337,7 @@ const tiers = computed(() =>
                     }}</span>
                     <span
                         style="
-                            font: 400 11px/1 var(--cw-mono);
+                            font: 500 13px/1 var(--cw-mono);
                             color: var(--cw-muted);
                         "
                         >{{
@@ -420,7 +420,7 @@ const tiers = computed(() =>
                 v-if="grounds"
                 style="
                     margin-top: 14px;
-                    font: 400 11px/1.5 var(--cw-mono);
+                    font: 500 13px/1.5 var(--cw-mono);
                     color: var(--cw-dim);
                 "
             >
@@ -443,7 +443,7 @@ const tiers = computed(() =>
                         style="
                             display: block;
                             margin-top: 6px;
-                            font: 500 12px/1 var(--cw-mono);
+                            font: 500 14px/1 var(--cw-mono);
                             color: var(--cw-muted);
                         "
                         >{{ waitLabel }}</span
@@ -479,7 +479,7 @@ const tiers = computed(() =>
                             style="
                                 display: block;
                                 margin-top: 4px;
-                                font: 400 10px/1.4 var(--cw-mono);
+                                font: 500 12px/1.4 var(--cw-mono);
                                 color: var(--cw-faint);
                             "
                             >{{

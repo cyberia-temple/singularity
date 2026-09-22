@@ -86,7 +86,7 @@ const payoutOffered = computed(
             <button type="button" class="cw-back" @click="emit('back')">
                 ← {{ t('back') }}
             </button>
-            <span style="font: 500 12px/1 var(--cw-sans)">{{
+            <span style="font: 500 14px/1 var(--cw-sans)">{{
                 t('receive')
             }}</span>
             <span style="width: 44px"></span>
@@ -196,11 +196,11 @@ const payoutOffered = computed(
         <!-- Monero doubles as the bridge's payout address, so offer it here. -->
         <div v-if="chain === 'monero'" class="cw-card" style="margin-top: 16px">
             <div
-                style="font: 400 14px/1.3 var(--cw-sans); color: var(--cw-text)"
+                style="font: 400 16px/1.3 var(--cw-sans); color: var(--cw-text)"
             >
                 {{ t('useForPayouts') }}
             </div>
-            <p class="cw-prose" style="margin: 6px 0 0; font-size: 12px">
+            <p class="cw-prose" style="margin: 6px 0 0; font-size: 14px">
                 {{ t('useForPayoutsHint') }}
             </p>
             <!--
@@ -229,7 +229,7 @@ const payoutOffered = computed(
                 v-else
                 style="
                     margin: 12px 0 0;
-                    font: 400 11px/1 var(--cw-mono);
+                    font: 500 13px/1 var(--cw-mono);
                     color: var(--cw-accent);
                 "
             >

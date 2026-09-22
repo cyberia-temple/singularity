@@ -461,7 +461,7 @@ onBeforeUnmount(unsubscribe);
                 margin-top: 20px;
                 padding: 10px 12px;
                 border: 1px dashed var(--cw-border);
-                font: 400 11px/1.6 var(--cw-mono);
+                font: 500 13px/1.6 var(--cw-mono);
                 color: var(--cw-faint);
             "
         >

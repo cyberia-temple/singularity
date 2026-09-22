@@ -95,7 +95,10 @@ const toggle = async (torrent: TorrentSummary): Promise<void> => {
     }
 };
 
-const remove = async (infoHash: string, deleteFiles: boolean): Promise<void> => {
+const remove = async (
+    infoHash: string,
+    deleteFiles: boolean,
+): Promise<void> => {
     if (!bridge) {
         return;
     }
@@ -226,7 +229,11 @@ onBeforeUnmount(() => {
                 @keyup.enter="add"
             />
             <p class="cw-data" style="margin-top: 6px">
-                {{ source.trim() !== '' && !valid ? t('torrentBadSource') : t('torrentSourceHint') }}
+                {{
+                    source.trim() !== '' && !valid
+                        ? t('torrentBadSource')
+                        : t('torrentSourceHint')
+                }}
             </p>
 
             <button
@@ -243,13 +250,20 @@ onBeforeUnmount(() => {
                 <span>{{ t('torrentPrivacy') }}</span>
             </p>
 
-            <p v-if="failure" class="cw-note cw-note-bad" style="margin-top: 12px">
+            <p
+                v-if="failure"
+                class="cw-note cw-note-bad"
+                style="margin-top: 12px"
+            >
                 <span>{{ failure }}</span>
             </p>
 
             <div v-if="info" class="cw-kv" style="margin-top: 16px">
                 <span class="cw-kv-key">{{ t('torrentFolder') }}</span>
-                <span class="cw-kv-val" style="overflow-wrap: anywhere; text-align: right">
+                <span
+                    class="cw-kv-val"
+                    style="overflow-wrap: anywhere; text-align: right"
+                >
                     {{ info.downloadDir }}
                 </span>
             </div>
@@ -285,26 +299,40 @@ onBeforeUnmount(() => {
                                 flex: 1;
                                 min-width: 0;
                                 overflow: hidden;
-                                font: 500 13px/1.3 var(--cw-sans);
+                                font: 500 15px/1.3 var(--cw-sans);
                                 text-overflow: ellipsis;
                                 white-space: nowrap;
                             "
-                            >{{ torrent.name || torrent.infoHash.slice(0, 12) }}</span
+                            >{{
+                                torrent.name || torrent.infoHash.slice(0, 12)
+                            }}</span
                         >
                         <button
                             type="button"
                             class="cw-icon-btn"
-                            :aria-label="torrent.status === 'paused' ? t('torrentResume') : t('torrentPause')"
+                            :aria-label="
+                                torrent.status === 'paused'
+                                    ? t('torrentResume')
+                                    : t('torrentPause')
+                            "
                             @click="toggle(torrent)"
                         >
-                            <Play v-if="torrent.status === 'paused'" :size="13" />
+                            <Play
+                                v-if="torrent.status === 'paused'"
+                                :size="13"
+                            />
                             <Pause v-else :size="13" />
                         </button>
                         <button
                             type="button"
                             class="cw-icon-btn"
                             :aria-label="t('torrentRemove')"
-                            @click="confirming = confirming === torrent.infoHash ? null : torrent.infoHash"
+                            @click="
+                                confirming =
+                                    confirming === torrent.infoHash
+                                        ? null
+                                        : torrent.infoHash
+                            "
                         >
                             <X :size="13" />
                         </button>
@@ -325,22 +353,26 @@ onBeforeUnmount(() => {
                         ></div>
                     </div>
 
-                    <div class="cw-data" style="font-size: 10px">
-                        {{ percent(torrent) }}% ·
-                        {{ statusLabel(torrent) }} ·
-                        {{ formatBytes(torrent.downloaded) }}<template v-if="torrent.length > 0">
+                    <div class="cw-data" style="font-size: 12px">
+                        {{ percent(torrent) }}% · {{ statusLabel(torrent) }} ·
+                        {{ formatBytes(torrent.downloaded)
+                        }}<template v-if="torrent.length > 0">
                             / {{ formatBytes(torrent.length) }}</template
                         >
-                        · ↓{{ formatSpeed(torrent.downloadSpeed) }} ·
-                        ↑{{ formatSpeed(torrent.uploadSpeed) }} ·
-                        {{ t('torrentPeers', { count: torrent.peers }) }}<template
-                            v-if="formatEta(torrent.eta)"
-                        >
+                        · ↓{{ formatSpeed(torrent.downloadSpeed) }} · ↑{{
+                            formatSpeed(torrent.uploadSpeed)
+                        }}
+                        · {{ t('torrentPeers', { count: torrent.peers })
+                        }}<template v-if="formatEta(torrent.eta)">
                             · {{ formatEta(torrent.eta) }}</template
                         >
                     </div>
 
-                    <p v-if="torrent.error" class="cw-note cw-note-bad" style="margin-top: 10px">
+                    <p
+                        v-if="torrent.error"
+                        class="cw-note cw-note-bad"
+                        style="margin-top: 10px"
+                    >
                         <span>{{ torrent.error }}</span>
                     </p>
 
@@ -383,11 +415,12 @@ onBeforeUnmount(() => {
                                     flex: 1;
                                     min-width: 0;
                                     overflow: hidden;
-                                    font-size: 10px;
+                                    font-size: 12px;
                                     text-overflow: ellipsis;
                                     white-space: nowrap;
                                 "
-                                >{{ file.name }} · {{ formatBytes(file.length) }}</span
+                                >{{ file.name }} ·
+                                {{ formatBytes(file.length) }}</span
                             >
                             <button
                                 v-if="

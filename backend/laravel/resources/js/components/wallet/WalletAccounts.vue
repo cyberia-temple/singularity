@@ -179,7 +179,7 @@ const commitRename = async (id: string): Promise<void> => {
                             v-if="renaming === row.record.id"
                             v-model="draftName"
                             class="cw-input"
-                            style="height: 34px; font-size: 13px"
+                            style="height: 34px; font-size: 15px"
                             :aria-label="t('accountRename')"
                             :placeholder="row.name"
                             @keydown.enter="commitRename(row.record.id)"
@@ -188,7 +188,7 @@ const commitRename = async (id: string): Promise<void> => {
                         <div
                             v-else
                             style="
-                                font: 500 14px/1.2 var(--cw-sans);
+                                font: 500 16px/1.2 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                         >
@@ -199,7 +199,7 @@ const commitRename = async (id: string): Promise<void> => {
                             style="
                                 margin-top: 4px;
                                 color: var(--cw-muted);
-                                font-size: 10px;
+                                font-size: 12px;
                             "
                         >
                             {{ row.address ? shortAddress(row.address) : '—' }}
@@ -229,8 +229,8 @@ const commitRename = async (id: string): Promise<void> => {
                         margin: 11px 0 0;
                         padding-top: 10px;
                         border-top: 1px solid var(--cw-line);
-                        font: 400 10px/1.5 var(--cw-mono);
-                        letter-spacing: 0.1em;
+                        font: 500 12px/1.5 var(--cw-mono);
+                        letter-spacing: 0.07em;
                         color: var(--cw-pending);
                     "
                 >

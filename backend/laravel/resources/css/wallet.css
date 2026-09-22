@@ -30,9 +30,10 @@
      * rules.
      *
      * The three were picked at WCAG's 4.5:1, raised once to 6.2:1 because
-     * almost nothing wearing them is normal-size text — a label here is 11px
-     * uppercase mono at 0.16em tracking, where the caps kill the word-shape
-     * and the tracking pulls the letters apart — and raised again, to **8.5:1
+     * almost nothing wearing them was normal-size text — a label used to be
+     * 11px uppercase mono at 0.16em tracking, where the caps killed the
+     * word-shape and the tracking pulled the letters apart — and raised again,
+     * to **8.5:1
      * or better against every ground this theme paints**, for the condition no
      * contrast ratio describes: a phone held outdoors. A screen in daylight is
      * a mirror with a picture behind it, and the reflected light lands on the
@@ -195,8 +196,8 @@
     --cw-border: #b3bcc6;
     --cw-border-soft: #c6ced8;
     --cw-border-hover: #808a96;
-    /* Same rule as the dark theme's: raised from 4.5:1 to 6.7:1 and up, for
-       text that is mostly 11px uppercase mono. See the note there. */
+    /* Same rule as the dark theme's: raised from 4.5:1 to 6.7:1 and up. See
+       the note there, including why the scale was raised after it. */
     --cw-fainter: #868d95;
     --cw-faint: #464d54;
     --cw-dim: #414850;
@@ -416,7 +417,7 @@
 }
 
 .cw-masthead-tag {
-    letter-spacing: 0.14em;
+    letter-spacing: 0.07em;
     white-space: nowrap;
 }
 
@@ -523,7 +524,7 @@ body:has(.cw-frame) {
  *
  * `WalletFrameLayout` sets `data-app-window` and it is deliberately not every
  * container: in a browser tab the wallet stays zoomable. Magnification is how
- * some people read an 11px label, and an app that cannot be zoomed is only
+ * some people read a small label, and an app that cannot be zoomed is only
  * acceptable where the window is the application itself.
  */
 html[data-app-window]:has(.cw-frame) {
@@ -792,7 +793,7 @@ html[data-app-window]:has(.cw-frame) {
 /* The rate the balances below are quoted at, never the whole sentence. */
 .cw-context-rate {
     flex: none;
-    font: 400 11px/1 var(--cw-mono);
+    font: 500 13px/1 var(--cw-mono);
     color: var(--cw-dim);
     white-space: nowrap;
 }
@@ -862,7 +863,7 @@ html[data-app-window]:has(.cw-frame) {
 .cw-chip-name {
     display: block;
     overflow: hidden;
-    font: 500 12px/1.2 var(--cw-sans);
+    font: 500 14px/1.2 var(--cw-sans);
     color: var(--cw-text);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -872,8 +873,8 @@ html[data-app-window]:has(.cw-frame) {
     display: block;
     margin-top: 3px;
     overflow: hidden;
-    font: 400 9px/1.3 var(--cw-mono);
-    letter-spacing: 0.12em;
+    font: 500 12px/1.3 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-dim);
     text-overflow: ellipsis;
     text-transform: uppercase;
@@ -882,7 +883,7 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-chip-net {
     overflow: hidden;
-    font: 500 11px/1.2 var(--cw-mono);
+    font: 500 13px/1.2 var(--cw-mono);
     color: var(--cw-text);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -890,7 +891,7 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-chip-chev {
     flex: none;
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-dim);
 }
 
@@ -917,7 +918,7 @@ html[data-app-window]:has(.cw-frame) {
     border: 0;
     padding: 6px;
     background: none;
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-faint);
     cursor: pointer;
 }
@@ -951,7 +952,7 @@ html[data-app-window]:has(.cw-frame) {
 .cw-pick-mark {
     flex: none;
     width: 14px;
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-fainter);
 }
 
@@ -961,7 +962,7 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-pick-usd {
     flex: none;
-    font: 500 11px/1 var(--cw-mono);
+    font: 500 13px/1 var(--cw-mono);
     color: var(--cw-body);
 }
 
@@ -1109,7 +1110,7 @@ html[data-app-window]:has(.cw-frame) {
     gap: 2px 10px;
     padding: 7px 10px;
     border-bottom: 1px solid var(--cw-line);
-    font: 400 10px/1.5 var(--cw-mono);
+    font: 500 12px/1.5 var(--cw-mono);
     color: var(--cw-dim);
     font-variant-numeric: tabular-nums;
     pointer-events: none;
@@ -1171,7 +1172,7 @@ html[data-app-window]:has(.cw-frame) {
     height: 30px;
     border: 1px solid var(--cw-hairline);
     background: var(--cw-surface);
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     letter-spacing: 0.06em;
     color: var(--cw-dim);
     cursor: pointer;
@@ -1215,13 +1216,13 @@ html[data-app-window]:has(.cw-frame) {
 }
 
 .cw-market-name {
-    font: 500 13px/1.3 var(--cw-sans);
+    font: 500 15px/1.3 var(--cw-sans);
     color: var(--cw-text);
 }
 
 /* Which network the row is on, said quietly beside the pair. */
 .cw-market-on {
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-faint);
 }
 
@@ -1236,11 +1237,19 @@ html[data-app-window]:has(.cw-frame) {
 /* --------------------------------------------------------------- typo --- */
 
 /*
- * The eyebrow over a block: mono, tracked, upper case — and 11px rather than
- * 10, because two thirds of the visible characters on the portfolio were 11px
- * or smaller and the caps here are as often Russian as English. Cyrillic caps
- * with 0.2em of tracking lose more to the treatment than Latin does, and this
- * is the one that names things.
+ * The eyebrow over a block: mono, upper case, and 13px.
+ *
+ * It was 11px, and the whole scale under it was smaller still — two thirds of
+ * the characters on a portfolio were 11px or less and the body copy was 13px,
+ * against a phone whose system body is 16. It was reported as "nothing is
+ * visible", and the contrast ramp above had already been raised twice trying
+ * to answer what was really a size problem: text this small reads as faint
+ * whatever its ratio, which is why WCAG itself asks less of large text than of
+ * small. Nothing in this file is under 12px now.
+ *
+ * The tracking came down with it, from 0.16em to 0.07em. Caps have already
+ * spent the word-shape; tracking on top of that is read letter by letter, and
+ * Cyrillic caps lose more to the treatment than Latin does.
  */
 /*
  * Numbers under a row: a market's depth, its price, the day's move.
@@ -1254,14 +1263,27 @@ html[data-app-window]:has(.cw-frame) {
  */
 .cw-rowdata {
     display: block;
-    font: 400 10.5px/1.35 var(--cw-mono);
-    letter-spacing: 0.04em;
+    font: 500 13px/1.4 var(--cw-mono);
+    letter-spacing: 0.02em;
     color: var(--cw-faint);
 }
 
+/*
+ * The label, and the two things that were wrong with it besides its size.
+ *
+ * 0.16em of tracking on uppercase mono pulls a word apart into letters: the
+ * caps have already killed the word-shape, and the tracking then removes what
+ * is left to recognise it by, so the eye reads it character by character. A
+ * third of that is enough to say "this is a label" without making it a puzzle.
+ *
+ * And the weight: 400 on a light ink over a near-black ground blooms — the
+ * stems thin out and the counters fill in, which is read as low contrast no
+ * matter what the ratio says. 500 costs nothing and is the difference between
+ * grey and legible.
+ */
 .cw-label {
-    font: 400 11px/1.1 var(--cw-mono);
-    letter-spacing: 0.16em;
+    font: 500 13px/1.25 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-dim);
     text-transform: uppercase;
 }
@@ -1277,17 +1299,17 @@ html[data-app-window]:has(.cw-frame) {
  */
 .cw-hint {
     display: block;
-    font: 400 12px/1.35 var(--cw-sans);
+    font: 400 14px/1.35 var(--cw-sans);
     color: var(--cw-dim);
 }
 
 .cw-data {
-    font: 400 12px/1.5 var(--cw-mono);
+    font: 400 14px/1.5 var(--cw-mono);
     color: var(--cw-body);
 }
 
 .cw-num {
-    font: 500 14px/1.2 var(--cw-mono);
+    font: 500 16px/1.2 var(--cw-mono);
     font-variant-numeric: tabular-nums;
 }
 
@@ -1314,7 +1336,7 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-prose {
     margin: 0;
-    font: 400 13px/1.6 var(--cw-sans);
+    font: 400 15px/1.6 var(--cw-sans);
     color: var(--cw-muted);
     text-wrap: pretty;
 }
@@ -1330,7 +1352,7 @@ html[data-app-window]:has(.cw-frame) {
     gap: 8px;
     border: 1px solid transparent;
     border-radius: 4px;
-    font: 600 14px/1 var(--cw-sans);
+    font: 600 16px/1 var(--cw-sans);
     cursor: pointer;
     transition:
         background 0.15s,
@@ -1386,8 +1408,8 @@ html[data-app-window]:has(.cw-frame) {
     border: 1px solid var(--cw-border-soft);
     border-radius: 3px;
     background: transparent;
-    font: 400 11px/1 var(--cw-mono);
-    letter-spacing: 0.12em;
+    font: 500 13px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-muted);
     cursor: pointer;
     text-transform: uppercase;
@@ -1416,7 +1438,7 @@ html[data-app-window]:has(.cw-frame) {
     border: 1px solid var(--cw-border-soft);
     border-radius: 3px;
     background: transparent;
-    font: 400 12px/1 var(--cw-mono);
+    font: 400 14px/1 var(--cw-mono);
     color: var(--cw-muted);
     cursor: pointer;
 }
@@ -1450,7 +1472,7 @@ html[data-app-window]:has(.cw-frame) {
     align-items: center;
     border: 0;
     background: none;
-    font: 400 12px/1 var(--cw-mono);
+    font: 400 14px/1 var(--cw-mono);
     letter-spacing: 0.08em;
     color: var(--cw-muted);
     cursor: pointer;
@@ -1467,7 +1489,7 @@ html[data-app-window]:has(.cw-frame) {
     border: 1px solid var(--cw-border-soft);
     border-radius: 4px;
     background: var(--cw-surface);
-    font: 400 13px/1 var(--cw-mono);
+    font: 400 15px/1 var(--cw-mono);
     color: var(--cw-text);
     outline: none;
 }
@@ -1495,7 +1517,7 @@ html[data-app-window]:has(.cw-frame) {
     border: 1px solid var(--cw-border-soft);
     border-radius: 4px;
     background: var(--cw-surface);
-    font: 400 14px/1.9 var(--cw-mono);
+    font: 400 16px/1.9 var(--cw-mono);
     color: var(--cw-text);
     outline: none;
 }
@@ -1572,7 +1594,7 @@ html[data-app-window]:has(.cw-frame) {
     padding: 13px 14px;
     border: 1px solid var(--cw-hairline);
     background: var(--cw-surface);
-    font: 400 12px/1.55 var(--cw-sans);
+    font: 400 14px/1.55 var(--cw-sans);
     color: var(--cw-body);
 }
 
@@ -1612,7 +1634,7 @@ html[data-app-window]:has(.cw-frame) {
     margin: -5px -5px -5px 0;
     border: 0;
     background: none;
-    font: 400 15px/1 var(--cw-mono);
+    font: 400 16px/1 var(--cw-mono);
     color: currentColor;
     opacity: 0.55;
     cursor: pointer;
@@ -1658,8 +1680,8 @@ html[data-app-window]:has(.cw-frame) {
     border: 0;
     border-top: 1px solid transparent;
     background: none;
-    font: 400 10px/1 var(--cw-mono);
-    letter-spacing: 0.12em;
+    font: 500 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-dim);
     cursor: pointer;
 }
@@ -1689,7 +1711,7 @@ html[data-app-window]:has(.cw-frame) {
 
 @media (max-width: 369px) {
     .cw-tab {
-        font-size: 9px;
+        font-size: 12px;
         letter-spacing: 0;
     }
 }
@@ -1719,7 +1741,7 @@ html[data-app-window]:has(.cw-frame) {
     border: 0;
     border-left: 2px solid transparent;
     background: none;
-    font: 400 13px/1 var(--cw-sans);
+    font: 400 15px/1 var(--cw-sans);
     color: var(--cw-muted);
     cursor: pointer;
     text-align: left;
@@ -1784,7 +1806,7 @@ html[data-app-window]:has(.cw-frame) {
     display: flex;
     flex-wrap: wrap;
     gap: 0 8px;
-    font: 400 12px/1.7 var(--cw-mono);
+    font: 400 14px/1.7 var(--cw-mono);
     color: var(--cw-text);
 }
 
@@ -1815,7 +1837,7 @@ html[data-app-window]:has(.cw-frame) {
     gap: 4px;
     border: 0;
     background: var(--cw-surface);
-    font: 500 11px/1 var(--cw-mono);
+    font: 500 13px/1 var(--cw-mono);
     letter-spacing: 0.08em;
     color: var(--cw-dim);
     cursor: pointer;
@@ -1876,14 +1898,14 @@ html[data-app-window]:has(.cw-frame) {
 }
 
 .cw-kv-key {
-    font: 400 11px/1.4 var(--cw-mono);
-    letter-spacing: 0.1em;
+    font: 500 13px/1.4 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-dim);
     text-transform: uppercase;
 }
 
 .cw-kv-val {
-    font: 500 12px/1.4 var(--cw-mono);
+    font: 500 14px/1.4 var(--cw-mono);
     color: var(--cw-text);
     text-align: right;
     word-break: break-all;
@@ -1937,7 +1959,7 @@ html[data-app-window]:has(.cw-frame) {
     background: none;
     color: var(--cw-text);
     cursor: pointer;
-    font: 400 11px/1.25 var(--cw-sans);
+    font: 400 13px/1.25 var(--cw-sans);
     text-align: center;
 }
 
@@ -2009,7 +2031,7 @@ html[data-app-window]:has(.cw-frame) {
     background: none;
     color: var(--cw-text);
     cursor: pointer;
-    font: 400 15px/1.3 var(--cw-sans);
+    font: 400 16px/1.3 var(--cw-sans);
     text-align: left;
 }
 
@@ -2110,8 +2132,8 @@ html[data-app-window]:has(.cw-frame) {
     align-items: center;
     padding: 3px 5px;
     border: 1px solid var(--cw-pending-line-strong);
-    font: 400 8px/1 var(--cw-mono);
-    letter-spacing: 0.14em;
+    font: 500 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-pending);
     text-transform: uppercase;
     white-space: nowrap;
@@ -2188,12 +2210,12 @@ html[data-app-window]:has(.cw-frame) {
     padding: 0 5px;
     border-radius: 9px;
     background: var(--cw-accent);
-    font: 500 10px/18px var(--cw-mono);
+    font: 500 12px/18px var(--cw-mono);
     color: var(--cw-app);
 }
 
 .cw-turn-text {
-    font: 400 13px/1.55 var(--cw-sans);
+    font: 400 15px/1.55 var(--cw-sans);
     color: var(--cw-body);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -2228,7 +2250,7 @@ html[data-app-window]:has(.cw-frame) {
      */
     flex: 1 1 0;
     padding: 13px 14px;
-    font: 400 13px/1.5 var(--cw-sans);
+    font: 400 15px/1.5 var(--cw-sans);
     margin: 0;
 }
 
@@ -2286,7 +2308,7 @@ html[data-app-window]:has(.cw-frame) {
 }
 
 .cw-day-n {
-    font: 400 9px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-dim);
 }
 
@@ -2296,7 +2318,7 @@ html[data-app-window]:has(.cw-frame) {
 }
 
 .cw-day-mark {
-    font: 400 9px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-faint);
 }
 
@@ -2340,7 +2362,7 @@ html[data-app-window]:has(.cw-frame) {
 .cw-board-n {
     width: 24px;
     flex: none;
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-dim);
 }
 
@@ -2348,7 +2370,7 @@ html[data-app-window]:has(.cw-frame) {
     overflow: hidden;
     flex: 1;
     min-width: 0;
-    font: 500 12px/1.2 var(--cw-sans);
+    font: 500 14px/1.2 var(--cw-sans);
     color: var(--cw-text);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2356,14 +2378,14 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-board-lvl {
     flex: none;
-    font: 400 9px/1 var(--cw-mono);
-    letter-spacing: 0.12em;
+    font: 500 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-faint);
 }
 
 .cw-board-xp {
     flex: none;
-    font: 400 10px/1 var(--cw-mono);
+    font: 500 12px/1 var(--cw-mono);
     color: var(--cw-accent);
     text-align: right;
 }
@@ -2435,7 +2457,7 @@ html[data-app-window]:has(.cw-frame) {
 /* The primary action of a whole screen, one step taller than a button in a row. */
 .cw-btn-tall {
     height: 56px;
-    font-size: 15px;
+    font-size: 16px;
 }
 
 /*
@@ -2462,8 +2484,8 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-streak-chip {
     flex: none;
-    font: 500 9px/1 var(--cw-mono);
-    letter-spacing: 0.16em;
+    font: 500 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-pending);
     text-transform: uppercase;
 }
@@ -2471,13 +2493,13 @@ html[data-app-window]:has(.cw-frame) {
 .cw-streak-text {
     flex: 1;
     min-width: 0;
-    font: 400 11px/1.35 var(--cw-sans);
+    font: 400 13px/1.35 var(--cw-sans);
     color: var(--cw-body);
 }
 
 .cw-streak-go {
     flex: none;
-    font: 400 11px/1 var(--cw-mono);
+    font: 500 13px/1 var(--cw-mono);
     color: var(--cw-pending);
 }
 
@@ -2504,8 +2526,8 @@ html[data-app-window]:has(.cw-frame) {
 
 .cw-mini-note {
     margin: 0;
-    font: 400 10px/1 var(--cw-mono);
-    letter-spacing: 0.12em;
+    font: 500 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-faint);
     text-transform: uppercase;
 }
@@ -2520,8 +2542,8 @@ html[data-app-window]:has(.cw-frame) {
     padding: 12px 14px;
     border: 1px solid var(--cw-line);
     background: var(--cw-panel);
-    font: 500 10px/1 var(--cw-mono);
-    letter-spacing: 0.18em;
+    font: 500 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-muted);
     cursor: pointer;
     text-transform: uppercase;
@@ -2630,7 +2652,7 @@ html[data-app-window]:has(.cw-frame) {
     padding: 0;
     background: var(--cw-hairline);
     color: var(--cw-faint);
-    font: 600 9px/1 var(--cw-mono);
+    font: 600 12px/1 var(--cw-mono);
     letter-spacing: 0.04em;
 }
 
@@ -2658,7 +2680,7 @@ html[data-app-window]:has(.cw-frame) {
     transform: translateX(-1px);
 }
 .cw-stock-halted {
-    font: 600 9px/1 var(--cw-mono);
-    letter-spacing: 0.1em;
+    font: 600 12px/1 var(--cw-mono);
+    letter-spacing: 0.07em;
     color: var(--cw-bad);
 }

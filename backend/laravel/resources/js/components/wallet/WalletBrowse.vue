@@ -185,7 +185,7 @@ const watching = computed(
                             align-items: center;
                             justify-content: center;
                             border: 1px solid var(--cw-border-soft);
-                            font: 500 9px/1 var(--cw-mono);
+                            font: 500 12px/1 var(--cw-mono);
                             color: var(--cw-muted);
                         "
                         >{{ row.tag }}</span
@@ -194,7 +194,7 @@ const watching = computed(
                         <span
                             style="
                                 display: block;
-                                font: 500 13px/1.2 var(--cw-sans);
+                                font: 500 15px/1.2 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                             >{{ row.label }}</span
@@ -203,7 +203,7 @@ const watching = computed(
                             style="
                                 display: block;
                                 margin-top: 4px;
-                                font: 400 11px/1.5 var(--cw-sans);
+                                font: 400 13px/1.5 var(--cw-sans);
                                 color: var(--cw-muted);
                             "
                             >{{ row.note

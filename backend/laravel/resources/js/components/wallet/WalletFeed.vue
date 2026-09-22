@@ -303,7 +303,7 @@ onMounted(load);
                             align-items: center;
                             justify-content: center;
                             border: 1px solid var(--cw-border-soft);
-                            font: 500 10px/1 var(--cw-mono);
+                            font: 500 12px/1 var(--cw-mono);
                             color: var(--cw-muted);
                         "
                         >{{
@@ -313,7 +313,7 @@ onMounted(load);
                     <div style="flex: 1; min-width: 0">
                         <div
                             style="
-                                font: 500 13px/1.2 var(--cw-sans);
+                                font: 500 15px/1.2 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                         >
@@ -323,7 +323,7 @@ onMounted(load);
                             class="cw-data"
                             style="
                                 margin-top: 3px;
-                                font-size: 9px;
+                                font-size: 12px;
                                 color: var(--cw-muted);
                             "
                         >
@@ -340,7 +340,7 @@ onMounted(load);
                                     display: inline;
                                     padding: 0;
                                     min-height: 0;
-                                    font-size: 9px;
+                                    font-size: 12px;
                                 "
                                 @click="emit('profile', item.who.address)"
                             >
@@ -381,7 +381,7 @@ onMounted(load);
                     v-if="item.kind === 'dao'"
                     style="
                         margin: 0;
-                        font: 400 13px/1.6 var(--cw-sans);
+                        font: 400 15px/1.6 var(--cw-sans);
                         color: var(--cw-body);
                     "
                 >
@@ -395,7 +395,7 @@ onMounted(load);
                     style="
                         margin: 0;
                         white-space: pre-wrap;
-                        font: 400 13px/1.6 var(--cw-sans);
+                        font: 400 15px/1.6 var(--cw-sans);
                         color: var(--cw-body);
                     "
                 >

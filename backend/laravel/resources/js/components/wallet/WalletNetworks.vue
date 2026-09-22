@@ -257,7 +257,7 @@ const limitOf = (row: Row): string | null =>
                         <span
                             style="
                                 display: block;
-                                font: 500 13px/1.2 var(--cw-sans);
+                                font: 500 15px/1.2 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                             >{{ row.label }}</span
@@ -266,7 +266,7 @@ const limitOf = (row: Row): string | null =>
                             style="
                                 display: block;
                                 margin-top: 2px;
-                                font: 400 10px/1.4 var(--cw-mono);
+                                font: 500 12px/1.4 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             ><!--
@@ -320,8 +320,8 @@ const limitOf = (row: Row): string | null =>
                 <span
                     class="cw-label"
                     style="
-                        font-size: 9px;
-                        letter-spacing: 0.2em;
+                        font-size: 12px;
+                        letter-spacing: 0.07em;
                         color: var(--cw-meta);
                     "
                     >{{ t('networksCustomHeading') }}</span
@@ -342,7 +342,7 @@ const limitOf = (row: Row): string | null =>
                             <span
                                 style="
                                     display: block;
-                                    font: 500 13px/1.2 var(--cw-sans);
+                                    font: 500 15px/1.2 var(--cw-sans);
                                 "
                                 >{{ network.name }}</span
                             >
@@ -350,7 +350,7 @@ const limitOf = (row: Row): string | null =>
                                 style="
                                     display: block;
                                     margin-top: 2px;
-                                    font: 400 10px/1.4 var(--cw-mono);
+                                    font: 500 12px/1.4 var(--cw-mono);
                                     color: var(--cw-meta);
                                 "
                                 >{{ network.symbol }} ·
@@ -359,7 +359,7 @@ const limitOf = (row: Row): string | null =>
                         </span>
                         <span
                             style="
-                                font: 400 12px/1 var(--cw-mono);
+                                font: 400 14px/1 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                             >→</span
@@ -384,27 +384,27 @@ const limitOf = (row: Row): string | null =>
                     align-items: center;
                     justify-content: center;
                     border: 1px dashed var(--cw-border);
-                    font: 400 15px/1 var(--cw-mono);
+                    font: 400 16px/1 var(--cw-mono);
                     color: var(--cw-muted);
                 "
                 >+</span
             >
             <span style="flex: 1">
                 <span
-                    style="display: block; font: 500 13px/1.2 var(--cw-sans)"
+                    style="display: block; font: 500 15px/1.2 var(--cw-sans)"
                     >{{ t('addNetwork') }}</span
                 >
                 <span
                     style="
                         display: block;
                         margin-top: 2px;
-                        font: 400 10px/1.4 var(--cw-mono);
+                        font: 500 12px/1.4 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                     >{{ t('addNetworkHint') }}</span
                 >
             </span>
-            <span style="font: 400 12px/1 var(--cw-mono); color: var(--cw-dim)"
+            <span style="font: 400 14px/1 var(--cw-mono); color: var(--cw-dim)"
                 >→</span
             >
         </button>

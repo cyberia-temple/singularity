@@ -300,7 +300,7 @@ const submit = async (): Promise<void> => {
             autocomplete="off"
         ></textarea>
         <div
-            style="margin-top: 10px; font: 400 11px/1 var(--cw-mono)"
+            style="margin-top: 10px; font: 500 13px/1 var(--cw-mono)"
             :style="{ color: status.tone }"
         >
             {{ status.text }}

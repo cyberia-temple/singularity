@@ -543,7 +543,7 @@ watch(sourceChainId, () => {
                 <div class="cw-label">{{ t('crossFeeLabel') }}</div>
                 <p
                     class="cw-prose"
-                    style="margin-top: 7px; font-size: 12px; line-height: 1.6"
+                    style="margin-top: 7px; font-size: 14px; line-height: 1.6"
                 >
                     {{
                         config.fee.address
@@ -609,7 +609,7 @@ watch(sourceChainId, () => {
                     v-if="balance !== null && fromToken"
                     style="
                         margin-top: 6px;
-                        font: 400 11px/1.5 var(--cw-mono);
+                        font: 500 13px/1.5 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                 >
@@ -625,7 +625,7 @@ watch(sourceChainId, () => {
                     v-if="overBalance"
                     style="
                         margin-top: 6px;
-                        font: 400 11px/1.5 var(--cw-mono);
+                        font: 500 13px/1.5 var(--cw-mono);
                         color: var(--cw-bad-soft);
                     "
                 >
@@ -675,7 +675,7 @@ watch(sourceChainId, () => {
                 <div
                     style="
                         margin-top: 6px;
-                        font: 400 11px/1.5 var(--cw-mono);
+                        font: 500 13px/1.5 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                 >
@@ -730,7 +730,7 @@ watch(sourceChainId, () => {
                     <p
                         v-if="tokenLoading"
                         class="cw-prose"
-                        style="margin-top: 10px; font-size: 12px"
+                        style="margin-top: 10px; font-size: 14px"
                     >
                         {{ t('crossTokensLoading') }}
                     </p>
@@ -752,7 +752,7 @@ watch(sourceChainId, () => {
                     <p
                         v-if="!tokenLoading && tokenRows.length === 0"
                         class="cw-prose"
-                        style="margin-top: 10px; font-size: 12px"
+                        style="margin-top: 10px; font-size: 14px"
                     >
                         {{ t('crossTokensEmpty') }}
                     </p>
@@ -799,7 +799,7 @@ watch(sourceChainId, () => {
                         <div
                             style="
                                 margin-top: 8px;
-                                font: 400 11px/1.6 var(--cw-mono);
+                                font: 500 13px/1.6 var(--cw-mono);
                                 color: var(--cw-dim);
                             "
                         >
@@ -831,7 +831,7 @@ watch(sourceChainId, () => {
                             <span class="cw-label">{{
                                 t('crossFeeCyberia')
                             }}</span>
-                            <span style="font: 400 11px/1 var(--cw-mono)"
+                            <span style="font: 500 13px/1 var(--cw-mono)"
                                 >{{
                                     formatUnits(
                                         quote.fees.app.amount,
@@ -854,7 +854,7 @@ watch(sourceChainId, () => {
                             <span class="cw-label">{{
                                 t('crossFeeRouter')
                             }}</span>
-                            <span style="font: 400 11px/1 var(--cw-mono)"
+                            <span style="font: 500 13px/1 var(--cw-mono)"
                                 >{{
                                     formatUnits(
                                         quote.fees.relayer.amount,
@@ -868,7 +868,7 @@ watch(sourceChainId, () => {
 
                         <div class="cw-row" style="margin-top: 6px">
                             <span class="cw-label">{{ t('crossEta') }}</span>
-                            <span style="font: 400 11px/1 var(--cw-mono)">{{
+                            <span style="font: 500 13px/1 var(--cw-mono)">{{
                                 t('crossEtaValue', {
                                     seconds: quote.timeEstimate,
                                 })
@@ -883,7 +883,7 @@ watch(sourceChainId, () => {
                             <span class="cw-label">{{
                                 t('crossSlippage')
                             }}</span>
-                            <span style="font: 400 11px/1 var(--cw-mono)"
+                            <span style="font: 500 13px/1 var(--cw-mono)"
                                 >{{
                                     (quote.slippageBps / 100).toFixed(2)
                                 }}%</span
@@ -899,7 +899,7 @@ watch(sourceChainId, () => {
                             class="cw-prose"
                             style="
                                 margin-top: 10px;
-                                font-size: 11px;
+                                font-size: 13px;
                                 color: var(--cw-pending);
                             "
                         >
@@ -931,7 +931,7 @@ watch(sourceChainId, () => {
 
                     <p
                         class="cw-prose"
-                        style="margin-top: 10px; font-size: 11px"
+                        style="margin-top: 10px; font-size: 13px"
                     >
                         {{
                             t('crossSteps', {
@@ -951,7 +951,7 @@ watch(sourceChainId, () => {
                         <div
                             style="
                                 margin-top: 8px;
-                                font: 400 12px/1.6 var(--cw-mono);
+                                font: 400 14px/1.6 var(--cw-mono);
                                 color: var(--cw-body);
                             "
                         >
@@ -973,7 +973,7 @@ watch(sourceChainId, () => {
                             :key="row.hash"
                             style="
                                 margin-top: 8px;
-                                font: 400 11px/1.5 var(--cw-mono);
+                                font: 500 13px/1.5 var(--cw-mono);
                                 color: var(--cw-dim);
                                 word-break: break-all;
                             "
@@ -983,7 +983,7 @@ watch(sourceChainId, () => {
 
                         <p
                             class="cw-prose"
-                            style="margin-top: 10px; font-size: 11px"
+                            style="margin-top: 10px; font-size: 13px"
                         >
                             {{ t('crossStatusNote') }}
                         </p>
@@ -1016,7 +1016,7 @@ watch(sourceChainId, () => {
                                 <span
                                     style="
                                         display: block;
-                                        font: 500 12px/1.2 var(--cw-sans);
+                                        font: 500 14px/1.2 var(--cw-sans);
                                     "
                                     >{{ row.chain.name }}</span
                                 >
@@ -1024,7 +1024,7 @@ watch(sourceChainId, () => {
                                     style="
                                         display: block;
                                         margin-top: 3px;
-                                        font: 400 10px/1.4 var(--cw-mono);
+                                        font: 500 12px/1.4 var(--cw-mono);
                                         color: var(--cw-dim);
                                     "
                                     >{{
@@ -1050,7 +1050,7 @@ watch(sourceChainId, () => {
                             <span
                                 style="
                                     flex: 1;
-                                    font: 400 11px/1.5 var(--cw-mono);
+                                    font: 500 13px/1.5 var(--cw-mono);
                                     color: var(--cw-dim);
                                 "
                                 >{{

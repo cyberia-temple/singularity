@@ -499,12 +499,12 @@ const sign = async (): Promise<void> => {
 
             <div style="display: flex; gap: 8px; margin-top: 20px">
                 <div class="cw-card" style="flex: 1; padding: 14px 16px">
-                    <div class="cw-label" style="font-size: 9px">
+                    <div class="cw-label" style="font-size: 12px">
                         {{ t('earnSupplied') }}
                     </div>
                     <div
                         class="cw-num"
-                        style="margin-top: 8px; font-size: 18px"
+                        style="margin-top: 8px; font-size: 19px"
                         :style="
                             suppliedUsd === null
                                 ? { color: 'var(--cw-muted)' }
@@ -525,12 +525,12 @@ const sign = async (): Promise<void> => {
                     </div>
                 </div>
                 <div class="cw-card" style="flex: 1; padding: 14px 16px">
-                    <div class="cw-label" style="font-size: 9px">
+                    <div class="cw-label" style="font-size: 12px">
                         {{ t('earnUnclaimed') }}
                     </div>
                     <div
                         class="cw-num"
-                        style="margin-top: 8px; font-size: 18px"
+                        style="margin-top: 8px; font-size: 19px"
                         :style="
                             unclaimed > 0n
                                 ? { color: 'var(--cw-accent)' }
@@ -595,7 +595,7 @@ const sign = async (): Promise<void> => {
                     <div class="cw-row">
                         <span
                             style="
-                                font: 500 14px/1.2 var(--cw-sans);
+                                font: 500 16px/1.2 var(--cw-sans);
                                 color: var(--cw-text);
                             "
                             >{{ entry.label }}</span

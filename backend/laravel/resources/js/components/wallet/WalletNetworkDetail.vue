@@ -123,7 +123,7 @@ watch(() => props.chain, load);
         >
             <NetworkMark :chain="props.chain" :size="38" />
             <div>
-                <div style="font: 500 18px/1.2 var(--cw-sans)">
+                <div style="font: 500 19px/1.2 var(--cw-sans)">
                     {{ account.label }}
                 </div>
                 <!--
@@ -137,7 +137,7 @@ watch(() => props.chain, load);
                 <div
                     style="
                         margin-top: 3px;
-                        font: 400 11px/1.4 var(--cw-mono);
+                        font: 500 13px/1.4 var(--cw-mono);
                         color: var(--cw-dim);
                     "
                 >
@@ -175,7 +175,7 @@ watch(() => props.chain, load);
                 </span>
                 <span
                     style="
-                        font: 400 13px/1 var(--cw-mono);
+                        font: 400 15px/1 var(--cw-mono);
                         color: var(--cw-muted);
                     "
                     >{{ account.symbol }}</span
@@ -184,7 +184,7 @@ watch(() => props.chain, load);
             <div
                 style="
                     margin-top: 8px;
-                    font: 400 12px/1 var(--cw-mono);
+                    font: 400 14px/1 var(--cw-mono);
                     color: var(--cw-dim);
                 "
             >
@@ -212,7 +212,7 @@ watch(() => props.chain, load);
                 v-if="prices[props.chain] != null"
                 style="
                     margin-top: 6px;
-                    font: 400 11px/1 var(--cw-mono);
+                    font: 500 13px/1 var(--cw-mono);
                     color: var(--cw-faint);
                 "
             >

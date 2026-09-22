@@ -178,7 +178,7 @@ watch(address, load, { immediate: true });
                         <div style="flex: 1; min-width: 0">
                             <div
                                 style="
-                                    font: 500 19px/1.2 var(--cw-sans);
+                                    font: 500 20px/1.2 var(--cw-sans);
                                     color: var(--cw-text);
                                 "
                             >

@@ -439,7 +439,7 @@ onBeforeUnmount(() => {
                     />
 
                     <div class="cw-row" style="gap: 10px; margin-top: 6px">
-                        <span class="cw-data" style="font-size: 10px">
+                        <span class="cw-data" style="font-size: 12px">
                             {{ formatTime(currentTime) }} /
                             {{ formatTime(duration) }}
                         </span>
@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
                                 class="cw-data"
                                 style="
                                     width: 22px;
-                                    font-size: 10px;
+                                    font-size: 12px;
                                     color: var(--cw-faint);
                                 "
                                 >{{ position + 1 }}</span
@@ -585,7 +585,7 @@ onBeforeUnmount(() => {
                                     flex: 1;
                                     min-width: 0;
                                     overflow: hidden;
-                                    font: 400 12px/1.3 var(--cw-sans);
+                                    font: 400 14px/1.3 var(--cw-sans);
                                     text-overflow: ellipsis;
                                     white-space: nowrap;
                                 "
@@ -605,7 +605,7 @@ onBeforeUnmount(() => {
                             <span
                                 v-if="entry.length"
                                 class="cw-data"
-                                style="font-size: 10px"
+                                style="font-size: 12px"
                                 >{{ formatBytes(entry.length) }}</span
                             >
                         </div>
