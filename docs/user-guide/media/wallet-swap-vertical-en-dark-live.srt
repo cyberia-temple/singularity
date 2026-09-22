@@ -1,0 +1,88 @@
+1
+00:00:00,000 --> 00:00:04,247
+The Cyberia wallet. The keys are made in
+this browser and never leave it.
+
+2
+00:00:04,367 --> 00:00:08,246
+It holds 1.4 CYBER — the coin this
+network runs on.
+
+3
+00:00:08,366 --> 00:00:13,388
+Trading is built in. There is no
+separate exchange to go to.
+
+4
+00:00:13,508 --> 00:00:15,988
+You pay in CYBER.
+
+5
+00:00:16,108 --> 00:00:20,137
+You receive any token the chain has a
+pool for.
+
+6
+00:00:20,257 --> 00:00:24,753
+USDC — a dollar on Cyberia.
+
+7
+00:00:24,873 --> 00:00:28,018
+Half a coin.
+
+8
+00:00:28,138 --> 00:00:30,675
+Every pool on the chain is priced — both
+versions of the exchange — and the best
+route wins.
+
+9
+00:00:30,795 --> 00:00:34,959
+0.5 CYBER buys 0.033572 USDC. Price
+impact: 0.00%.
+
+10
+00:00:35,079 --> 00:00:40,168
+The route, the slippage and the floor
+are all on the screen before anything is
+signed.
+
+11
+00:00:40,288 --> 00:00:44,367
+This trade goes WCYBER → USDT → USDC —
+two pools, one transaction.
+
+12
+00:00:44,487 --> 00:00:48,569
+The direct pool was quoted too. It pays
+13.65% less.
+
+13
+00:00:48,689 --> 00:00:57,630
+The floor is written into the
+transaction: at least 0.033404 USDC, or
+the swap reverts and nothing is spent.
+
+14
+00:00:57,750 --> 00:01:02,230
+The whole trade in one sentence, in
+plain language.
+
+15
+00:01:02,350 --> 00:01:08,568
+Hold to sign — a tap is something a
+thumb does by accident.
+
+16
+00:01:08,688 --> 00:01:13,856
+Signed on the device, then broadcast to
+Cyberia.
+
+17
+00:01:13,976 --> 00:01:23,816
+Traded. The CYBER is now USDC.
+
+18
+00:01:23,936 --> 00:01:28,093
+And it is in the same wallet — one
+transaction, no account anywhere.
