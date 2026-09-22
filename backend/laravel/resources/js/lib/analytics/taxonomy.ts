@@ -59,7 +59,7 @@ export type AnalyticsEventName =
     | 'staking_withdrawn'
     | 'staking_failed'
     | 'reward_claimed'
-    // Liquidity, on the DEX pages
+    // Liquidity, on the DEX pages and in the wallet's own pool screen
     | 'liquidity_added'
     | 'liquidity_removed'
     // NFT

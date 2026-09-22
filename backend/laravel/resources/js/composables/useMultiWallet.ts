@@ -85,6 +85,15 @@ import {
     unstake as unstakeLp,
 } from '@/lib/wallet/earn';
 import type { EarnReceipt } from '@/lib/wallet/earn';
+import {
+    executeAddLiquidity,
+    executeRemoveLiquidity,
+} from '@/lib/wallet/liquidity';
+import type {
+    AddLiquidityQuote,
+    PoolReceipt,
+    RemoveLiquidityQuote,
+} from '@/lib/wallet/liquidity';
 import { mintNft as submitMint } from '@/lib/wallet/nft';
 import type { MintQuote } from '@/lib/wallet/nft';
 import { executeSwap } from '@/lib/wallet/swap';
@@ -1391,6 +1400,78 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     };
 
     /**
+     * Liquidity: make a pool position, or take one apart.
+     *
+     * The other half of farming, and it had been missing — this wallet could
+     * stake an LP token and claim what the stake earned, while the one act
+     * that *produces* an LP token happened on the site. Two calls rather than
+     * one because they are two agreements: a deposit puts two assets in and
+     * may need two allowances, a withdrawal burns LP and needs one.
+     *
+     * The LP and the assets go to this wallet's own address on that chain. A
+     * deposit that could mint somebody else's position is a transfer wearing a
+     * pool's clothes, exactly as it would be for a swap.
+     */
+    const pool = {
+        add: async (
+            chainId: WalletChainId,
+            quote: AddLiquidityQuote,
+            onApproved?: (hash: string) => void,
+        ): Promise<PoolReceipt> => {
+            const account = accounts.value.find(
+                (candidate) => candidate.chain === chainId,
+            );
+
+            if (!account) {
+                throw new Error('This account has no address on that network');
+            }
+
+            const source = sourceFor(chainId);
+
+            busy.value = true;
+
+            try {
+                return await executeAddLiquidity(source, {
+                    quote,
+                    recipient: account.address,
+                    rpcUrl: rpcFor(chainId),
+                    onApproved,
+                });
+            } finally {
+                busy.value = false;
+            }
+        },
+        remove: async (
+            chainId: WalletChainId,
+            quote: RemoveLiquidityQuote,
+            onApproved?: (hash: string) => void,
+        ): Promise<PoolReceipt> => {
+            const account = accounts.value.find(
+                (candidate) => candidate.chain === chainId,
+            );
+
+            if (!account) {
+                throw new Error('This account has no address on that network');
+            }
+
+            const source = sourceFor(chainId);
+
+            busy.value = true;
+
+            try {
+                return await executeRemoveLiquidity(source, {
+                    quote,
+                    recipient: account.address,
+                    rpcUrl: rpcFor(chainId),
+                    onApproved,
+                });
+            } finally {
+                busy.value = false;
+            }
+        },
+    };
+
+    /**
      * The source leg of a bridge transfer: one ordinary transfer to the
      * bridge's deposit address on this chain.
      *
@@ -1644,6 +1725,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         swap,
         crossSwap,
         farm,
+        pool,
         bridgeDeposit,
         wrap,
         /** Encrypted chat: the public identity, and sealing under it. */

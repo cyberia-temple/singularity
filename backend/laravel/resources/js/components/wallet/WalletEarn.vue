@@ -39,11 +39,12 @@ import { walletMessages } from '@/lib/walletMessages';
  * for — a position someone added and then never staked — and it is the first
  * row rather than a footnote.
  *
- * Adding liquidity is deliberately not here. It is two assets, a ratio that
- * moves between the quote and the signature, two allowances and a floor on
- * both sides; the pool composer on the site already does it properly, and a
- * thinner second version of it inside a wallet would be the one place where
- * this product signs something it cannot fully quote.
+ * Adding liquidity is not done here, but it is no longer somewhere else: it
+ * is two assets, a ratio that moves between the quote and the signature, two
+ * allowances and a floor on both sides, which is a screen of its own — and it
+ * is now a screen in this wallet rather than a link out to the site. A farm
+ * that stakes LP while the wallet offered no way of making any was advice
+ * nobody here could take.
  */
 
 const props = defineProps<{
@@ -53,7 +54,7 @@ const props = defineProps<{
     prices: Record<string, number | null>;
 }>();
 
-const emit = defineEmits<{ back: [] }>();
+const emit = defineEmits<{ back: []; liquidity: [] }>();
 
 const { locale, t } = useLocale(walletMessages);
 
@@ -398,13 +399,11 @@ const traits = () => ({
     chain: active.value,
     pid: pool.value?.pid,
     pool_kind: (pool.value?.isPair ? 'pair' : 'solo') as 'pair' | 'solo',
-    transaction_type: (
-        act.value === 'claim'
-            ? 'claim'
-            : act.value === 'stake'
-              ? 'stake'
-              : 'unstake'
-    ) as 'claim' | 'stake' | 'unstake',
+    transaction_type: (act.value === 'claim'
+        ? 'claim'
+        : act.value === 'stake'
+          ? 'stake'
+          : 'unstake') as 'claim' | 'stake' | 'unstake',
     fee_usd: feeUsd.value ?? undefined,
 });
 
@@ -646,6 +645,20 @@ const sign = async (): Promise<void> => {
             <p class="cw-prose" style="margin-top: 18px">
                 {{ t('earnAprNote') }}
             </p>
+
+            <!--
+              The way in for somebody who has no LP at all, which is most
+              people arriving here: this list is a menu of pools to stake in,
+              and a stake starts with a deposit somewhere else in this wallet.
+            -->
+            <button
+                type="button"
+                class="cw-btn cw-btn-secondary"
+                style="margin-top: 14px"
+                @click="emit('liquidity')"
+            >
+                {{ t('earnAddLiquidity') }}
+            </button>
         </template>
 
         <!-- One pool: what it is, what you hold, and the three things to do. -->
@@ -844,8 +857,15 @@ const sign = async (): Promise<void> => {
 
             <p class="cw-prose" style="margin-top: 14px">
                 {{ t('earnAddLiquidityNote') }}
-                <a href="/liquidity">{{ t('earnAddLiquidity') }}</a>
             </p>
+            <button
+                type="button"
+                class="cw-btn cw-btn-secondary"
+                style="margin-top: 10px"
+                @click="emit('liquidity')"
+            >
+                {{ t('earnAddLiquidity') }}
+            </button>
         </template>
     </div>
 </template>

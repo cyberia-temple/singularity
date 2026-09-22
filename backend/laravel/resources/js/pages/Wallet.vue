@@ -32,6 +32,7 @@ import WalletImportAccount from '@/components/wallet/WalletImportAccount.vue';
 import WalletIpfs from '@/components/wallet/WalletIpfs.vue';
 import WalletLain from '@/components/wallet/WalletLain.vue';
 import WalletLaunchpad from '@/components/wallet/WalletLaunchpad.vue';
+import WalletLiquidity from '@/components/wallet/WalletLiquidity.vue';
 import WalletLocked from '@/components/wallet/WalletLocked.vue';
 import WalletMarkets from '@/components/wallet/WalletMarkets.vue';
 import WalletMore from '@/components/wallet/WalletMore.vue';
@@ -187,6 +188,7 @@ type Section =
     | 'gas'
     | 'proxy'
     | 'earn'
+    | 'liquidity'
     | 'stocks'
     | 'bridge'
     | 'buy'
@@ -297,6 +299,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'bridge', label: () => t('bridgeTitle') },
             { id: 'crosschain', label: () => t('crossTile') },
             { id: 'earn', label: () => t('earnTitle') },
+            { id: 'liquidity', label: () => t('poolTitle') },
             { id: 'daily', label: () => t('dailyTitle') },
             { id: 'browse', label: () => t('browseTitle') },
             { id: 'gas', label: () => t('gasStation') },
@@ -370,6 +373,7 @@ const TAB_OF: Record<Section, Section> = {
     gas: 'portfolio',
     proxy: 'portfolio',
     earn: 'portfolio',
+    liquidity: 'portfolio',
     stocks: 'portfolio',
     bridge: 'portfolio',
     buy: 'portfolio',
@@ -1870,6 +1874,7 @@ watch(
                         @daily="openSection('daily')"
                         @analytics="openSection('analytics')"
                         @crosschain="openSection('crosschain')"
+                        @liquidity="openSection('liquidity')"
                         @browse="openSection('browse')"
                         @gas="openSection('gas')"
                         @security="openSection('security')"
@@ -2014,6 +2019,23 @@ watch(
                         :chain="chain"
                         :prices="prices"
                         @back="openSection('portfolio')"
+                        @liquidity="openSection('liquidity')"
+                    />
+
+                    <!--
+                      And where the thing the farm stakes comes from. Adding
+                      liquidity was a link to the site until now, which made
+                      the farm a screen about a position this wallet offered
+                      no way of making.
+                    -->
+                    <WalletLiquidity
+                        v-else-if="section === 'liquidity'"
+                        :wallet="wallet"
+                        :chain="chain"
+                        :prices="prices"
+                        :token-prices="tokenPrices"
+                        @back="openSection('portfolio')"
+                        @earn="openSection('earn')"
                     />
 
                     <WalletAnalytics

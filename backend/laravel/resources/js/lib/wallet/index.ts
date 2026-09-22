@@ -341,6 +341,35 @@ export {
 } from '@/lib/wallet/swap';
 export type { SwapAsset, SwapQuote, SwapReceipt } from '@/lib/wallet/swap';
 export {
+    ADD_LIQUIDITY_GAS_CAP,
+    CREATE_PAIR_GAS_CAP,
+    LP_APPROVE_GAS,
+    REMOVE_LIQUIDITY_GAS_CAP,
+    canAddLiquidity,
+    executeAddLiquidity,
+    executeRemoveLiquidity,
+    forgetPairs,
+    mintedLp,
+    pairedAmount,
+    poolShareAfter,
+    poolTxUrl,
+    quoteAddLiquidity,
+    quoteRemoveLiquidity,
+    readLpPositions,
+    readPair,
+    sqrtBigInt,
+    withdrawalLp,
+    wrappedSide,
+} from '@/lib/wallet/liquidity';
+export type {
+    AddLiquidityQuote,
+    LpPosition,
+    PairState,
+    PoolReceipt,
+    PoolRefusal,
+    RemoveLiquidityQuote,
+} from '@/lib/wallet/liquidity';
+export {
     WRAP_GAS_CAP,
     executeWrap,
     quoteWrap,

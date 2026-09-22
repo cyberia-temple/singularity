@@ -83,8 +83,10 @@ class EventTaxonomy
         'staking_failed',
         'reward_claimed',
 
-        // Liquidity — the DEX pages, since the wallet deliberately links out
-        // rather than quoting a two-sided position it cannot fully price.
+        // Liquidity — the DEX pages and, since the wallet grew its own pool
+        // screen, the wallet. One event either way: what is worth counting is
+        // that somebody put a two-sided position on, not which surface they
+        // signed it from.
         'liquidity_added',
         'liquidity_removed',
 

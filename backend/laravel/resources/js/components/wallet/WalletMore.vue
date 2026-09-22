@@ -2,6 +2,7 @@
 import {
     ArrowLeftRight,
     CalendarCheck,
+    Droplets,
     Fuel,
     LayoutGrid,
     Lock,
@@ -42,6 +43,7 @@ const emit = defineEmits<{
     daily: [];
     analytics: [];
     crosschain: [];
+    liquidity: [];
     browse: [];
     gas: [];
     security: [];
@@ -95,6 +97,19 @@ const unsafe = computed(
                     aria-hidden="true"
                 />
                 <span style="flex: 1">{{ t('crossTile') }}</span>
+            </button>
+            <!--
+              Where an LP token comes from. It sits next to the cross-chain
+              swap rather than under Earn, because the farm is what you do
+              with a position and this is where the position is made.
+            -->
+            <button
+                type="button"
+                class="cw-line-row"
+                @click="emit('liquidity')"
+            >
+                <Droplets :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span style="flex: 1">{{ t('poolTitle') }}</span>
             </button>
             <button type="button" class="cw-line-row" @click="emit('browse')">
                 <LayoutGrid :size="20" :stroke-width="1.5" aria-hidden="true" />

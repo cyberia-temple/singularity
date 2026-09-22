@@ -662,8 +662,61 @@ export const walletMessages: Messages = {
         earnImpermanent:
             'This is a two-sided pool. If the two assets move apart in price you get back a different mix than you put in, and that difference is not in the APR above.',
         earnAddLiquidityNote:
-            'Creating an LP position takes two assets, a ratio that moves while you decide, and a floor on both sides — it is done on the pool page rather than here.',
+            'A stake is LP, and LP is made by putting two assets into a pool. That is its own screen in this wallet, because it is two assets, a ratio that moves while you decide, and a floor on both sides.',
         earnAddLiquidity: 'Add liquidity',
+
+        // Liquidity. The act that *makes* an LP token, which is the thing the
+        // farm stakes — it lived on the site, so "earn on your position" was
+        // advice to somebody the wallet gave no way of getting one.
+        poolTitle: 'Liquidity',
+        poolBody:
+            'A pool is two assets held together at one price. You put both sides in and get an LP token — your claim on a share of them — and every trade through the pool pays fees into that share. Both sides come back out together, in whatever mix the pool holds by then.',
+        poolNoDex:
+            'There is no Ritual exchange on this network, so there are no pools to add to from here.',
+        poolOpenEarn: 'Farm',
+        poolTabAdd: 'Add',
+        poolTabMine: 'Your pools',
+        poolFirst: 'First asset',
+        poolSecond: 'Second asset',
+        poolPick: 'Choose an asset',
+        poolPaired: 'Set by the pool',
+        poolPairedNote:
+            'The second amount is the pool’s own price rather than a choice. A deposit that arrives at any other ratio is partly handed straight back.',
+        poolReading: 'Reading the pool…',
+        poolNew: 'Nobody has opened this pool yet.',
+        poolNewNote:
+            'This deposit creates it, and the ratio you type becomes its price — the first trade will be against exactly that. It also deploys the pool contract, which is why the fee below is far larger than an ordinary deposit’s.',
+        poolYouGet: 'LP you receive',
+        poolShareAfter: 'Your share of the pool',
+        poolMinReceived: 'Floor on each side',
+        poolSlippage: 'Slippage',
+        poolApprovalNote:
+            'The exchange cannot move your {symbols} yet, so this signs an allowance first — for exactly this deposit’s amount, never an unlimited one. Each is a separate transaction with its own fee.',
+        poolQuoting: 'Pricing the deposit…',
+        poolRefusalSame: 'A pool is two different assets.',
+        poolRefusalEmpty: 'Enter an amount for both sides.',
+        poolRefusalShort: 'More {symbol} than you hold.',
+        poolRefusalGas:
+            'That would leave nothing to pay the fee with. Keep a little {symbol} back.',
+        poolSignAdd:
+            'Put {first} and {second} from this account into the {pair} pool, paying up to {fee} in network fees. You receive an LP token; nothing locks it, and taking it back out is one transaction.',
+        poolSignCreate:
+            'Open the {pair} pool with {first} and {second} from this account, paying up to {fee} in network fees. Nobody has priced this pair before, so the ratio you just typed becomes its price.',
+        poolImpermanent:
+            'While your assets sit in a pool, other people trade against them. If the two prices move apart you get back more of the one that fell and less of the one that rose — that is what the fees are paid for, and no number on this screen nets it out.',
+        poolLoading: 'Reading pools…',
+        poolPositions: 'Your pools',
+        poolNoPositions: 'This account holds no LP on this network.',
+        poolStakedElsewhere:
+            'LP that is in the farm is not listed here. It has to come out of the farm before a pool will take it back, and that is on the Earn screen.',
+        poolTakeOut: 'Take out',
+        poolAsCoin: 'Take it back as {symbol} rather than the wrapped token',
+        poolYouTake: 'You receive',
+        poolLpApprovalNote:
+            'The exchange cannot burn your LP yet, so this signs an allowance first — for exactly this amount. It is a separate transaction with its own fee.',
+        poolSignRemove:
+            'Burn {amount} LP of the {pair} pool and take {first} and {second} back to this account, paying up to {fee} in network fees.',
+        poolSent: 'Signed and broadcast.',
 
         // Bridge. One transfer signed here, one payout made there, and no
         // cancel in between — which is the sentence the screen is built around.
@@ -2312,8 +2365,60 @@ export const walletMessages: Messages = {
         earnImpermanent:
             'Это двусторонний пул. Если цены двух активов разойдутся, обратно вы получите другой набор, чем внесли, — и этой разницы в APR выше нет.',
         earnAddLiquidityNote:
-            'Создание LP-позиции — это два актива, соотношение, которое меняется, пока вы решаете, и минимум по обеим сторонам. Это делается на странице пулов, а не здесь.',
+            'В фарм кладут LP, а LP получают, внося в пул два актива. Для этого в кошельке есть отдельный экран: это два актива, соотношение, которое меняется, пока вы решаете, и минимум по обеим сторонам.',
         earnAddLiquidity: 'Добавить ликвидность',
+
+        // Ликвидность: то самое действие, которое создаёт LP-токен, — а его
+        // как раз и стейкает фарм.
+        poolTitle: 'Ликвидность',
+        poolBody:
+            'Пул — это два актива, которые держат вместе по одной цене. Вы вносите обе стороны и получаете LP-токен, свою долю в них; каждая сделка через пул платит комиссию в эту долю. Обратно обе стороны выходят вместе — в том соотношении, какое будет в пуле к тому моменту.',
+        poolNoDex:
+            'В этой сети нет биржи Ritual, поэтому отсюда некуда вносить ликвидность.',
+        poolOpenEarn: 'Фарм',
+        poolTabAdd: 'Внести',
+        poolTabMine: 'Ваши пулы',
+        poolFirst: 'Первый актив',
+        poolSecond: 'Второй актив',
+        poolPick: 'Выберите актив',
+        poolPaired: 'Задано пулом',
+        poolPairedNote:
+            'Вторая сумма — это собственная цена пула, а не ваш выбор. Депозит в любом другом соотношении частично вернётся обратно сразу же.',
+        poolReading: 'Читаем пул…',
+        poolNew: 'Этот пул ещё никто не открывал.',
+        poolNewNote:
+            'Этот депозит его создаёт, и соотношение, которое вы введёте, станет его ценой — первая сделка пройдёт ровно по ней. Заодно разворачивается контракт пула, поэтому комиссия ниже намного больше обычной.',
+        poolYouGet: 'Получите LP',
+        poolShareAfter: 'Ваша доля пула',
+        poolMinReceived: 'Минимум по каждой стороне',
+        poolSlippage: 'Проскальзывание',
+        poolApprovalNote:
+            'Биржа пока не может двигать ваши {symbols}, поэтому сначала подписывается разрешение — ровно на сумму этого депозита, а не безлимитное. Каждое — отдельная транзакция со своей комиссией.',
+        poolQuoting: 'Считаем депозит…',
+        poolRefusalSame: 'Пул — это два разных актива.',
+        poolRefusalEmpty: 'Введите сумму по обеим сторонам.',
+        poolRefusalShort: 'Больше {symbol}, чем у вас есть.',
+        poolRefusalGas:
+            'Тогда не останется на комиссию. Оставьте немного {symbol}.',
+        poolSignAdd:
+            'Внести {first} и {second} с этого счёта в пул {pair}, комиссия сети — до {fee}. Вы получите LP-токен; он ничем не заблокирован, забрать обратно можно одной транзакцией.',
+        poolSignCreate:
+            'Открыть пул {pair}, внеся {first} и {second} с этого счёта; комиссия сети — до {fee}. Эту пару ещё никто не оценивал, поэтому введённое соотношение станет её ценой.',
+        poolImpermanent:
+            'Пока ваши активы в пуле, ими торгуют другие. Если цены разойдутся, обратно вы получите больше того, что подешевело, и меньше того, что подорожало, — за это и платят комиссии, и ни одна цифра на этом экране этого не вычитает.',
+        poolLoading: 'Читаем пулы…',
+        poolPositions: 'Ваши пулы',
+        poolNoPositions: 'На этом счёте в этой сети нет LP.',
+        poolStakedElsewhere:
+            'LP, который лежит в фарме, здесь не показан. Чтобы пул принял его обратно, его сначала надо забрать из фарма — это на экране «Доход».',
+        poolTakeOut: 'Забрать',
+        poolAsCoin: 'Забрать монетой {symbol}, а не обёрнутым токеном',
+        poolYouTake: 'Вы получите',
+        poolLpApprovalNote:
+            'Биржа пока не может сжечь ваш LP, поэтому сначала подписывается разрешение — ровно на эту сумму. Это отдельная транзакция со своей комиссией.',
+        poolSignRemove:
+            'Сжечь {amount} LP пула {pair} и забрать {first} и {second} на этот счёт; комиссия сети — до {fee}.',
+        poolSent: 'Подписано и отправлено.',
 
         // Мост: одна подпись здесь, одна выплата там и никакой отмены между.
         bridgeTitle: 'Мост',
@@ -3896,8 +4001,57 @@ export const walletMessages: Messages = {
         earnImpermanent:
             '这是一个双边池子。如果两种资产的价格走开，你拿回来的组合会和投进去的不一样，而上面的 APR 没有把这个差额扣掉。',
         earnAddLiquidityNote:
-            '建一个 LP 仓位需要两种资产、一个在你决定期间还在动的比例，以及两边的下限。这件事在池子页面做，不在这里。',
+            '农场里放的是 LP，而 LP 是把两种资产投进池子换来的。这件事在这个钱包里有自己的一页，因为它涉及两种资产、一个在你决定期间还在动的比例，以及两边的下限。',
         earnAddLiquidity: '添加流动性',
+
+        // 流动性：真正“造出” LP 代币的那一步 — 农场质押的就是它。
+        poolTitle: '流动性',
+        poolBody:
+            '一个池子就是按同一个价格放在一起的两种资产。你两边都投进去，拿到一个 LP 代币，也就是你对其中一部分的所有权；每一笔经过这个池子的交易，都会把手续费付进这一份里。两边是一起取回来的，比例是那时池子里的比例。',
+        poolNoDex: '这条链上没有 Ritual 交易所，所以这里没有可以投的池子。',
+        poolOpenEarn: '农场',
+        poolTabAdd: '投入',
+        poolTabMine: '你的池子',
+        poolFirst: '第一种资产',
+        poolSecond: '第二种资产',
+        poolPick: '选一种资产',
+        poolPaired: '由池子决定',
+        poolPairedNote:
+            '第二个数量是池子自己的价格，不是你的选择。按别的比例投进去的部分，会被直接退回来。',
+        poolReading: '正在读取池子…',
+        poolNew: '这个池子还没有人开过。',
+        poolNewNote:
+            '这笔投入会把它建起来，你填的比例就成了它的价格 — 第一笔交易就按这个比例走。同时还要部署池子合约，所以下面的手续费比普通投入高得多。',
+        poolYouGet: '你会拿到的 LP',
+        poolShareAfter: '你在池中的份额',
+        poolMinReceived: '每一边的下限',
+        poolSlippage: '滑点',
+        poolApprovalNote:
+            '交易所还不能动你的 {symbols}，所以会先签一笔授权 — 只授权这一笔投入的数量，绝不是无限。每一笔都是单独的交易，有各自的手续费。',
+        poolQuoting: '正在计算这笔投入…',
+        poolRefusalSame: '一个池子是两种不同的资产。',
+        poolRefusalEmpty: '两边都要填数量。',
+        poolRefusalShort: '超过你持有的 {symbol}。',
+        poolRefusalGas: '这样就没有钱付手续费了。留一点 {symbol}。',
+        poolSignAdd:
+            '把这个账户里的 {first} 和 {second} 投进 {pair} 池子，网络手续费最多 {fee}。你会拿到一个 LP 代币；它没有任何锁定，取回是一笔交易。',
+        poolSignCreate:
+            '用这个账户里的 {first} 和 {second} 开出 {pair} 池子，网络手续费最多 {fee}。这一对以前没有人定过价，所以你刚填的比例就是它的价格。',
+        poolImpermanent:
+            '你的资产在池子里的时候，别人会拿它们做交易。如果两边的价格走开，你拿回来的会是跌的那种更多、涨的那种更少 — 手续费就是为这个付的，而这个屏幕上没有任何数字把它扣掉。',
+        poolLoading: '正在读取池子…',
+        poolPositions: '你的池子',
+        poolNoPositions: '这个账户在这条链上没有 LP。',
+        poolStakedElsewhere:
+            '已经质押在农场里的 LP 不在这里。要让池子收回它，得先从农场取出来，那是在“赚取”页面。',
+        poolTakeOut: '取出',
+        poolAsCoin: '按 {symbol} 币取回，而不是包装代币',
+        poolYouTake: '你会收到',
+        poolLpApprovalNote:
+            '交易所还不能销毁你的 LP，所以会先签一笔授权 — 只授权这一笔的数量。这是一笔单独的交易，有它自己的手续费。',
+        poolSignRemove:
+            '销毁 {pair} 池子的 {amount} LP，把 {first} 和 {second} 取回这个账户，网络手续费最多 {fee}。',
+        poolSent: '已签名并广播。',
 
         // 跨链桥：这边签一笔，那边付一笔，中间没有取消。
         bridgeTitle: '跨链桥',
