@@ -363,5 +363,16 @@ class CursorTest(unittest.TestCase):
         self.assertEqual(pumpfun._cursor_of({"slot": 7}), (7, 0))
 
 
+class FetchTest(unittest.TestCase):
+    def test_asks_for_version_one_transactions(self):
+        """A v1 buy fetched with a v0 cap is refused, and the scan holds its
+        cursor on it forever — every buy after it went unannounced."""
+        from unittest import mock
+        with mock.patch.object(pumpfun, "_rpc", return_value=None) as rpc:
+            pumpfun._get_transaction(SIGNATURE)
+        opts = rpc.call_args.args[1][1]
+        self.assertGreaterEqual(opts["maxSupportedTransactionVersion"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

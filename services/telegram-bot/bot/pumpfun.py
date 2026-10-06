@@ -148,10 +148,18 @@ def _signatures(pool: str, limit: int, before: str | None = None) -> list[dict]:
     return _rpc("getSignaturesForAddress", [pool, opts]) or []
 
 
+# The newest transaction format the parser is asked to read. Wallets started
+# signing version 1 in October 2026, and a request capped below it is refused
+# outright (-32015) — and since collect_buys() holds its cursor on a fetch it
+# could not make, one such buy wedged every buy behind it until this was raised.
+# The parser reads only balances, which every version reports the same way.
+MAX_TX_VERSION = 1
+
+
 def _get_transaction(signature: str) -> dict | None:
     return _rpc("getTransaction", [signature, {
         "encoding": "jsonParsed",
-        "maxSupportedTransactionVersion": 0,
+        "maxSupportedTransactionVersion": MAX_TX_VERSION,
         "commitment": "confirmed",
     }])
 
