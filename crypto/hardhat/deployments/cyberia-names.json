@@ -1,0 +1,18 @@
+{
+  "chainId": 49406,
+  "rpc": "https://rpc.cyberia.church",
+  "_doc": "The .cyber namespace: names + string records, answered as DNS by services/cyberia-dns.",
+  "address": "0xc66e8A86793c93C35a38CD0254c80d563168F7B9",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "priceWei": "1000000000000000000",
+  "reserved": [
+    "cyberia",
+    "lain",
+    "dns",
+    "www",
+    "wallet",
+    "bridge",
+    "swap"
+  ],
+  "deployedAt": "2026-10-06T13:46:18.429Z"
+}

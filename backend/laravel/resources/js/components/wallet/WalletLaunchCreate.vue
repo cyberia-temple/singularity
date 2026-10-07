@@ -7,6 +7,12 @@ import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { formatUnits, walletChains } from '@/lib/wallet';
 import {
+    awaitDomainTx,
+    zoneExists,
+    zoneFromToken,
+    zoneTokenNaming,
+} from '@/lib/wallet/domains';
+import {
     LAUNCH_NAME_MAX,
     LAUNCH_SYMBOL_MAX,
     LaunchRefused,
@@ -55,6 +61,7 @@ const emit = defineEmits<{
     back: [];
     launched: [];
     swap: [contract: string];
+    domains: [];
 }>();
 
 const { t } = useLocale(walletMessages);
@@ -111,6 +118,48 @@ const account = computed(() =>
 );
 
 const canSign = computed(() => account.value?.capabilities.send ?? false);
+
+/**
+ * The domain zone this launch opens, when its name and ticker spell one:
+ * `.moon` + `DOTMOON` is the zone `moon` in CyberiaDomains. Only on Cyberia,
+ * where the domains contract and its launchpads are.
+ */
+const zone = computed(() =>
+    chainId.value === 'cyberia'
+        ? zoneFromToken(form.name.trim(), form.symbol.trim())
+        : null,
+);
+
+/** A name that looks like a zone but whose ticker does not match it. */
+const zoneHint = computed(() => {
+    const name = form.name.trim();
+
+    if (zone.value || !name.startsWith('.') || name.length < 2) {
+        return null;
+    }
+
+    return zoneTokenNaming(name.slice(1).toLowerCase()).symbol;
+});
+
+/** Somebody already opened it — this launch would be an ordinary token. */
+const zoneTaken = ref(false);
+const zoneState = ref<'none' | 'opening' | 'opened' | 'failed'>('none');
+const zoneError = ref<string | null>(null);
+
+const openZoneFor = async (launched: string): Promise<void> => {
+    zoneState.value = 'opening';
+    zoneError.value = null;
+
+    try {
+        const opened = await props.wallet.domains.openZone(launched);
+
+        zoneState.value = (await awaitDomainTx(opened)) ? 'opened' : 'failed';
+    } catch (error) {
+        zoneState.value = 'failed';
+        zoneError.value =
+            error instanceof Error ? error.message : String(error);
+    }
+};
 
 const symbol = computed(() => target.value?.chain.nativeCurrency.symbol ?? '');
 
@@ -202,6 +251,7 @@ const prepare = async (): Promise<void> => {
     failure.value = null;
 
     try {
+        zoneTaken.value = zone.value ? await zoneExists(zone.value) : false;
         quote.value = await quoteLaunch({
             target: target.value,
             form,
@@ -293,6 +343,13 @@ const launch = async (): Promise<void> => {
     emit('launched');
     void props.wallet.refreshBalances();
 
+    // The zone is the second half of the same act the hold agreed to, so it
+    // is signed straight away — anyone could open it, and the creator should
+    // not have to come back to be first.
+    if (token.value && zone.value && !zoneTaken.value) {
+        await openZoneFor(token.value);
+    }
+
     if (token.value && hasAbout(about)) {
         await saveAbout();
     }
@@ -365,6 +422,46 @@ onMounted(async () => {
                     >
                 </div>
             </div>
+
+            <p
+                v-if="zoneState === 'opening'"
+                class="cw-label"
+                style="margin-top: 14px; color: var(--cw-faint)"
+            >
+                {{ t('launchZoneOpening', { zone: zone ?? '' }) }}
+            </p>
+            <p
+                v-else-if="zoneState === 'opened'"
+                class="cw-note"
+                style="margin-top: 14px"
+            >
+                <span style="flex: 1">{{
+                    t('launchZoneOpened', { zone: zone ?? '' })
+                }}</span>
+                <button type="button" class="cw-back" @click="emit('domains')">
+                    {{ t('domainsTitle') }} →
+                </button>
+            </p>
+            <p
+                v-else-if="zoneState === 'failed'"
+                class="cw-note cw-note-bad"
+                style="margin-top: 14px"
+            >
+                <span style="flex: 1">{{
+                    t('launchZoneFailed', {
+                        zone: zone ?? '',
+                        reason: zoneError ?? '',
+                    })
+                }}</span>
+                <button
+                    v-if="token"
+                    type="button"
+                    class="cw-back"
+                    @click="openZoneFor(token)"
+                >
+                    {{ t('retry') }}
+                </button>
+            </p>
 
             <p
                 v-if="aboutState === 'saving'"
@@ -446,6 +543,10 @@ onMounted(async () => {
                         >{{ amount(quote.liquidity) }} {{ symbol }}</span
                     >
                 </div>
+                <div v-if="zone" class="cw-kv">
+                    <span class="cw-kv-key">{{ t('launchZone') }}</span>
+                    <span class="cw-kv-val">.{{ zone }}</span>
+                </div>
                 <div v-if="quote.venue === 'v3' && split" class="cw-kv">
                     <span class="cw-kv-key">{{ t('launchNewTradeFee') }}</span>
                     <span class="cw-kv-val">{{ split.poolFeePct }}%</span>
@@ -461,6 +562,17 @@ onMounted(async () => {
                     <span class="cw-kv-val">{{ target?.chain.name }}</span>
                 </div>
             </div>
+
+            <p
+                v-if="zone && zoneTaken"
+                class="cw-note cw-note-warn"
+                style="margin-top: 14px"
+            >
+                <span>{{ t('launchZoneTaken', { zone }) }}</span>
+            </p>
+            <p v-else-if="zone" class="cw-prose" style="margin-top: 14px">
+                {{ t('launchZoneConfirm', { zone }) }}
+            </p>
 
             <p class="cw-note cw-note-warn" style="margin-top: 14px">
                 <span>{{
@@ -569,9 +681,22 @@ onMounted(async () => {
                 type="text"
                 spellcheck="false"
                 autocapitalize="characters"
-                :maxlength="LAUNCH_SYMBOL_MAX"
+                :maxlength="
+                    form.name.trim().startsWith('.') ? 64 : LAUNCH_SYMBOL_MAX
+                "
                 placeholder="LAIN"
             />
+            <!--
+              A token named `.moon` with the ticker DOTMOON opens the domain
+              zone .moon — said while it is being typed, because the rule is
+              exact and a ticker one letter off is an ordinary token.
+            -->
+            <p v-if="zone" class="cw-note" style="margin-top: 8px">
+                <span>{{ t('launchZoneWill', { zone }) }}</span>
+            </p>
+            <p v-else-if="zoneHint" class="cw-data" style="margin-top: 6px">
+                {{ t('launchZoneHint', { symbol: zoneHint }) }}
+            </p>
 
             <label class="cw-label" style="display: block; margin: 14px 0 6px">
                 {{ t('launchSupply') }}

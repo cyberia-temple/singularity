@@ -781,7 +781,7 @@ export const walletMessages: Messages = {
         // A directory, and the one thing about it that is not obvious from
         // looking at it: why these are links and not an embedded browser.
         browseBody:
-            'A directory, not a browser: a frame that could reach this vault could read the keys in it. What mediates between a page and a key is the extension, per site, with you in front of every signature.',
+            'Open any site or a Cyberia domain above. Pages are shown in an isolated frame that cannot reach this vault — so they cannot ask it to sign either. What mediates between a page and a key is the extension, per site, with you in front of every signature.',
         browseBridgeLabel: 'Pages here can talk to',
         browseModeExtension: 'A wallet is offered',
         browseModeExtensionBody:
@@ -1885,6 +1885,131 @@ export const walletMessages: Messages = {
         torrentError: 'stopped',
         torrentLawNote:
             'What you download and share is yours to answer for. The client makes no distinction between a Linux image and anything else.',
+        domainsTitle: 'Domains',
+        domainsBody:
+            "Names on Cyberia that you own as NFTs. A domain opens a site — a link, an IPFS page or a server — in the wallet's browser and for anyone using Cyberia DNS. Holding the NFT is owning the name: send or sell it and its records go with it.",
+        domainsWatchOnly:
+            'This account is watch-only: it can look names up but cannot register or edit them.',
+        domainsSearch: 'Find a name',
+        domainsSearchPlaceholder: 'yourname',
+        domainsZone: 'Zone',
+        domainsFind: 'Check',
+        domainsChecking: 'Checking…',
+        domainsFree: 'Free',
+        domainsPrice: 'Price',
+        domainsPriceCyber: '{amount} {symbol}',
+        domainsPriceBurned: '{amount} {symbol}, burned',
+        domainsApproveFirst:
+            'This zone is paid in its own token: the wallet first allows the domains contract to take exactly {amount} {symbol}, then registers. Two signatures under one hold.',
+        domainsShort: 'Not enough {symbol} for this name.',
+        domainsBuyToken: 'Buy {symbol}',
+        domainsRegisterHold: 'Hold to register {name}',
+        domainsRegistering: 'Registering…',
+        domainsRegistered: '{name} is yours.',
+        domainsExplorer: 'Explorer',
+        domainsTakenBy: '{name} is taken — held by {owner}.',
+        domainsOpen: 'Open in browser',
+        domainsMine: 'My domains',
+        domainsLoading: 'Reading your domains…',
+        domainsNone: 'No domains on this account yet.',
+        domainsManage: 'Manage',
+        domainsZones: 'Zones',
+        domainsZonesBody:
+            'Every zone except .cyber was opened by a token. Launch a token named {name} with the ticker {symbol} on the Cyberia launchpad and the zone .moon opens; names in it are paid for in that token, and the payment is burned.',
+        domainsOpenLaunchpad: 'Open a zone on the launchpad',
+        domainsHolder: 'Held by',
+        domainsSite: 'Opens',
+        domainsNotYours:
+            'This name belongs to another address, so only its holder can change what it opens.',
+        domainsWhatOpens: 'What the name opens',
+        domainSite_none: 'Nothing',
+        domainSite_url: 'Link',
+        domainSite_ipfs: 'IPFS page',
+        domainSite_host: 'Server',
+        domainSite_alias: 'Another name',
+        domainSiteBody_none:
+            "The name resolves to nobody's site yet; a visit shows that it is taken and by whom.",
+        domainSiteBody_url:
+            'Visitors are sent to this address. The simplest kind: any https page you already have.',
+        domainSiteBody_ipfs:
+            'A page published to IPFS. Paste a CID, or upload an HTML file and the wallet pins it for you.',
+        domainSiteBody_host:
+            "Your own server's addresses. It is reached over plain HTTP by people using Cyberia DNS; the wallet's browser can only show HTTPS, so it offers a new tab.",
+        domainSiteBody_alias:
+            'The name answers with another one — a regular domain or another Cyberia name.',
+        domainsUploadPage: 'Upload an HTML page',
+        domainsUploading: 'Pinning…',
+        domainsAdvanced: 'Records',
+        domainsAdvancedBody:
+            'Everything else the name carries, as DNS reads it: TXT, MX, and sub-names as `www/A` or `*/A`.',
+        domainsKey: 'key',
+        domainsValue: 'value',
+        domainsAddRecord: 'Add record',
+        domainsRemove: 'Remove',
+        domainsWillWrite: 'Will write: {keys}',
+        domainsSaveHold: 'Hold to save',
+        domainsSaving: 'Saving…',
+        domainsSaved: 'Saved on chain.',
+        domainBadLabel:
+            'A name is lowercase letters, digits and hyphens, up to 63, and cannot start or end with a hyphen.',
+        domainNoZone: 'This zone is not open.',
+        domainTaken: 'This name is taken.',
+        domainBadUrl: 'A link starts with https:// or http://.',
+        domainBadCid: 'That is not an IPFS CID.',
+        domainBadAlias: 'That is not a domain name.',
+        domainBadIp: 'Enter at least one valid IPv4 or IPv6 address.',
+        domainGasCap:
+            'This would cost more gas than the wallet will spend on it. Nothing was signed.',
+        domainApproveFailed:
+            'The token approval failed on chain. Nothing was registered.',
+        domainTxFailed: 'The transaction failed on chain.',
+        chainUnreadable:
+            'Cyberia could not be read right now. Try again in a moment.',
+        tileDomainsHint: 'Names as NFTs',
+        launchZone: 'Domain zone',
+        launchZoneWill:
+            'A token with this name and ticker opens the domain zone .{zone}: names in it will be paid for in this token and burned.',
+        launchZoneHint: 'To open a domain zone, the ticker must be {symbol}.',
+        launchZoneConfirm:
+            'Right after the launch the wallet opens the zone .{zone} — one more transaction under the same hold.',
+        launchZoneTaken:
+            'The zone .{zone} is already open — this launch will be an ordinary token.',
+        launchZoneOpening: 'Opening the zone .{zone}…',
+        launchZoneOpened: 'The zone .{zone} is open.',
+        launchZoneFailed: 'The zone .{zone} did not open: {reason}',
+        browserAddress: 'address, ipfs:// or name.{zone}',
+        browserAddressLabel: 'Address',
+        browserBack: 'Back',
+        browserForward: 'Forward',
+        browserReload: 'Reload',
+        browserNewTab: 'Open in a new tab',
+        browserHome: 'Start page',
+        browserZones: 'Cyberia zones: {zones}',
+        browserResolving: 'Resolving…',
+        browserHeldBy: '{name} · held by {owner}',
+        browserBlankHint:
+            'If the page stays blank, it does not allow being shown inside another page — open it in a new tab.',
+        browserFree: '{name} is free. Anyone can register it.',
+        browserRegister: 'Register {name}',
+        browserNoSite: '{name} is registered but does not point anywhere yet.',
+        browserHostOnly:
+            "{name} is served by its owner's own server over plain HTTP, which a page inside the wallet cannot show. A new tab opens it where Cyberia DNS is set up ({doh}).",
+        browserHttp:
+            'This is a plain-HTTP page, and a secure page cannot show it inside a frame. Open it in a new tab.',
+        browserInvalid: 'That is not an address.',
+        browserLoop: 'This name points at names in a loop.',
+        browserDnsEverywhere:
+            'To open Cyberia names in any browser, set its secure DNS (DNS over HTTPS) to {doh}.',
+        domainsZoneByToken: 'Launched a zone token elsewhere? Its address',
+        domainsZoneOpen: 'Open its zone',
+        domainsZoneOpening: 'Opening…',
+        domainsZoneOpened: 'The zone is open.',
+        domainsZoneBadToken: 'That is not a token address.',
+        domainsZoneNotLaunched:
+            'This token was not launched on a Cyberia launchpad.',
+        domainsZoneNotZone:
+            "This token's name and ticker do not spell a zone (.name and DOTNAME).",
+        domainsZoneTaken: 'This zone is already open.',
     },
     ru: {
         // Chrome
@@ -2599,7 +2724,7 @@ export const walletMessages: Messages = {
         // разговаривает с кошельком.
         browseTitle: 'Провода',
         browseBody:
-            'Это каталог, а не браузер: фрейм, который дотянулся бы до этого хранилища, прочитал бы и ключи в нём. Посредник между страницей и ключом — расширение: по одному сайту за раз и с вами перед каждой подписью.',
+            'Откройте выше любой сайт или домен Cyberia. Страницы показываются в изолированном фрейме, который не дотягивается до этого хранилища — а значит, и подписи у него попросить не может. Посредник между страницей и ключом — расширение: по одному сайту за раз и с вами перед каждой подписью.',
         browseBridgeLabel: 'Страницам здесь доступен',
         browseModeExtension: 'Кошелёк предложен',
         browseModeExtensionBody:
@@ -3660,6 +3785,131 @@ export const walletMessages: Messages = {
         torrentError: 'остановлен',
         torrentLawNote:
             'За то, что вы качаете и раздаёте, отвечаете вы. Клиент не отличает образ Linux от чего угодно другого.',
+        domainsTitle: 'Домены',
+        domainsBody:
+            'Имена на Cyberia, которыми вы владеете как NFT. Домен открывает сайт — ссылку, страницу в IPFS или сервер — в браузере кошелька и у всех, кто пользуется Cyberia DNS. Владеть NFT — значит владеть именем: отправьте или продайте его, и записи уйдут вместе с ним.',
+        domainsWatchOnly:
+            'Этот аккаунт только для просмотра: имена можно искать, но не регистрировать и не менять.',
+        domainsSearch: 'Найти имя',
+        domainsSearchPlaceholder: 'вашеимя',
+        domainsZone: 'Зона',
+        domainsFind: 'Проверить',
+        domainsChecking: 'Проверяю…',
+        domainsFree: 'Свободно',
+        domainsPrice: 'Цена',
+        domainsPriceCyber: '{amount} {symbol}',
+        domainsPriceBurned: '{amount} {symbol}, сжигается',
+        domainsApproveFirst:
+            'Эта зона оплачивается своим токеном: кошелёк сначала разрешит контракту доменов взять ровно {amount} {symbol}, потом зарегистрирует имя. Две подписи под одним удержанием.',
+        domainsShort: 'Не хватает {symbol} на это имя.',
+        domainsBuyToken: 'Купить {symbol}',
+        domainsRegisterHold: 'Удерживайте, чтобы занять {name}',
+        domainsRegistering: 'Регистрирую…',
+        domainsRegistered: '{name} теперь ваш.',
+        domainsExplorer: 'Эксплорер',
+        domainsTakenBy: '{name} занят — принадлежит {owner}.',
+        domainsOpen: 'Открыть в браузере',
+        domainsMine: 'Мои домены',
+        domainsLoading: 'Читаю ваши домены…',
+        domainsNone: 'На этом аккаунте пока нет доменов.',
+        domainsManage: 'Управлять',
+        domainsZones: 'Зоны',
+        domainsZonesBody:
+            'Каждую зону, кроме .cyber, открыл токен. Запустите на лаунчпаде Cyberia токен с названием {name} и тикером {symbol} — откроется зона .moon; имена в ней оплачиваются этим токеном, и оплата сжигается.',
+        domainsOpenLaunchpad: 'Открыть зону на лаунчпаде',
+        domainsHolder: 'Владелец',
+        domainsSite: 'Открывает',
+        domainsNotYours:
+            'Это имя принадлежит другому адресу, поэтому менять, что оно открывает, может только его владелец.',
+        domainsWhatOpens: 'Что открывает имя',
+        domainSite_none: 'Ничего',
+        domainSite_url: 'Ссылку',
+        domainSite_ipfs: 'Страницу IPFS',
+        domainSite_host: 'Сервер',
+        domainSite_alias: 'Другое имя',
+        domainSiteBody_none:
+            'Имя пока никуда не ведёт; при заходе видно, что оно занято и кем.',
+        domainSiteBody_url:
+            'Посетителей отправит на этот адрес. Самый простой вариант: любая ваша https-страница.',
+        domainSiteBody_ipfs:
+            'Страница, опубликованная в IPFS. Вставьте CID или загрузите HTML-файл — кошелёк сам его закрепит.',
+        domainSiteBody_host:
+            'Адреса вашего сервера. Он открывается по обычному HTTP у тех, кто пользуется Cyberia DNS; браузер кошелька показывает только HTTPS, поэтому предложит новую вкладку.',
+        domainSiteBody_alias:
+            'Имя отвечает другим именем — обычным доменом или другим именем Cyberia.',
+        domainsUploadPage: 'Загрузить HTML-страницу',
+        domainsUploading: 'Закрепляю…',
+        domainsAdvanced: 'Записи',
+        domainsAdvancedBody:
+            'Всё остальное, что несёт имя, так, как его читает DNS: TXT, MX и поддомены в виде `www/A` или `*/A`.',
+        domainsKey: 'ключ',
+        domainsValue: 'значение',
+        domainsAddRecord: 'Добавить запись',
+        domainsRemove: 'Удалить',
+        domainsWillWrite: 'Будет записано: {keys}',
+        domainsSaveHold: 'Удерживайте, чтобы сохранить',
+        domainsSaving: 'Сохраняю…',
+        domainsSaved: 'Сохранено в сети.',
+        domainBadLabel:
+            'Имя — это строчные латинские буквы, цифры и дефисы, до 63 символов, без дефиса в начале и в конце.',
+        domainNoZone: 'Эта зона не открыта.',
+        domainTaken: 'Это имя занято.',
+        domainBadUrl: 'Ссылка начинается с https:// или http://.',
+        domainBadCid: 'Это не CID IPFS.',
+        domainBadAlias: 'Это не доменное имя.',
+        domainBadIp: 'Укажите хотя бы один правильный адрес IPv4 или IPv6.',
+        domainGasCap:
+            'Это стоило бы больше газа, чем кошелёк на это тратит. Ничего не подписано.',
+        domainApproveFailed:
+            'Разрешение на токен не прошло в сети. Имя не зарегистрировано.',
+        domainTxFailed: 'Транзакция не прошла в сети.',
+        chainUnreadable:
+            'Сейчас не удаётся прочитать Cyberia. Попробуйте через минуту.',
+        tileDomainsHint: 'Имена как NFT',
+        launchZone: 'Доменная зона',
+        launchZoneWill:
+            'Токен с таким названием и тикером открывает доменную зону .{zone}: имена в ней будут оплачиваться этим токеном и сжигаться.',
+        launchZoneHint:
+            'Чтобы открыть доменную зону, тикер должен быть {symbol}.',
+        launchZoneConfirm:
+            'Сразу после запуска кошелёк откроет зону .{zone} — ещё одна транзакция под тем же удержанием.',
+        launchZoneTaken:
+            'Зона .{zone} уже открыта — этот запуск будет обычным токеном.',
+        launchZoneOpening: 'Открываю зону .{zone}…',
+        launchZoneOpened: 'Зона .{zone} открыта.',
+        launchZoneFailed: 'Зона .{zone} не открылась: {reason}',
+        browserAddress: 'адрес, ipfs:// или имя.{zone}',
+        browserAddressLabel: 'Адрес',
+        browserBack: 'Назад',
+        browserForward: 'Вперёд',
+        browserReload: 'Обновить',
+        browserNewTab: 'Открыть в новой вкладке',
+        browserHome: 'Стартовая страница',
+        browserZones: 'Зоны Cyberia: {zones}',
+        browserResolving: 'Ищу имя…',
+        browserHeldBy: '{name} · владелец {owner}',
+        browserBlankHint:
+            'Если страница осталась пустой, сайт не разрешает показывать себя внутри другой страницы — откройте его в новой вкладке.',
+        browserFree: '{name} свободно. Его может занять любой.',
+        browserRegister: 'Занять {name}',
+        browserNoSite: '{name} зарегистрировано, но пока никуда не ведёт.',
+        browserHostOnly:
+            '{name} отдаёт собственный сервер владельца по обычному HTTP, а страница внутри кошелька такое показать не может. Новая вкладка откроет его там, где настроен Cyberia DNS ({doh}).',
+        browserHttp:
+            'Это страница по обычному HTTP, а защищённая страница не может показать её во фрейме. Откройте её в новой вкладке.',
+        browserInvalid: 'Это не адрес.',
+        browserLoop: 'Это имя ссылается на имена по кругу.',
+        browserDnsEverywhere:
+            'Чтобы имена Cyberia открывались в любом браузере, укажите в нём безопасный DNS (DNS через HTTPS): {doh}.',
+        domainsZoneByToken: 'Запустили токен зоны в другом месте? Его адрес',
+        domainsZoneOpen: 'Открыть его зону',
+        domainsZoneOpening: 'Открываю…',
+        domainsZoneOpened: 'Зона открыта.',
+        domainsZoneBadToken: 'Это не адрес токена.',
+        domainsZoneNotLaunched: 'Этот токен запущен не на лаунчпаде Cyberia.',
+        domainsZoneNotZone:
+            'Название и тикер этого токена не задают зону (.имя и DOTИМЯ).',
+        domainsZoneTaken: 'Эта зона уже открыта.',
     },
     zh: {
         // Chrome
@@ -4345,7 +4595,7 @@ export const walletMessages: Messages = {
         // 线路：这条链上有什么，以及一个页面怎么跟钱包说话。
         browseTitle: '线路',
         browseBody:
-            '这是一份目录，不是浏览器：一个能碰到这个保险库的框架，也就能读到里面的密钥。在页面和密钥之间做中间人的是扩展 — 按站点授权，每一次签名前都有你在。',
+            '在上方打开任何网站或 Cyberia 域名。页面显示在隔离的框架中，碰不到这个保险库——因此也无法请它签名。在页面和密钥之间做中间人的是扩展 — 按站点授权，每一次签名前都有你在。',
         browseBridgeLabel: '这里的页面能连到',
         browseModeExtension: '有钱包可用',
         browseModeExtensionBody:
@@ -5351,5 +5601,123 @@ export const walletMessages: Messages = {
         torrentError: '已停止',
         torrentLawNote:
             '你下载和分享什么，由你自己负责。客户端分不清 Linux 镜像和别的任何东西。',
+        domainsTitle: '域名',
+        domainsBody:
+            '你以 NFT 形式拥有的 Cyberia 名称。域名可以打开一个站点——链接、IPFS 页面或服务器——在钱包浏览器里，也对所有使用 Cyberia DNS 的人生效。持有 NFT 就是拥有名称：转让或出售它，记录随之转移。',
+        domainsWatchOnly: '此账户为只读：可以查询名称，但不能注册或修改。',
+        domainsSearch: '查找名称',
+        domainsSearchPlaceholder: '你的名字',
+        domainsZone: '区域',
+        domainsFind: '检查',
+        domainsChecking: '检查中…',
+        domainsFree: '可注册',
+        domainsPrice: '价格',
+        domainsPriceCyber: '{amount} {symbol}',
+        domainsPriceBurned: '{amount} {symbol}，销毁',
+        domainsApproveFirst:
+            '此区域用其自身代币支付：钱包会先授权域名合约恰好收取 {amount} {symbol}，然后注册。一次长按，两次签名。',
+        domainsShort: '{symbol} 不足以注册此名称。',
+        domainsBuyToken: '购买 {symbol}',
+        domainsRegisterHold: '长按注册 {name}',
+        domainsRegistering: '注册中…',
+        domainsRegistered: '{name} 已归你所有。',
+        domainsExplorer: '浏览器',
+        domainsTakenBy: '{name} 已被占用——持有者 {owner}。',
+        domainsOpen: '在浏览器中打开',
+        domainsMine: '我的域名',
+        domainsLoading: '正在读取你的域名…',
+        domainsNone: '此账户还没有域名。',
+        domainsManage: '管理',
+        domainsZones: '区域',
+        domainsZonesBody:
+            '除 .cyber 外，每个区域都由一个代币开启。在 Cyberia 发射台发行名为 {name}、代码为 {symbol} 的代币，区域 .moon 即开启；其中的名称用该代币支付，支付额被销毁。',
+        domainsOpenLaunchpad: '在发射台开启区域',
+        domainsHolder: '持有者',
+        domainsSite: '指向',
+        domainsNotYours: '此名称属于另一个地址，只有持有者能修改它指向的内容。',
+        domainsWhatOpens: '名称打开的内容',
+        domainSite_none: '无',
+        domainSite_url: '链接',
+        domainSite_ipfs: 'IPFS 页面',
+        domainSite_host: '服务器',
+        domainSite_alias: '另一个名称',
+        domainSiteBody_none:
+            '名称暂不指向任何站点；访问时会显示它已被占用以及持有者。',
+        domainSiteBody_url:
+            '访客会被引导到这个地址。最简单的方式：任何你已有的 https 页面。',
+        domainSiteBody_ipfs:
+            '发布到 IPFS 的页面。粘贴 CID，或上传 HTML 文件，钱包会替你固定。',
+        domainSiteBody_host:
+            '你自己服务器的地址。使用 Cyberia DNS 的人通过普通 HTTP 访问；钱包浏览器只能显示 HTTPS，因此会提供新标签页。',
+        domainSiteBody_alias:
+            '名称以另一个名称作答——普通域名或另一个 Cyberia 名称。',
+        domainsUploadPage: '上传 HTML 页面',
+        domainsUploading: '固定中…',
+        domainsAdvanced: '记录',
+        domainsAdvancedBody:
+            '名称携带的其他内容，按 DNS 读取的方式：TXT、MX，以及以 `www/A` 或 `*/A` 表示的子名称。',
+        domainsKey: '键',
+        domainsValue: '值',
+        domainsAddRecord: '添加记录',
+        domainsRemove: '删除',
+        domainsWillWrite: '将写入：{keys}',
+        domainsSaveHold: '长按保存',
+        domainsSaving: '保存中…',
+        domainsSaved: '已保存到链上。',
+        domainBadLabel:
+            '名称由小写字母、数字和连字符组成，最多 63 个字符，且不能以连字符开头或结尾。',
+        domainNoZone: '此区域未开启。',
+        domainTaken: '此名称已被占用。',
+        domainBadUrl: '链接以 https:// 或 http:// 开头。',
+        domainBadCid: '这不是 IPFS CID。',
+        domainBadAlias: '这不是域名。',
+        domainBadIp: '请至少输入一个有效的 IPv4 或 IPv6 地址。',
+        domainGasCap: '这将花费超过钱包愿意支付的 gas。未签名任何内容。',
+        domainApproveFailed: '代币授权在链上失败。未注册任何名称。',
+        domainTxFailed: '交易在链上失败。',
+        chainUnreadable: '暂时无法读取 Cyberia，请稍后再试。',
+        tileDomainsHint: 'NFT 形式的名称',
+        launchZone: '域名区域',
+        launchZoneWill:
+            '使用此名称和代码的代币会开启域名区域 .{zone}：其中的名称将用此代币支付并销毁。',
+        launchZoneHint: '要开启域名区域，代码必须是 {symbol}。',
+        launchZoneConfirm:
+            '发射后钱包会立即开启区域 .{zone}——同一次长按下的又一笔交易。',
+        launchZoneTaken: '区域 .{zone} 已开启——此次发射将是普通代币。',
+        launchZoneOpening: '正在开启区域 .{zone}…',
+        launchZoneOpened: '区域 .{zone} 已开启。',
+        launchZoneFailed: '区域 .{zone} 未能开启：{reason}',
+        browserAddress: '网址、ipfs:// 或 名称.{zone}',
+        browserAddressLabel: '地址',
+        browserBack: '后退',
+        browserForward: '前进',
+        browserReload: '刷新',
+        browserNewTab: '在新标签页打开',
+        browserHome: '起始页',
+        browserZones: 'Cyberia 区域：{zones}',
+        browserResolving: '解析中…',
+        browserHeldBy: '{name} · 持有者 {owner}',
+        browserBlankHint:
+            '如果页面一直空白，说明该站点不允许被嵌入其他页面——请在新标签页打开。',
+        browserFree: '{name} 可注册，任何人都可以注册。',
+        browserRegister: '注册 {name}',
+        browserNoSite: '{name} 已注册，但尚未指向任何地方。',
+        browserHostOnly:
+            '{name} 由持有者自己的服务器通过普通 HTTP 提供，钱包内的页面无法显示。新标签页会在配置了 Cyberia DNS（{doh}）的地方打开它。',
+        browserHttp:
+            '这是普通 HTTP 页面，安全页面无法在框架内显示它。请在新标签页打开。',
+        browserInvalid: '这不是地址。',
+        browserLoop: '此名称循环指向其他名称。',
+        browserDnsEverywhere:
+            '要在任何浏览器中打开 Cyberia 名称，请将其安全 DNS（DNS over HTTPS）设置为 {doh}。',
+        domainsZoneByToken: '在别处发行了区域代币？它的地址',
+        domainsZoneOpen: '开启它的区域',
+        domainsZoneOpening: '开启中…',
+        domainsZoneOpened: '区域已开启。',
+        domainsZoneBadToken: '这不是代币地址。',
+        domainsZoneNotLaunched: '此代币不是在 Cyberia 发射台发行的。',
+        domainsZoneNotZone:
+            '此代币的名称和代码不构成区域（.name 与 DOTNAME）。',
+        domainsZoneTaken: '此区域已开启。',
     },
 };

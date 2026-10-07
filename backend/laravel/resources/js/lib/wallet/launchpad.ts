@@ -13,6 +13,7 @@ import {
     launchpadReadRpcUrl,
 } from '@/lib/launchpadChains';
 import type { LaunchpadChain } from '@/lib/launchpadChains';
+import { zoneFromToken } from '@/lib/wallet/domains';
 import { evmSigner } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
 
@@ -527,9 +528,11 @@ export const launchProblem = (
         return 'name';
     }
 
+    // A ticker that spells a domain zone (`.moon` / `DOTMOON`) is as long as
+    // its zone needs; the name's own cap already bounds it.
     if (
         symbol === '' ||
-        symbol.length > LAUNCH_SYMBOL_MAX ||
+        (symbol.length > LAUNCH_SYMBOL_MAX && !zoneFromToken(name, symbol)) ||
         /\s/.test(symbol)
     ) {
         return 'symbol';

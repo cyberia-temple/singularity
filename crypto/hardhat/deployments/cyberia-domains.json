@@ -1,0 +1,24 @@
+{
+  "chainId": 49406,
+  "rpc": "https://rpc.cyberia.church",
+  "_doc": "Domain NFTs: .cyber plus a zone per launchpad token named .<zone> / DOT<ZONE>. Served by services/cyberia-dns; supersedes cyberia-names.json.",
+  "address": "0xA827D058a5738EaC28DB1d658D3e8cFb82CBb66B",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "cyberPriceWei": "1000000000000000000",
+  "feeDivisor": "1000000",
+  "launchpads": {
+    "native": "0x8034E6C09E0cEA00B5D692ADfD1A136fab339165",
+    "v3": "0x6970481a167D8D44527091d0E319e50aD3F79Ee3"
+  },
+  "reserved": [
+    "cyberia",
+    "lain",
+    "dns",
+    "www",
+    "wallet",
+    "bridge",
+    "swap"
+  ],
+  "zones": [],
+  "deployedAt": "2026-10-07T14:47:51.104Z"
+}

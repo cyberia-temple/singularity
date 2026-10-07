@@ -1,0 +1,56 @@
+# Cyberia DNS: names answered out of the CyberiaDomains contract — `.cyber` and
+# every zone a launchpad token opened.
+# See README.md.
+#
+#   53/udp+tcp  on the host's public addresses only — systemd-resolved holds
+#               127.0.0.53:53, and a wildcard bind would collide with it
+#   8053        DoH, reached only by the site's nginx over docker-compose_default
+#               (dns.cyberia.church/dns-query); never published
+#   chain       polygon-edge on the same docker network, no TLS hop
+#
+# Nothing is installed: node's standard library, the source mounted read-only.
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "3"
+    compress: "true"
+
+services:
+  dns:
+    image: node:22-alpine
+    container_name: cyberia-dns
+    logging: *logging
+    restart: unless-stopped
+    init: true
+    command: ["node", "/app/src/server.mjs"]
+    read_only: true
+    environment:
+      CYBERIA_DOMAINS_ADDRESS: ${CYBERIA_DOMAINS_ADDRESS:-0xA827D058a5738EaC28DB1d658D3e8cFb82CBb66B}
+      CYBERIA_RPC_URL: ${CYBERIA_RPC_URL:-http://polygon-edge:8545}
+      # Zones come from the contract; aliases repeat one under a delegated domain.
+      DNS_ALIASES: ${DNS_ALIASES:-cyber.cyberia.church=cyber}
+      DNS_NS: ${DNS_NS:-ns1.cyberia.church}
+      DNS_HOSTMASTER: hostmaster.cyberia.church
+      DNS_PORT: "53"
+      DOH_PORT: "8053"
+      # Plain-UDP recursion for strangers is an amplifier; see src/server.mjs.
+      DNS_FORWARD_UDP: ${DNS_FORWARD_UDP:-0}
+      DNS_FORWARD_TCP: ${DNS_FORWARD_TCP:-1}
+      DNS_FORWARD_DOH: ${DNS_FORWARD_DOH:-1}
+      DNS_UPSTREAM: ${DNS_UPSTREAM:-1.1.1.1,9.9.9.9}
+      DNS_LOG: ${DNS_LOG:-0}
+    volumes:
+      - ./src:/app/src:ro
+    ports:
+      - "${DNS_PUBLIC_V4:-2.26.24.177}:53:53/udp"
+      - "${DNS_PUBLIC_V4:-2.26.24.177}:53:53/tcp"
+      - "[${DNS_PUBLIC_V6:-2a12:bec4:1bb0:1ba1::2}]:53:53/udp"
+      - "[${DNS_PUBLIC_V6:-2a12:bec4:1bb0:1ba1::2}]:53:53/tcp"
+    networks: [chain]
+
+networks:
+  chain:
+    name: docker-compose_default
+    external: true

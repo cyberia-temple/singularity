@@ -1,0 +1,77 @@
+# DNS-over-HTTPS for .cyber names (services/cyberia-dns). The hostname resolves
+# through the wildcard record and the wildcard certificate covers it, the same
+# way docs.cyberia.church does; this exact name wins over the launchpad regex.
+server {
+    listen 80;
+    server_name dns.cyberia.church;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://dns.cyberia.church$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name dns.cyberia.church;
+
+    ssl_certificate /etc/letsencrypt/live/cyberia-wildcard/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cyberia-wildcard/privkey.pem;
+
+    # Resolved per request, so nginx still starts while cyberia-dns is down.
+    resolver 127.0.0.11 valid=30s;
+    set $doh http://cyberia-dns:8053;
+
+    location = /dns-query {
+        proxy_pass $doh;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        client_max_body_size 64k;
+    }
+
+    location = /health {
+        proxy_pass $doh;
+    }
+
+    # The JSON view the wallet's browser reads: /api/resolve, /api/zones.
+    location /api/ {
+        proxy_pass $doh;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        default_type text/plain;
+        return 200 "Cyberia DNS. DoH endpoint: https://dns.cyberia.church/dns-query\nPlain DNS: ns1.cyberia.church (2.26.24.177), zone .cyber\n";
+    }
+}
+
+# Web gateway for Cyberia domains: a browser that resolved `<name>.<zone>`
+# through Cyberia DNS to this host arrives here. Zones are whatever the chain
+# opened (any launchpad token named `.<zone>`), so no server_name can list them
+# and this is the :80 default server instead — every Host nginx has no block
+# for. cyberia-dns redirects a name by its records (url / CNAME / ipfs), shows
+# a card for one with no site, and sends anything that is not a name (an
+# unknown Host, the bare IP) to https://cyberia.church/. Plain HTTP only — no
+# CA issues certificates under a TLD that is not in the root.
+server {
+    listen 80 default_server;
+    server_name _;
+
+    resolver 127.0.0.11 valid=30s;
+    set $doh http://cyberia-dns:8053;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        proxy_pass $doh;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+}

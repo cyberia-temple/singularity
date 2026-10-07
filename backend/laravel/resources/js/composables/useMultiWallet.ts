@@ -80,6 +80,12 @@ import type {
     CrossStep,
 } from '@/lib/wallet/crosschain';
 import {
+    openZone as submitOpenZone,
+    registerDomain as submitRegisterDomain,
+    writeDomainRecords as submitDomainRecords,
+} from '@/lib/wallet/domains';
+import type { RegistrationQuote } from '@/lib/wallet/domains';
+import {
     claim as claimReward,
     stake as stakeLp,
     unstake as unstakeLp,
@@ -1553,6 +1559,48 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
     };
 
+    /* ------------------------------------------------------------- domains --- */
+
+    /**
+     * Domain NFTs live on Cyberia, so every write signs with this account's
+     * Cyberia key — through the same closure as every other signature.
+     */
+    const domainWrite = async <T>(
+        write: (source: WalletKeySource, rpcUrl?: string) => Promise<T>,
+    ): Promise<T> => {
+        const source = sourceFor('cyberia');
+
+        busy.value = true;
+
+        try {
+            return await write(source, rpcFor('cyberia'));
+        } finally {
+            busy.value = false;
+        }
+    };
+
+    const domains = {
+        /** Approve the zone token if the quote says so, then register. */
+        register: (quote: RegistrationQuote): Promise<string> =>
+            domainWrite((source, rpcUrl) =>
+                submitRegisterDomain(source, quote, rpcUrl),
+            ),
+        setRecords: (
+            label: string,
+            zone: string,
+            keys: string[],
+            values: string[],
+        ): Promise<string> =>
+            domainWrite((source, rpcUrl) =>
+                submitDomainRecords(source, label, zone, keys, values, rpcUrl),
+            ),
+        /** Open the zone a launchpad token's name and ticker spell. */
+        openZone: (token: string): Promise<string> =>
+            domainWrite((source, rpcUrl) =>
+                submitOpenZone(source, token, rpcUrl),
+            ),
+    };
+
     /* ---------------------------------------------------------------- chat --- */
 
     /**
@@ -1760,6 +1808,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         bridgeDeposit,
         wrap,
         launchToken,
+        domains,
         /** Encrypted chat: the public identity, and sealing under it. */
         chatIdentity,
         chatSeal,

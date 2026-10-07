@@ -32,6 +32,7 @@ const emit = defineEmits<{
     ipfs: [];
     torrents: [];
     tracker: [];
+    domains: [];
 }>();
 
 const { t } = useLocale(walletMessages);
@@ -256,6 +257,14 @@ watch(
                     }}</span>
                     <span class="cw-label" style="font-size: 12px">{{
                         t('tileTorrentHint')
+                    }}</span>
+                </button>
+                <button type="button" class="cw-tile" @click="emit('domains')">
+                    <span style="font: 500 14px/1 var(--cw-sans)">{{
+                        t('domainsTitle')
+                    }}</span>
+                    <span class="cw-label" style="font-size: 12px">{{
+                        t('tileDomainsHint')
                     }}</span>
                 </button>
             </div>

@@ -1,0 +1,13 @@
+{
+  "name": "cyberia-dns",
+  "private": true,
+  "type": "module",
+  "description": "Authoritative DNS for .cyber names, answered out of the CyberiaNames contract on Cyberia",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

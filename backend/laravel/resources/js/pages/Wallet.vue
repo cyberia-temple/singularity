@@ -26,6 +26,7 @@ import WalletContextBar from '@/components/wallet/WalletContextBar.vue';
 import WalletCrossSwap from '@/components/wallet/WalletCrossSwap.vue';
 import WalletDaily from '@/components/wallet/WalletDaily.vue';
 import WalletDao from '@/components/wallet/WalletDao.vue';
+import WalletDomains from '@/components/wallet/WalletDomains.vue';
 import WalletEarn from '@/components/wallet/WalletEarn.vue';
 import WalletFeed from '@/components/wallet/WalletFeed.vue';
 import WalletGasStation from '@/components/wallet/WalletGasStation.vue';
@@ -195,7 +196,8 @@ type Section =
     | 'buy'
     | 'crosschain'
     | 'daily'
-    | 'browse';
+    | 'browse'
+    | 'domains';
 type Overlay = 'send' | 'receive' | 'swap' | 'addNetwork';
 
 const section = ref<Section>('portfolio');
@@ -313,6 +315,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'chat', label: () => t('chatTitle') },
             { id: 'launchpad', label: () => t('launchpad') },
             { id: 'nft', label: () => t('nftTitle') },
+            { id: 'domains', label: () => t('domainsTitle') },
             { id: 'tracker', label: () => t('trackerTitle') },
             { id: 'dao', label: () => t('dao') },
             // Listed even for wallets that hold no $LAIN: the room says what it
@@ -390,6 +393,7 @@ const TAB_OF: Record<Section, Section> = {
     lain: 'lain',
     nft: 'nft',
     nftMint: 'nft',
+    domains: 'nft',
     ipfs: 'nft',
     torrent: 'nft',
     tracker: 'nft',
@@ -755,6 +759,23 @@ const mintPreset = ref<string | null>(null);
 const openMint = (uri: string | null): void => {
     mintPreset.value = uri;
     openSection('nftMint');
+};
+
+/**
+ * A name handed between the browser and the domains screen: "open this in the
+ * browser" from a domain, "register / manage this" from a page.
+ */
+const browseInitial = ref<string | null>(null);
+const domainsInitial = ref<string | null>(null);
+
+const openBrowse = (name: string | null): void => {
+    browseInitial.value = name;
+    openSection('browse');
+};
+
+const openDomains = (name: string | null): void => {
+    domainsInitial.value = name;
+    openSection('domains');
 };
 
 /**
@@ -1951,7 +1972,10 @@ watch(
                     -->
                     <WalletBrowse
                         v-else-if="section === 'browse'"
+                        :key="browseInitial ?? 'browse'"
                         :wallet="wallet"
+                        :initial="browseInitial"
+                        @domains="openDomains"
                         @swap="openSwap()"
                         @earn="openSection('earn')"
                         @launchpad="openSection('launchpad')"
@@ -2095,6 +2119,7 @@ watch(
                         :wallet="wallet"
                         :prices="prices"
                         @swap="openSwapContract"
+                        @domains="openDomains(null)"
                     />
 
                     <WalletDao v-else-if="section === 'dao'" :wallet="wallet" />
@@ -2111,6 +2136,22 @@ watch(
                         @ipfs="openSection('ipfs')"
                         @torrents="openSection('torrent')"
                         @tracker="openSection('tracker')"
+                        @domains="openDomains(null)"
+                    />
+
+                    <!--
+                      Names as NFTs, in .cyber and in every zone a launchpad
+                      token opened — and what each of them points at.
+                    -->
+                    <WalletDomains
+                        v-else-if="section === 'domains'"
+                        :key="domainsInitial ?? 'domains'"
+                        :wallet="wallet"
+                        :ipfs="props.ipfs"
+                        :initial="domainsInitial"
+                        @browse="openBrowse"
+                        @launchpad="openSection('launchpad')"
+                        @swap="(contract) => openSwapContract(contract)"
                     />
 
                     <WalletNftMint
