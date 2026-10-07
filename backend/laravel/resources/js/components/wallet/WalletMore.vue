@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import {
-    ArrowLeftRight,
-    CalendarCheck,
-    Droplets,
+    CreditCard,
+    Download,
     Fuel,
     Landmark,
-    LayoutGrid,
-    PieChart,
     Settings,
 } from 'lucide-vue-next';
 import { useLocale } from '@/composables/useLocale';
@@ -14,17 +11,14 @@ import type { MultiWallet } from '@/composables/useMultiWallet';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
- * Everything the portfolio no longer carries on its face.
+ * Everything the portfolio does not carry on its face.
  *
  * Nothing here was deleted from the wallet — it was moved one level down. The
- * portfolio used to end in eleven destinations, each drawn as a card or a tile
- * with a second line explaining what it was for, which is a page of captions
- * under the balances. Seven of those are the ones people actually open and they
- * stayed, as names in a grid; the rest are here, as a list.
- *
- * A row is an icon, a name, and a value only where there is one — the amber dot
- * on Security is the same fact the portfolio's one warning row states, shown
- * here because this screen is where somebody arrives looking for it.
+ * portfolio's grid holds the fourteen places people actually open; this list
+ * is the rest: what does not work end to end yet (buying with a card, marked
+ * WIP until a provider is configured), what has no fuel (the gas station),
+ * what only works in one build (torrents need the desktop shell), and what has
+ * a tab of its own already (the DAO).
  *
  * The fine print at the bottom is where the price sources went. They were
  * printed under the total on every visit, to everyone, saying nothing about
@@ -38,13 +32,10 @@ defineProps<{
 
 const emit = defineEmits<{
     back: [];
-    daily: [];
-    analytics: [];
-    crosschain: [];
-    liquidity: [];
-    browse: [];
-    dao: [];
+    buy: [];
     gas: [];
+    torrent: [];
+    dao: [];
     preferences: [];
 }>();
 
@@ -60,58 +51,22 @@ const { t } = useLocale(walletMessages);
         <h2 class="cw-title" style="margin: 22px 0 18px">{{ t('navMore') }}</h2>
 
         <div class="cw-stack" style="gap: 0">
-            <button type="button" class="cw-line-row" @click="emit('daily')">
-                <CalendarCheck
-                    :size="20"
-                    :stroke-width="1.5"
-                    aria-hidden="true"
-                />
-                <span style="flex: 1">{{ t('dailyTitle') }}</span>
-            </button>
-            <button
-                type="button"
-                class="cw-line-row"
-                @click="emit('analytics')"
-            >
-                <PieChart :size="20" :stroke-width="1.5" aria-hidden="true" />
-                <span style="flex: 1">{{ t('navAnalytics') }}</span>
-            </button>
-            <button
-                type="button"
-                class="cw-line-row"
-                @click="emit('crosschain')"
-            >
-                <ArrowLeftRight
-                    :size="20"
-                    :stroke-width="1.5"
-                    aria-hidden="true"
-                />
-                <span style="flex: 1">{{ t('crossTile') }}</span>
-            </button>
-            <!--
-              Where an LP token comes from. It sits next to the cross-chain
-              swap rather than under Earn, because the farm is what you do
-              with a position and this is where the position is made.
-            -->
-            <button
-                type="button"
-                class="cw-line-row"
-                @click="emit('liquidity')"
-            >
-                <Droplets :size="20" :stroke-width="1.5" aria-hidden="true" />
-                <span style="flex: 1">{{ t('poolTitle') }}</span>
-            </button>
-            <button type="button" class="cw-line-row" @click="emit('dao')">
-                <Landmark :size="20" :stroke-width="1.5" aria-hidden="true" />
-                <span style="flex: 1">{{ t('dao') }}</span>
-            </button>
-            <button type="button" class="cw-line-row" @click="emit('browse')">
-                <LayoutGrid :size="20" :stroke-width="1.5" aria-hidden="true" />
-                <span style="flex: 1">{{ t('browseTitle') }}</span>
+            <button type="button" class="cw-line-row" @click="emit('buy')">
+                <CreditCard :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span style="flex: 1">{{ t('tileBuy') }}</span>
+                <span class="cw-label" style="color: var(--cw-faint)">WIP</span>
             </button>
             <button type="button" class="cw-line-row" @click="emit('gas')">
                 <Fuel :size="20" :stroke-width="1.5" aria-hidden="true" />
                 <span style="flex: 1">{{ t('gasStation') }}</span>
+            </button>
+            <button type="button" class="cw-line-row" @click="emit('torrent')">
+                <Download :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span style="flex: 1">{{ t('torrentTitle') }}</span>
+            </button>
+            <button type="button" class="cw-line-row" @click="emit('dao')">
+                <Landmark :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span style="flex: 1">{{ t('dao') }}</span>
             </button>
         </div>
 

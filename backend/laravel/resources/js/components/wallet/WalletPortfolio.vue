@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import {
+    ArrowLeftRight,
+    CalendarCheck,
     CandlestickChart,
     Coins,
-    CreditCard,
+    Compass,
+    Droplets,
+    Globe,
+    HardDrive,
     LineChart,
+    Magnet,
     MoreHorizontal,
     Percent,
+    PieChart,
     Rocket,
     Route,
 } from 'lucide-vue-next';
@@ -48,14 +55,20 @@ const emit = defineEmits<{
     receive: [];
     swap: [];
     crosschain: [];
-    buy: [];
     tokens: [];
     markets: [];
     stocks: [];
     bridge: [];
     earn: [];
+    liquidity: [];
     launchpad: [];
-    /** Everything that is not one of the eight, one level down. */
+    browse: [];
+    domains: [];
+    daily: [];
+    analytics: [];
+    tracker: [];
+    ipfs: [];
+    /** Everything that is not one of the fourteen, one level down. */
     more: [];
     accounts: [];
     security: [];
@@ -580,29 +593,18 @@ const recent = computed(() =>
 
         <!--
           Everything here is a way *out* of the portfolio, and none of it is a
-          holding — so it goes under the holdings. Eight names in a grid, and
-          nothing else: what stood here was eleven destinations, every one of
-          them a card or a tile with a caption explaining what it was for
-          ("Графики · биржевые стаканы и наши пулы", "Серия · задания · чем
-          оплачивается день", "0.98 CYBER · хватит примерно на 98 адресов"),
-          which is four hundred pixels of prose on the screen somebody opens to
-          look at their money. A destination needs a name; what it is for is
-          answered by opening it.
+          holding — so it goes under the holdings. Names in a grid and nothing
+          else: a destination needs a name; what it is for is answered by
+          opening it.
 
-          Seven of these are the ones people actually go to; the eighth is the
-          door to the rest, which are one level down rather than gone.
+          Five across and three down — fourteen places plus the door to the
+          rest. What is behind "More" is what does not work yet or is reached
+          less often (buying with a card, the gas station, torrents), one level
+          down rather than gone.
         -->
         <div class="cw-quick">
-            <!--
-              First, because it is the only one of these that answers "I have
-              no coins at all" — every other tile assumes a balance exists.
-            -->
-            <button type="button" class="cw-quick-item" @click="emit('buy')">
-                <CreditCard :size="21" :stroke-width="1.5" aria-hidden="true" />
-                <span>{{ t('tileBuy') }}</span>
-            </button>
             <button type="button" class="cw-quick-item" @click="emit('tokens')">
-                <Coins :size="21" :stroke-width="1.5" aria-hidden="true" />
+                <Coins :size="20" :stroke-width="1.5" aria-hidden="true" />
                 <span>{{ t('tokens') }}</span>
             </button>
             <button
@@ -610,36 +612,96 @@ const recent = computed(() =>
                 class="cw-quick-item"
                 @click="emit('markets')"
             >
-                <LineChart :size="21" :stroke-width="1.5" aria-hidden="true" />
+                <LineChart :size="20" :stroke-width="1.5" aria-hidden="true" />
                 <span>{{ t('markets') }}</span>
             </button>
             <button type="button" class="cw-quick-item" @click="emit('stocks')">
                 <CandlestickChart
-                    :size="21"
+                    :size="20"
                     :stroke-width="1.5"
                     aria-hidden="true"
                 />
                 <span>{{ t('stocks') }}</span>
             </button>
             <button type="button" class="cw-quick-item" @click="emit('bridge')">
-                <Route :size="21" :stroke-width="1.5" aria-hidden="true" />
+                <Route :size="20" :stroke-width="1.5" aria-hidden="true" />
                 <span>{{ t('bridgeTitle') }}</span>
             </button>
+            <button
+                type="button"
+                class="cw-quick-item"
+                @click="emit('crosschain')"
+            >
+                <ArrowLeftRight
+                    :size="20"
+                    :stroke-width="1.5"
+                    aria-hidden="true"
+                />
+                <span>{{ t('tileCross') }}</span>
+            </button>
             <button type="button" class="cw-quick-item" @click="emit('earn')">
-                <Percent :size="21" :stroke-width="1.5" aria-hidden="true" />
+                <Percent :size="20" :stroke-width="1.5" aria-hidden="true" />
                 <span>{{ t('earnTitle') }}</span>
+            </button>
+            <button
+                type="button"
+                class="cw-quick-item"
+                @click="emit('liquidity')"
+            >
+                <Droplets :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span>{{ t('tilePools') }}</span>
             </button>
             <button
                 type="button"
                 class="cw-quick-item"
                 @click="emit('launchpad')"
             >
-                <Rocket :size="21" :stroke-width="1.5" aria-hidden="true" />
+                <Rocket :size="20" :stroke-width="1.5" aria-hidden="true" />
                 <span>{{ t('tabLaunch') }}</span>
+            </button>
+            <button type="button" class="cw-quick-item" @click="emit('browse')">
+                <Compass :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span>{{ t('browseTitle') }}</span>
+            </button>
+            <button
+                type="button"
+                class="cw-quick-item"
+                @click="emit('domains')"
+            >
+                <Globe :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span>{{ t('domainsTitle') }}</span>
+            </button>
+            <button type="button" class="cw-quick-item" @click="emit('daily')">
+                <CalendarCheck
+                    :size="20"
+                    :stroke-width="1.5"
+                    aria-hidden="true"
+                />
+                <span>{{ t('tileDaily') }}</span>
+            </button>
+            <button
+                type="button"
+                class="cw-quick-item"
+                @click="emit('analytics')"
+            >
+                <PieChart :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span>{{ t('navAnalytics') }}</span>
+            </button>
+            <button
+                type="button"
+                class="cw-quick-item"
+                @click="emit('tracker')"
+            >
+                <Magnet :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span>{{ t('trackerTitle') }}</span>
+            </button>
+            <button type="button" class="cw-quick-item" @click="emit('ipfs')">
+                <HardDrive :size="20" :stroke-width="1.5" aria-hidden="true" />
+                <span>{{ t('ipfsTitle') }}</span>
             </button>
             <button type="button" class="cw-quick-item" @click="emit('more')">
                 <MoreHorizontal
-                    :size="21"
+                    :size="20"
                     :stroke-width="1.5"
                     aria-hidden="true"
                 />

@@ -330,6 +330,9 @@ export const walletMessages: Messages = {
         buyReason_mir_unserved:
             'МИР runs on rails that end at the borders of the countries wired into them, and every licensed provider here refuses that network. There is no route we can honestly offer.',
         tileBuy: 'Buy',
+        tileCross: 'Cross-chain',
+        tilePools: 'Pools',
+        tileDaily: 'Daily',
         tileBuyHint: 'With a bank card, through a provider',
         proxyTitle: 'Proxy & routing',
         proxyBody:
@@ -775,9 +778,9 @@ export const walletMessages: Messages = {
         bridgeRefusalNoFee:
             'The network fee could not be read, so nothing can be signed yet.',
 
-        // The Wired: what is on this chain, and how a page gets to talk to a
-        // wallet. Not an embedded browser, and the screen says why.
-        browseTitle: 'The Wired',
+        // The browser: an address bar that resolves Cyberia's own names, and
+        // a directory of what is on this chain.
+        browseTitle: 'Browser',
         // A directory, and the one thing about it that is not obvious from
         // looking at it: why these are links and not an embedded browser.
         browseBody:
@@ -2303,6 +2306,9 @@ export const walletMessages: Messages = {
         buyReason_mir_unserved:
             'МИР работает только там, куда дотянулись его собственные рельсы, и ни один лицензированный провайдер эту сеть не принимает. Честного маршрута, который мы могли бы предложить, нет.',
         tileBuy: 'Купить',
+        tileCross: 'Кросс-чейн',
+        tilePools: 'Пулы',
+        tileDaily: 'Задания',
         tileBuyHint: 'Банковской картой, через провайдера',
         proxyTitle: 'Прокси и маршруты',
         proxyBody:
@@ -2725,7 +2731,7 @@ export const walletMessages: Messages = {
 
         // Провода: что живёт в этой цепочке и как страница вообще
         // разговаривает с кошельком.
-        browseTitle: 'Провода',
+        browseTitle: 'Браузер',
         browseBody:
             'Откройте выше любой сайт или домен Cyberia. Страницы показываются в изолированном фрейме, который не дотягивается до этого хранилища — а значит, и подписи у него попросить не может. Посредник между страницей и ключом — расширение: по одному сайту за раз и с вами перед каждой подписью.',
         browseBridgeLabel: 'Страницам здесь доступен',
@@ -4193,6 +4199,9 @@ export const walletMessages: Messages = {
         buyReason_mir_unserved:
             'МИР 只在其自有清算网络覆盖的范围内可用，而这里所有持牌服务商都拒绝该网络。我们没有可以诚实提供的通道。',
         tileBuy: '购买',
+        tileCross: '跨链',
+        tilePools: '资金池',
+        tileDaily: '每日',
         tileBuyHint: '用银行卡，经由服务商',
         proxyTitle: '代理与线路',
         proxyBody:
@@ -4599,7 +4608,7 @@ export const walletMessages: Messages = {
         bridgeRefusalNoFee: '读不到网络手续费，暂时不能签。',
 
         // 线路：这条链上有什么，以及一个页面怎么跟钱包说话。
-        browseTitle: '线路',
+        browseTitle: '浏览器',
         browseBody:
             '在上方打开任何网站或 Cyberia 域名。页面显示在隔离的框架中，碰不到这个保险库——因此也无法请它签名。在页面和密钥之间做中间人的是扩展 — 按站点授权，每一次签名前都有你在。',
         browseBridgeLabel: '这里的页面能连到',

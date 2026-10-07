@@ -297,7 +297,6 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'network', label: () => t('navActivity') },
             // Three things done *with* a balance rather than three ways of
             // reading one, which is why they sit apart from the screens above.
-            { id: 'buy', label: () => t('tileBuy') },
             { id: 'bridge', label: () => t('bridgeTitle') },
             { id: 'crosschain', label: () => t('crossTile') },
             { id: 'earn', label: () => t('earnTitle') },
@@ -305,6 +304,9 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'daily', label: () => t('dailyTitle') },
             { id: 'browse', label: () => t('browseTitle') },
             { id: 'gas', label: () => t('gasStation') },
+            // Listed, but last and marked: no provider is configured yet, so
+            // the screen has nothing to sell.
+            { id: 'buy', label: () => `${t('tileBuy')} (WIP)` },
             { id: 'preferences', label: () => t('navPreferences') },
         ],
     },
@@ -385,7 +387,7 @@ const TAB_OF: Record<Section, Section> = {
     buy: 'portfolio',
     crosschain: 'portfolio',
     daily: 'portfolio',
-    browse: 'browse',
+    browse: 'portfolio',
     feed: 'feed',
     profile: 'feed',
     launchpad: 'portfolio',
@@ -509,16 +511,12 @@ const PARENTS: Partial<Record<Section, Section>> = {
     earn: 'portfolio',
     stocks: 'portfolio',
     bridge: 'portfolio',
-    buy: 'portfolio',
     more: 'portfolio',
     // Reached from "Ещё" and nowhere else on a phone, so back goes there
     // rather than skipping the screen the person was actually on.
+    buy: 'more',
     gas: 'more',
     preferences: 'portfolio',
-    analytics: 'more',
-    crosschain: 'more',
-    browse: 'more',
-    daily: 'more',
     accounts: 'preferences',
     profile: 'feed',
     nftMint: 'nft',
@@ -776,6 +774,21 @@ const openBrowse = (name: string | null): void => {
 const openDomains = (name: string | null): void => {
     domainsInitial.value = name;
     openSection('domains');
+};
+
+/**
+ * Where the back arrow of the tracker, IPFS and torrents leads. They live under
+ * NFT, but the portfolio grid and "More" open them too, and back should return
+ * to the screen that was actually tapped.
+ */
+const nftPlaceFrom = ref<Section>('nft');
+
+const openNftPlace = (
+    next: 'tracker' | 'ipfs' | 'torrent',
+    from: Section,
+): void => {
+    nftPlaceFrom.value = from;
+    openSection(next);
 };
 
 /**
@@ -1840,7 +1853,14 @@ watch(
                             @bridge="openSection('bridge')"
                             @earn="openSection('earn')"
                             @launchpad="openSection('launchpad')"
-                            @buy="openSection('buy')"
+                            @crosschain="openSection('crosschain')"
+                            @liquidity="openSection('liquidity')"
+                            @browse="openBrowse(null)"
+                            @domains="openDomains(null)"
+                            @daily="openSection('daily')"
+                            @analytics="openSection('analytics')"
+                            @tracker="openNftPlace('tracker', 'portfolio')"
+                            @ipfs="openNftPlace('ipfs', 'portfolio')"
                             @more="openSection('more')"
                             @accounts="openSection('accounts')"
                             @security="openSection('security')"
@@ -1895,13 +1915,10 @@ watch(
                         v-else-if="section === 'more'"
                         :wallet="wallet"
                         @back="openSection('portfolio')"
-                        @daily="openSection('daily')"
-                        @analytics="openSection('analytics')"
-                        @crosschain="openSection('crosschain')"
-                        @liquidity="openSection('liquidity')"
-                        @browse="openSection('browse')"
-                        @dao="openSection('dao')"
+                        @buy="openSection('buy')"
                         @gas="openSection('gas')"
+                        @torrent="openNftPlace('torrent', 'more')"
+                        @dao="openSection('dao')"
                         @preferences="openSection('preferences')"
                     />
 
@@ -1963,7 +1980,7 @@ watch(
                         v-else-if="section === 'gas'"
                         :wallet="wallet"
                         :prices="prices"
-                        @back="openSection('portfolio')"
+                        @back="openSection('more')"
                     />
 
                     <!--
@@ -2004,7 +2021,7 @@ watch(
                     <WalletBuy
                         v-else-if="section === 'buy'"
                         :wallet="wallet"
-                        @back="openSection('portfolio')"
+                        @back="openSection('more')"
                         @crosschain="openSection('crosschain')"
                     />
 
@@ -2133,9 +2150,9 @@ watch(
                         v-else-if="section === 'nft'"
                         :wallet="wallet"
                         @mint="openMint(null)"
-                        @ipfs="openSection('ipfs')"
-                        @torrents="openSection('torrent')"
-                        @tracker="openSection('tracker')"
+                        @ipfs="openNftPlace('ipfs', 'nft')"
+                        @torrents="openNftPlace('torrent', 'nft')"
+                        @tracker="openNftPlace('tracker', 'nft')"
                         @domains="openDomains(null)"
                     />
 
@@ -2166,13 +2183,13 @@ watch(
                     <WalletIpfs
                         v-else-if="section === 'ipfs'"
                         :ipfs="props.ipfs"
-                        @back="openSection('nft')"
+                        @back="openSection(nftPlaceFrom)"
                         @mint="openMint"
                     />
 
                     <WalletTorrent
                         v-else-if="section === 'torrent'"
-                        @back="openSection('nft')"
+                        @back="openSection(nftPlaceFrom)"
                         @mint="openMint"
                     />
 
@@ -2189,7 +2206,7 @@ watch(
                                 (account) => account.family === 'evm',
                             )?.address ?? null
                         "
-                        @back="openSection('nft')"
+                        @back="openSection(nftPlaceFrom)"
                         @publish="openSection('trackerPublish')"
                         @play="openPlayer"
                     />

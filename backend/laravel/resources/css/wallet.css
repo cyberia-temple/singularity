@@ -1072,7 +1072,7 @@ html[data-app-window]:has(.cw-frame) {
         display: none;
     }
     /*
-     * The portfolio's eight names are the phone's way to the rest of the
+     * The portfolio's fifteen names are the phone's way to the rest of the
      * wallet. The rail is the same list and longer, sitting a centimetre to
      * the left of it — one navigation is enough, and the one that is always
      * on screen wins.
@@ -1952,25 +1952,32 @@ html[data-app-window]:has(.cw-frame) {
  */
 .cw-quick {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;
     margin: 24px 0 20px;
 }
 
+/*
+ * Five across leaves ~69px a tile on a 393px phone, so the label drops to
+ * 12px and may take a second line ("Кросс-чейн" breaks at its hyphen) — the
+ * row keeps one height either way because the grid stretches every cell.
+ */
 .cw-quick-item {
     display: flex;
-    min-height: 74px;
+    min-height: 70px;
+    min-width: 0;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 9px;
-    padding: 0 2px;
+    gap: 8px;
+    padding: 4px 1px;
     border: none;
     background: none;
     color: var(--cw-text);
     cursor: pointer;
-    font: 400 13px/1.25 var(--cw-sans);
+    font: 400 12px/1.2 var(--cw-sans);
     text-align: center;
+    overflow-wrap: break-word;
 }
 
 .cw-quick-item svg {
