@@ -18,7 +18,9 @@ use Carbon\CarbonImmutable;
  * So an incident is a row, not a cache entry. It is opened once, after enough
  * consecutive failures that a single network hiccup on this host cannot open
  * it; announced once; reminded about at most once a day; and announced again
- * when it closes, because "it's back" is the half people are waiting for.
+ * when it closes — after as many good checks as it took bad ones to open
+ * it — because "it's back" is the half people are waiting for, and a false
+ * "it's back" is the fastest way to teach them not to wait.
  *
  * `unknown` never opens an incident and never closes one. Going blind is not
  * the same as going down, and a monitor that shouts when it loses sight of
@@ -111,7 +113,7 @@ class ServiceMonitor
         }
 
         if (! $result->status->isIncident()) {
-            if ($open === null) {
+            if ($open === null || ! $this->recovered($definition)) {
                 return null;
             }
 
@@ -178,6 +180,35 @@ class ServiceMonitor
         return $recent->every(fn (string $status) => ServiceStatus::from($status)->isIncident());
     }
 
+    /**
+     * Whether the last few checks agree that it really came back.
+     *
+     * The mirror of `confirmed()`. Opening took two failures and closing took
+     * one success, so anything that fails more often than not but answers now
+     * and then — a wallet behind a dying node, an endpoint at the edge of its
+     * timeout — produced a "down / recovered" pair every hour, each pair
+     * carrying no news. An `unknown` in the window holds the incident open:
+     * going blind is not coming back.
+     */
+    private function recovered(ServiceDefinition $definition): bool
+    {
+        $required = max(1, (int) config('monitoring.alerts.checks_before_resolve', 2));
+
+        $recent = ServiceCheck::query()
+            ->where('service', $definition->key)
+            ->orderByDesc('checked_at')
+            ->orderByDesc('id')
+            ->limit($required)
+            ->pluck('status');
+
+        return $recent->count() >= $required
+            && $recent->every(function (string $status) {
+                $status = ServiceStatus::from($status);
+
+                return $status !== ServiceStatus::Unknown && ! $status->isIncident();
+            });
+    }
+
     /** @return array{kind: string, definition: ServiceDefinition, incident: ServiceIncident}|null */
     private function maybeRemind(
         ServiceDefinition $definition,
@@ -223,6 +254,24 @@ class ServiceMonitor
                 default => $status->emoji().' <b>'.e($definition->label).'</b> is '
                     .$status->value.' — '.e((string) $incident->reason),
             };
+
+            // A recovery needs no more than its duration. Everything else is
+            // a request for somebody's attention, and a reason key alone told
+            // them only that something somewhere had a name: what was seen
+            // and what to do about it is the part that makes it actionable.
+            if ($transition['kind'] === 'resolved') {
+                continue;
+            }
+
+            $facts = $this->facts(is_array($incident->detail) ? $incident->detail : []);
+
+            if ($facts !== '') {
+                $lines[] = '    '.$facts;
+            }
+
+            if ($definition->runbook !== null) {
+                $lines[] = '    → '.e($definition->runbook);
+            }
         }
 
         $sent = $this->telegram->send(
@@ -242,6 +291,42 @@ class ServiceMonitor
                 $transition['incident']->update(['notified_at' => CarbonImmutable::now()]);
             }
         }
+    }
+
+    /**
+     * The scalar half of a probe's detail, as one line.
+     *
+     * `detail` is free-form per probe, so this does not know what any key
+     * means — only that a timestamp reads better as how long ago it was.
+     *
+     * @param  array<string, mixed>  $detail
+     */
+    private function facts(array $detail): string
+    {
+        $parts = [];
+
+        foreach ($detail as $key => $value) {
+            if (! is_scalar($value) || $value === '' || count($parts) >= 4) {
+                continue;
+            }
+
+            $label = str_replace('_', ' ', (string) $key);
+
+            if (is_string($value) && str_ends_with((string) $key, '_since')) {
+                try {
+                    $at = CarbonImmutable::parse($value)->utc();
+                    $value = $at->format('d.m H:i').' UTC ('.$this->duration((int) $at->diffInSeconds(CarbonImmutable::now())).' ago)';
+                } catch (\Throwable) {
+                    // Not a date after all; print it as it came.
+                }
+            } elseif (is_bool($value)) {
+                $value = $value ? 'yes' : 'no';
+            }
+
+            $parts[] = e($label).' '.e((string) $value);
+        }
+
+        return implode(' · ', $parts);
     }
 
     private function duration(int $seconds): string

@@ -707,7 +707,19 @@ class ServiceProbe
             // to "Laravel and the wallet are on different docker networks",
             // which is what actually happened on 2026-09-13 and went unseen
             // for ten hours because nothing here was watching it.
-            return ProbeResult::down('unreachable');
+            //
+            // The last height seen and the stall clock ride through it. A
+            // wallet whose remote node is dead spends its refresh loop timing
+            // out against it, and while it does `get_height` times out too —
+            // so a stall is *punctuated* by unreachable sweeps. Dropping the
+            // clock there read the next answer, the same frozen height, as a
+            // fresh start and announced a recovery: on 2026-10-07 that was
+            // nine "recovered" messages over a node that had been dead for two
+            // days, and not one of them said so.
+            return ProbeResult::down('unreachable', array_filter([
+                'height' => $previous['height'] ?? null,
+                'stalled_since' => $previous['stalled_since'] ?? null,
+            ], fn ($value) => $value !== null));
         }
 
         $before = isset($previous['height']) ? (int) $previous['height'] : null;

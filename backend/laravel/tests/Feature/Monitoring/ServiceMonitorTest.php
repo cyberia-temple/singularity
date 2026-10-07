@@ -159,6 +159,7 @@ it('announces recovery and closes the incident', function () {
 
     demoStatus(200);
     sweep();
+    sweep();
 
     $incident = ServiceIncident::sole();
 
@@ -166,6 +167,39 @@ it('announces recovery and closes the incident', function () {
         // Opening and closing are both announced: "it is back" is the half of
         // an incident people are actually waiting for.
         ->and(alertsSent())->toBe(2);
+});
+
+it('does not call one good answer a recovery', function () {
+    demoStatus(500);
+    fakeNetwork();
+    sweep();
+    sweep();
+
+    // Mostly down, answering now and then: the shape that used to send a
+    // "recovered" and a fresh "down" every hour, neither of them news.
+    foreach ([200, 500, 200, 500, 500, 200] as $status) {
+        demoStatus($status);
+        sweep();
+    }
+
+    expect(ServiceIncident::sole()->resolved_at)->toBeNull()
+        ->and(alertsSent())->toBe(1);
+});
+
+it('says what it saw and what to do about it', function () {
+    config()->set('monitoring.services.demo.runbook', 'Restart the demo.');
+    demoStatus(500);
+    fakeNetwork();
+
+    sweep();
+    sweep();
+
+    $text = Http::recorded(fn ($request) => str_contains($request->url(), 'api.telegram.org'))
+        ->first()[0]['text'];
+
+    expect($text)->toContain('bad-status')
+        ->and($text)->toContain('status 500')
+        ->and($text)->toContain('→ Restart the demo.');
 });
 
 it('never lets unknown open or close an incident', function () {
@@ -636,6 +670,41 @@ it('calls a thin client stalled when its height stops moving', function () {
         ->and($result->reason)->toBe('daemon-stalled')
         // Stalled since the sweep that first saw this height, not since now.
         ->and($result->detail['stalled_since'])->not->toBeNull();
+});
+
+it('keeps the stall clock through the sweeps the wallet does not answer', function () {
+    monitorMoneroWallet();
+    walletHeight(3_777_376);
+    fakeWalletNetwork();
+
+    sweep();
+    sweep();
+    $this->travel(25)->minutes();
+    sweep();
+    sweep();
+    expect(ServiceIncident::sole()->status)->toBe('degraded');
+
+    // A wallet stuck on a dead node times out on its own refresh loop, so the
+    // stall is punctuated by sweeps it does not answer. The frozen height that
+    // comes back after one is the same stall, not a recovery.
+    foreach (range(1, 3) as $ignored) {
+        walletHeight(refuse: true);
+        $this->travel(5)->minutes();
+        sweep();
+
+        walletHeight(3_777_376);
+        $this->travel(5)->minutes();
+        expect(sweep()['monero-wallet']->reason)->toBe('daemon-stalled');
+        $this->travel(5)->minutes();
+        sweep();
+    }
+
+    $incident = ServiceIncident::sole();
+
+    // Opened, worsened once to unreachable, and nothing after that.
+    expect($incident->resolved_at)->toBeNull()
+        ->and(alertsSent())->toBe(2)
+        ->and($incident->detail['height'])->toBe(3_777_376);
 });
 
 it('clears a stall as soon as blocks arrive again', function () {

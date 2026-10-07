@@ -26,6 +26,7 @@ final class ServiceDefinition
         public readonly bool $deployed = true,
         public readonly ?string $url = null,
         public readonly ?string $note = null,
+        public readonly ?string $runbook = null,
     ) {}
 
     /** @param array<string, mixed> $entry */
@@ -41,6 +42,7 @@ final class ServiceDefinition
             deployed: (bool) ($entry['deployed'] ?? true),
             url: isset($entry['url']) ? (string) $entry['url'] : null,
             note: isset($entry['note']) ? (string) $entry['note'] : null,
+            runbook: isset($entry['runbook']) ? (string) $entry['runbook'] : null,
         );
     }
 

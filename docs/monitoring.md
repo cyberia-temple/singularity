@@ -172,8 +172,16 @@ flushed cache cannot turn one outage into a stream of identical messages.
 2. Announced once, as **one message per sweep** however many services changed —
    five services going down together is almost always one cause.
 3. Reminded about at most once every `reminder_hours` (default 12).
-4. Announced again when it resolves. "It's back" is the half people wait for.
-5. `notified_at` is stamped **only when Telegram accepted the message**, so a
+4. Announced again when it resolves — after `checks_before_resolve` (default 2)
+   consecutive healthy checks, with no `unknown` among them. "It's back" is the
+   half people wait for, and a false one is how they learn not to: something
+   that fails more often than it answers used to produce a down/recovered pair
+   every hour.
+5. Every alert but a recovery carries what the probe saw (the scalar half of
+   its `detail`, timestamps as "how long ago") and, when the registry entry
+   declares one, a `runbook` line saying what to do. A reason key alone is a
+   name, not information.
+6. `notified_at` is stamped **only when Telegram accepted the message**, so a
    refused alert is retried instead of being silently counted as delivered.
 
 ---

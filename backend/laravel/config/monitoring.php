@@ -97,6 +97,11 @@ return [
         // probe is usually a network hiccup on this host, not an outage.
         'failures_before_alert' => (int) env('MONITORING_FAILURES_BEFORE_ALERT', 2),
 
+        // Consecutive healthy checks before an incident is closed. Without it
+        // something that fails more often than it answers produced a
+        // "down / recovered" pair every hour, and neither one was news.
+        'checks_before_resolve' => (int) env('MONITORING_CHECKS_BEFORE_RESOLVE', 2),
+
         // Hours before an unresolved incident is repeated once.
         'reminder_hours' => (int) env('MONITORING_REMINDER_HOURS', 12),
     ],
@@ -559,6 +564,10 @@ return [
             // with no daemon at all, so reachability and health are different
             // questions here and the probe asks the second one.
             'check' => ['type' => 'monero-wallet', 'stale_seconds' => 1200],
+            // Printed under every alert. Almost every stall here is the remote
+            // node, not the wallet: on 2026-10-05 node.monerodevs.org went dark
+            // and the wallet sat on one block for two days.
+            'runbook' => 'The remote node is not serving blocks. On cyber.main: point MONERO_DAEMON_ADDRESS in services/monero/.env at a live public node, then `docker compose up -d wallet`.',
             // Deliberately unmeasured: `bridge_requests` is already counted by
             // the bridge service, and counting the XMR rows again would put one
             // quiet corridor on the idle list as if it were a second service.
