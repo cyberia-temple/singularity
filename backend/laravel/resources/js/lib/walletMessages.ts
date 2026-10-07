@@ -2010,6 +2010,9 @@ export const walletMessages: Messages = {
         domainsZoneNotZone:
             "This token's name and ticker do not spell a zone (.name and DOTNAME).",
         domainsZoneTaken: 'This zone is already open.',
+        browserOwnSite:
+            "This name leads to a page of Cyberia itself. It is not shown inside the wallet: a frame that shared this site's origin could reach the vault.",
+        browserOwnOpen: 'Open the page',
     },
     ru: {
         // Chrome
@@ -3910,6 +3913,9 @@ export const walletMessages: Messages = {
         domainsZoneNotZone:
             'Название и тикер этого токена не задают зону (.имя и DOTИМЯ).',
         domainsZoneTaken: 'Эта зона уже открыта.',
+        browserOwnSite:
+            'Это имя ведёт на страницу самого Cyberia. Внутри кошелька она не показывается: фрейм с тем же источником, что у сайта, дотянулся бы до хранилища ключей.',
+        browserOwnOpen: 'Открыть страницу',
     },
     zh: {
         // Chrome
@@ -5719,5 +5725,8 @@ export const walletMessages: Messages = {
         domainsZoneNotZone:
             '此代币的名称和代码不构成区域（.name 与 DOTNAME）。',
         domainsZoneTaken: '此区域已开启。',
+        browserOwnSite:
+            '此名称指向 Cyberia 自己的页面。它不会在钱包内显示：与本站同源的框架能触及保险库。',
+        browserOwnOpen: '打开页面',
     },
 };

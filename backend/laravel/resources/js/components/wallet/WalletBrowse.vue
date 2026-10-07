@@ -127,6 +127,7 @@ type View =
     | { kind: 'noSite'; name: string }
     | { kind: 'host'; name: string; url: string }
     | { kind: 'http'; url: string }
+    | { kind: 'own'; url: string }
     | { kind: 'invalid' }
     | { kind: 'error'; message: string };
 
@@ -165,7 +166,11 @@ const outside = computed(() => {
         return current.src;
     }
 
-    if (current.kind === 'host' || current.kind === 'http') {
+    if (
+        current.kind === 'host' ||
+        current.kind === 'http' ||
+        current.kind === 'own'
+    ) {
         return current.url;
     }
 
@@ -181,6 +186,13 @@ const frameFor = (src: string): View => {
             new URL(src).origin === window.location.origin;
     } catch {
         return { kind: 'invalid' };
+    }
+
+    // A page of this very site is not framed at all: without
+    // `allow-same-origin` it cannot start (its own storage throws), and with
+    // it, it could read the vault. It is a link instead.
+    if (sameOrigin) {
+        return { kind: 'own', url: src };
     }
 
     // An https page may not frame plain http (mixed content, blocked
@@ -507,6 +519,19 @@ onMounted(async () => {
                         })
                     }}
                 </p>
+                <template v-else-if="view.kind === 'own'">
+                    <p class="cw-prose">{{ t('browserOwnSite') }}</p>
+                    <a
+                        class="cw-btn cw-btn-primary"
+                        style="
+                            height: 44px;
+                            margin-top: 14px;
+                            text-decoration: none;
+                        "
+                        :href="view.url"
+                        >{{ t('browserOwnOpen') }}</a
+                    >
+                </template>
                 <p v-else-if="view.kind === 'http'" class="cw-prose">
                     {{ t('browserHttp') }}
                 </p>
