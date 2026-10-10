@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Schema;
  * USD prices for the assets the unified wallet holds.
  *
  * The wallet page shows one portfolio total across every chain it derives, so it
- * needs a price per chain and not per DEX pool. CYBER reuses the DexScreener
- * feed the bridge already trusts; everything else comes from CoinGecko, which is
- * the only public source here that covers Monero at all.
+ * needs a price per chain and not per DEX pool. Native CYBER is priced from
+ * WCYBER in the Cyberia pool graph; everything else comes from CoinGecko,
+ * which is the only public source here that covers Monero at all.
  *
  * A missing price is returned as null rather than zero: the UI renders "—" and
  * marks the total partial, because a silent zero would understate a balance the
@@ -27,13 +27,13 @@ class WalletPriceService
     // Bumped with the payload shape: a cached v1 entry has no `tokens` key,
     // and would serve a wallet that silently shows every token as unpriced
     // for the first five minutes after a deploy.
-    private const CACHE_KEY = 'wallet.prices.v2';
+    private const CACHE_KEY = 'wallet.prices.v3';
 
     private const COINGECKO_URL = 'https://api.coingecko.com/api/v3/simple/price';
 
     /**
      * Wallet chain id => CoinGecko id for that chain's native coin. CYBER is
-     * not listed there and comes from the DEX feed instead. Several chains
+     * not listed there and comes from Cyberia's own pool graph instead. Several chains
      * share a coin — Robinhood Chain and Base both pay gas in ETH — so the
      * request is deduplicated before it goes out.
      */
@@ -48,7 +48,6 @@ class WalletPriceService
     ];
 
     public function __construct(
-        private CyberPriceService $cyberPrice,
         private CyberiaPrices $tokenPrices,
         private RobinhoodStockService $stocks,
     ) {}
@@ -117,12 +116,20 @@ class WalletPriceService
     }
 
     /**
-     * Native CYBER is priced from CYBER.sol, the only side of the token with a
-     * liquid market; the bridge holds them one-to-one.
+     * Native CYBER is priced from WCYBER, its 1:1 tradable wrapper on Cyberia.
+     * CYBER.sol is a different Solana-issued asset and must never set the
+     * native coin's portfolio value.
      */
     private function cyberiaUsd(): ?float
     {
-        $price = $this->cyberPrice->get()['priceUsd'] ?? null;
+        if (! Schema::hasTable('dex_pools')) {
+            return null;
+        }
+
+        $wcyber = strtolower((string) config('cyber.contracts.wcyber'));
+        $price = $this->tokenPrices->priceFromPools(
+            DB::table('dex_pools')->get()
+        )[$wcyber] ?? null;
 
         return is_numeric($price) ? (float) $price : null;
     }

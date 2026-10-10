@@ -53,6 +53,19 @@ function fakePriceFeeds(array $overrides = []): void
     ]);
 }
 
+function nativeCyberPool(): void
+{
+    DB::table('dex_pools')->insert([
+        'pair_address' => '0x'.str_repeat('c', 40),
+        'token0' => '0xdc25597B19799010047F17e9591EFE08EFd40077',
+        'token1' => '0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9',
+        'symbol0' => 'USDC',
+        'symbol1' => 'WCYBER',
+        'reserve0' => 1000,
+        'reserve1' => 79365079.36507937,
+    ]);
+}
+
 /**
  * One live quote, under the same key the default fake uses so it replaces it.
  *
@@ -75,20 +88,22 @@ function fakeStockQuotes(): array
 
 it('quotes every wallet chain in USD, including the ones sharing a coin', function () {
     fakePriceFeeds();
+    indexerTables();
+    nativeCyberPool();
 
     $quotes = app(WalletPriceService::class)->quotes();
 
     // Robinhood Chain and Base both pay gas in ETH, so both quote the ETH price.
-    expect($quotes['prices'])->toBe([
-        'cyberia' => 0.0742,
-        'robinhood' => 2410.0,
-        'bnb' => 604.5,
-        'base' => 2410.0,
-        'solana' => 148.5,
-        'monero' => 312.25,
-        'bitcoin' => 64000.0,
-        'litecoin' => 78.0,
-    ])->and($quotes['fetchedAt'])->toBeString();
+    expect($quotes['prices']['cyberia'])->toEqualWithDelta(0.0000126, 0.0000000001)
+        ->and($quotes['prices'])->toMatchArray([
+            'robinhood' => 2410.0,
+            'bnb' => 604.5,
+            'base' => 2410.0,
+            'solana' => 148.5,
+            'monero' => 312.25,
+            'bitcoin' => 64000.0,
+            'litecoin' => 78.0,
+        ])->and($quotes['fetchedAt'])->toBeString();
 });
 
 it('prices the ERC20s the wallet can hold, from the DEX pool graph', function () {
@@ -155,7 +170,7 @@ it('reports a missing price as null rather than zero', function () {
 
     $prices = app(WalletPriceService::class)->quotes()['prices'];
 
-    expect($prices['cyberia'])->toBe(0.0742)
+    expect($prices['cyberia'])->toBeNull()
         ->and($prices['solana'])->toBeNull()
         ->and($prices['monero'])->toBeNull()
         ->and($prices['base'])->toBeNull()
@@ -164,6 +179,8 @@ it('reports a missing price as null rather than zero', function () {
 
 it('serves a cached quote instead of hitting the feeds on every page view', function () {
     fakePriceFeeds();
+    indexerTables();
+    nativeCyberPool();
 
     app(WalletPriceService::class)->quotes();
     app(WalletPriceService::class)->quotes();
@@ -177,15 +194,23 @@ it('serves a cached quote instead of hitting the feeds on every page view', func
     $coinFeeds = 0;
 
     Http::assertSent(function ($request) use (&$coinFeeds) {
-        if (str_contains($request->url(), 'coingecko')
-            || str_contains($request->url(), 'dexscreener')) {
+        if (str_contains($request->url(), 'coingecko')) {
             $coinFeeds++;
         }
 
         return true;
     });
 
-    expect($coinFeeds)->toBe(2);
+    expect($coinFeeds)->toBe(1);
+});
+
+it('never uses the CYBER.sol market price for native CYBER', function () {
+    fakePriceFeeds();
+    indexerTables();
+    nativeCyberPool();
+
+    expect(app(WalletPriceService::class)->quotes()['prices']['cyberia'])
+        ->toEqualWithDelta(0.0000126, 0.0000000001);
 });
 
 it('prices the tokenised stocks beside every other token', function () {
