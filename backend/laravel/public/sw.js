@@ -117,23 +117,44 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
-    const url = (event.notification.data && event.notification.data.url) || '/';
+    let target = new URL('/', self.location.origin);
+    try {
+        const candidate = new URL(
+            (event.notification.data && event.notification.data.url) || '/',
+            self.location.origin,
+        );
+        if (candidate.origin === self.location.origin) {
+            target = candidate;
+        }
+    } catch {
+        // An invalid notification target opens the site home.
+    }
 
     event.waitUntil(
         self.clients
             .matchAll({ type: 'window', includeUncontrolled: true })
-            .then((clients) => {
+            .then(async (clients) => {
                 for (const client of clients) {
-                    const clientPath = new URL(client.url).pathname;
-                    const targetPath = new URL(url, self.location.origin)
-                        .pathname;
+                    const current = new URL(client.url);
 
-                    if (clientPath === targetPath && 'focus' in client) {
-                        return client.focus();
+                    if (
+                        current.origin === target.origin &&
+                        current.pathname === target.pathname &&
+                        'focus' in client
+                    ) {
+                        if (current.href === target.href) {
+                            return client.focus();
+                        }
+                        if ('navigate' in client) {
+                            const navigated = await client.navigate(target.href);
+                            if (navigated) {
+                                return navigated.focus();
+                            }
+                        }
                     }
                 }
 
-                return self.clients.openWindow(url);
+                return self.clients.openWindow(target.href);
             }),
     );
 });

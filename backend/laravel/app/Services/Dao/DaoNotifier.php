@@ -3,18 +3,25 @@
 namespace App\Services\Dao;
 
 use App\Models\Activity;
+use App\Models\Dao;
 use App\Models\Proposal;
 use App\Models\ProposalComment;
 use App\Models\ProposalVote;
 use App\Models\Reaction;
 use App\Models\User;
 use App\Notifications\DaoActivityNotification;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
+use App\Services\Social\Broadcaster;
 use Illuminate\Support\Str;
 
 /**
- * Fans out DAO activity notifications (database + web push).
+ * Announces DAO activity to the whole community (`Broadcaster`).
+ *
+ * It used to notify only the people an action was *about* — a proposal's
+ * prior participants, the author of what was commented on or voted on — so
+ * somebody who opened a proposal and voted on it heard nothing, and neither
+ * did anybody else, and no wallet installation ever heard about the DAO at
+ * all. Now every action reaches everyone who allowed notifications, and the
+ * people it is about still get the bell row even without push.
  *
  * Delivery is deferred with dispatch(...)->afterResponse() because production
  * runs no queue worker: the work happens in the same PHP process right after
@@ -22,8 +29,25 @@ use Illuminate\Support\Str;
  */
 class DaoNotifier
 {
-    /** Safety cap per event so one busy DAO can't stall the process. */
-    private const MAX_RECIPIENTS = 100;
+    public function __construct(private Broadcaster $broadcaster) {}
+
+    public function daoCreated(Dao $dao): void
+    {
+        $actor = $dao->user;
+
+        if (! $actor) {
+            return;
+        }
+
+        $this->send($actor, [], new DaoActivityNotification(
+            type: 'dao.created',
+            actor: $actor,
+            title: ['en' => 'New DAO: {dao}', 'ru' => 'Новое DAO: {dao}', 'zh' => '新的 DAO：{dao}'],
+            body: ['en' => 'Created by {name}', 'ru' => 'Создал {name}', 'zh' => '由 {name} 创建'],
+            params: ['dao' => Str::limit($dao->name, 60), 'name' => $this->actorName($actor)],
+            url: '/wallet?section=dao',
+        ));
+    }
 
     public function proposalCreated(Proposal $proposal): void
     {
@@ -33,19 +57,21 @@ class DaoNotifier
             return;
         }
 
-        // Everyone who previously acted in this DAO, minus the author.
-        $recipientIds = Activity::where('dao_id', $proposal->dao_id)
-            ->where('user_id', '!=', $actor->id)
-            ->distinct()
-            ->limit(self::MAX_RECIPIENTS)
-            ->pluck('user_id');
+        // The DAO's prior participants, who used to be the only audience,
+        // still get the bell row whether or not they allowed push.
+        $participants = Activity::where('dao_id', $proposal->dao_id)->distinct()->pluck('user_id');
 
-        $this->send($recipientIds, new DaoActivityNotification(
+        $this->send($actor, $participants, new DaoActivityNotification(
             type: 'proposal.created',
             actor: $actor,
-            title: 'New proposal in '.($proposal->dao?->name ?? 'DAO'),
-            body: $this->actorName($actor).': '.Str::limit($proposal->title, 80),
-            url: "/proposals/{$proposal->id}",
+            title: ['en' => 'New proposal in {dao}', 'ru' => 'Новое предложение в {dao}', 'zh' => '{dao} 有新提案'],
+            body: ['en' => '{name}: {title}', 'ru' => '{name}: {title}', 'zh' => '{name}：{title}'],
+            params: [
+                'dao' => $proposal->dao?->name ?? 'DAO',
+                'name' => $this->actorName($actor),
+                'title' => Str::limit($proposal->title, 80),
+            ],
+            url: $this->proposalUrl($proposal->id),
         ));
     }
 
@@ -58,19 +84,20 @@ class DaoNotifier
             return;
         }
 
-        $recipientIds = collect([$proposal->user_id, $comment->parent?->user_id])
-            ->merge($proposal->comments()->pluck('user_id'))
-            ->filter()
-            ->unique()
-            ->reject(fn ($id) => $id === $actor->id)
-            ->take(self::MAX_RECIPIENTS);
+        $involved = collect([$proposal->user_id, $comment->parent?->user_id])
+            ->merge($proposal->comments()->pluck('user_id'));
 
-        $this->send($recipientIds, new DaoActivityNotification(
+        $this->send($actor, $involved, new DaoActivityNotification(
             type: 'comment.posted',
             actor: $actor,
-            title: 'New comment on '.Str::limit($proposal->title, 60),
-            body: $this->actorName($actor).': '.Str::limit($comment->body, 80),
-            url: "/proposals/{$proposal->id}",
+            title: ['en' => 'New comment on {title}', 'ru' => 'Новый комментарий: {title}', 'zh' => '新评论：{title}'],
+            body: ['en' => '{name}: {body}', 'ru' => '{name}: {body}', 'zh' => '{name}：{body}'],
+            params: [
+                'title' => Str::limit($proposal->title, 60),
+                'name' => $this->actorName($actor),
+                'body' => Str::limit($comment->body, 80),
+            ],
+            url: $this->proposalUrl($proposal->id),
         ));
     }
 
@@ -79,16 +106,19 @@ class DaoNotifier
         $actor = $vote->user;
         $proposal = $vote->proposal;
 
-        if (! $actor || ! $proposal || $proposal->user_id === $actor->id) {
+        if (! $actor || ! $proposal) {
             return;
         }
 
-        $this->send(collect([$proposal->user_id]), new DaoActivityNotification(
+        $this->send($actor, [$proposal->user_id], new DaoActivityNotification(
             type: 'vote.cast',
             actor: $actor,
-            title: 'New vote on '.Str::limit($proposal->title, 60),
-            body: $this->actorName($actor).' voted '.($vote->support ? 'FOR' : 'AGAINST'),
-            url: "/proposals/{$proposal->id}",
+            title: ['en' => 'New vote on {title}', 'ru' => 'Новый голос: {title}', 'zh' => '新投票：{title}'],
+            body: $vote->support
+                ? ['en' => '{name} voted for', 'ru' => '{name} проголосовал за', 'zh' => '{name} 投了赞成票']
+                : ['en' => '{name} voted against', 'ru' => '{name} проголосовал против', 'zh' => '{name} 投了反对票'],
+            params: ['title' => Str::limit($proposal->title, 60), 'name' => $this->actorName($actor)],
+            url: $this->proposalUrl($proposal->id),
         ));
     }
 
@@ -97,50 +127,41 @@ class DaoNotifier
         $actor = $reaction->user;
         $reactable = $reaction->reactable;
 
-        if (! $actor || ! $reactable || $reactable->user_id === $actor->id) {
+        if (! $actor || ! $reactable) {
             return;
         }
 
-        $proposalId = $reactable instanceof ProposalComment
-            ? $reactable->proposal_id
-            : $reactable->getKey();
+        $isComment = $reactable instanceof ProposalComment;
+        $proposalId = $isComment ? $reactable->proposal_id : $reactable->getKey();
 
-        $target = $reactable instanceof ProposalComment ? 'your comment' : 'your proposal';
-
-        $this->send(collect([$reactable->user_id]), new DaoActivityNotification(
+        $this->send($actor, [$reactable->user_id], new DaoActivityNotification(
             type: 'reaction.added',
             actor: $actor,
-            title: $this->actorName($actor).' reacted '.$reaction->emoji,
-            body: $reaction->emoji.' on '.$target,
-            url: "/proposals/{$proposalId}",
+            title: ['en' => '{name} reacted {emoji}', 'ru' => '{name}: реакция {emoji}', 'zh' => '{name} 回应了 {emoji}'],
+            body: $isComment
+                ? ['en' => '{emoji} on a comment', 'ru' => '{emoji} на комментарий', 'zh' => '{emoji} 评论']
+                : ['en' => '{emoji} on a proposal', 'ru' => '{emoji} на предложение', 'zh' => '{emoji} 提案'],
+            params: ['name' => $this->actorName($actor), 'emoji' => $reaction->emoji],
+            url: $this->proposalUrl((int) $proposalId),
         ));
     }
 
     /**
-     * @param  Collection<int, int>  $recipientIds
+     * The wallet is where these people are, and it opens the proposal itself
+     * (`?proposal=`); the site's own page stays one tap away from there.
      */
-    private function send(Collection $recipientIds, DaoActivityNotification $notification): void
+    private function proposalUrl(int $id): string
     {
-        $ids = $recipientIds->values()->all();
+        return "/wallet?section=dao&proposal={$id}";
+    }
 
-        if ($ids === []) {
-            return;
-        }
-
-        $deliver = function () use ($ids, $notification) {
-            // Notify one at a time: a dead push endpoint for one user must not
-            // block delivery to the rest.
-            User::whereIn('id', $ids)->get()->each(function (User $user) use ($notification) {
-                try {
-                    $user->notify($notification);
-                } catch (\Throwable $e) {
-                    Log::warning('DAO notification delivery failed', [
-                        'user_id' => $user->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            });
-        };
+    /**
+     * @param  iterable<int|null>  $involved
+     */
+    private function send(User $actor, iterable $involved, DaoActivityNotification $notification): void
+    {
+        $involved = collect($involved)->all();
+        $deliver = fn () => $this->broadcaster->broadcast($notification, $actor->id, $involved);
 
         // Terminating callbacks accumulate across requests inside one test
         // (and would re-fire), so only defer in real HTTP lifecycles.
@@ -155,9 +176,9 @@ class DaoNotifier
 
     private function actorName(User $actor): string
     {
-        return $actor->name
+        return $actor->onchain_nickname ?: ($actor->name
             ?: ($actor->wallet_address
                 ? substr($actor->wallet_address, 0, 6).'…'.substr($actor->wallet_address, -4)
-                : 'Someone');
+                : 'Someone'));
     }
 }
