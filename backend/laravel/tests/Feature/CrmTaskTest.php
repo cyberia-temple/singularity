@@ -6,6 +6,10 @@ use App\Models\CrmTaskComment;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
+beforeEach(function () {
+    config()->set('crm.admin_user_ids', []);
+});
+
 /** A second allow-listed operator, so assignment has somewhere to go. */
 function secondOperator(): User
 {

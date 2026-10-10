@@ -11,6 +11,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     $this->withoutVite();
     config()->set('crm.admin_wallets', ['0x00000000000000000000000000000000000000aa']);
+    config()->set('crm.admin_user_ids', []);
 });
 
 function lainosConsoleOperator(): User
