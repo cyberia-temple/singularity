@@ -64,6 +64,8 @@ function mountDao(
                     fetchProposal: async (id) => ({ id, status: 'open' }),
                     fetchMyVote: async () => ({ address: null, vote: null }),
                     castVote: async () => ({ support: true, power: '1' }),
+                    fetchComments: async () => [],
+                    postComment: async () => 1,
                     tally: () => ({ for: 0, against: 0, cast: 0 }),
                     ...social,
                 };

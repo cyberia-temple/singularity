@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { ExternalLink } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
@@ -9,12 +8,19 @@ import { signInWithWallet } from '@/lib/wallet/session';
 import {
     castVote,
     createProposal,
+    fetchComments,
     fetchDao,
     fetchMyVote,
     fetchProposal,
+    postComment,
     tally,
 } from '@/lib/wallet/social';
-import type { DaoSummary, MyVote, ProposalSummary } from '@/lib/wallet/social';
+import type {
+    DaoSummary,
+    MyVote,
+    ProposalComment,
+    ProposalSummary,
+} from '@/lib/wallet/social';
 import { walletMessages } from '@/lib/walletMessages';
 import { store as daoStore } from '@/routes/dao';
 
@@ -296,12 +302,92 @@ const vote = async (support: boolean): Promise<void> => {
     }
 };
 
+/**
+ * The discussion, here rather than a link out: a comment needs an author, and
+ * the wallet becomes one exactly as it does for a vote. Commenting stays open
+ * after voting closes, as it does on the site. One level of replies, like the
+ * site's thread.
+ */
+const comments = ref<ProposalComment[]>([]);
+const commentsState = ref<'loading' | 'ready' | 'failed'>('loading');
+const commentDraft = ref('');
+const replyTo = ref<ProposalComment | null>(null);
+const commenting = ref(false);
+const commentError = ref<string | null>(null);
+
+const readComments = async (id: number): Promise<void> => {
+    commentsState.value = 'loading';
+
+    try {
+        const thread = await fetchComments(id);
+
+        if (detail.value?.id === id) {
+            comments.value = thread;
+            commentsState.value = 'ready';
+        }
+    } catch {
+        if (detail.value?.id === id) {
+            commentsState.value = 'failed';
+        }
+    }
+};
+
+const sendComment = async (): Promise<void> => {
+    const proposal = detail.value;
+    const address = signer.value?.address;
+    const body = commentDraft.value.trim();
+
+    if (
+        !proposal ||
+        !address ||
+        !canVote.value ||
+        body === '' ||
+        commenting.value
+    ) {
+        return;
+    }
+
+    commenting.value = true;
+    commentError.value = null;
+    const accountId = props.wallet.activeAccountId.value;
+    const parentId = replyTo.value?.id ?? null;
+
+    try {
+        await asSigner(address, accountId, () =>
+            postComment(proposal.id, address, body, parentId),
+        );
+
+        if (
+            accountId !== props.wallet.activeAccountId.value ||
+            detail.value?.id !== proposal.id
+        ) {
+            return;
+        }
+
+        commentDraft.value = '';
+        replyTo.value = null;
+        detail.value = { ...detail.value, comments: detail.value.comments + 1 };
+        proposals.value = proposals.value.map((entry) =>
+            entry.id === proposal.id
+                ? { ...entry, comments: entry.comments + 1 }
+                : entry,
+        );
+        await readComments(proposal.id);
+    } catch (error) {
+        commentError.value =
+            error instanceof Error ? error.message : String(error);
+    } finally {
+        commenting.value = false;
+    }
+};
+
 watch(
     () => props.wallet.activeAccountId.value,
     () => {
         myVote.value = null;
         voteError.value = null;
         proposeError.value = null;
+        commentError.value = null;
 
         if (detail.value) {
             void readMyVote(detail.value.id);
@@ -336,7 +422,12 @@ const open = async (proposal: ProposalSummary): Promise<void> => {
     detail.value = proposal;
     myVote.value = null;
     voteError.value = null;
+    comments.value = [];
+    commentDraft.value = '';
+    replyTo.value = null;
+    commentError.value = null;
     void readMyVote(proposal.id);
+    void readComments(proposal.id);
 
     try {
         detail.value = await fetchProposal(proposal.id);
@@ -346,7 +437,46 @@ const open = async (proposal: ProposalSummary): Promise<void> => {
     }
 };
 
-onMounted(load);
+/**
+ * `?proposal=` — what a notification about a proposal lands on. It opens that
+ * proposal rather than the list it is somewhere in, and then deletes itself,
+ * so going back to the list and refreshing does not reopen it.
+ */
+const takeProposalRequest = (): void => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const id = Number(url.searchParams.get('proposal'));
+
+    if (!Number.isInteger(id) || id <= 0) {
+        return;
+    }
+
+    url.searchParams.delete('proposal');
+    window.history.replaceState(window.history.state, '', url);
+
+    const known = proposals.value.find((entry) => entry.id === id);
+    void open(
+        known ??
+            ({
+                id,
+                title: '',
+                summary: '',
+                status: 'open',
+                comments: 0,
+                votes: 0,
+                powerFor: '0',
+                powerAgainst: '0',
+            } as ProposalSummary),
+    );
+};
+
+onMounted(async () => {
+    await load();
+    takeProposalRequest();
+});
 </script>
 
 <template>
@@ -552,17 +682,146 @@ onMounted(load);
                 }}</span>
             </p>
 
-            <!-- Comments still live on the site; voting no longer does. -->
-            <a
-                class="cw-ghost"
-                style="margin-top: 18px; align-self: flex-start"
-                :href="detail.url"
-                target="_blank"
-                rel="noopener noreferrer"
+            <div class="cw-label" style="margin: 26px 0 10px">
+                {{ t('daoComments', { comments: detail.comments }) }}
+            </div>
+
+            <p v-if="commentsState === 'failed'" class="cw-note cw-note-bad">
+                <span style="flex: 1">{{ t('daoCommentsUnreadable') }}</span>
+                <button
+                    type="button"
+                    class="cw-back"
+                    @click="readComments(detail.id)"
+                >
+                    {{ t('retry') }}
+                </button>
+            </p>
+            <p
+                v-else-if="commentsState === 'loading' && comments.length === 0"
+                class="cw-label"
+                style="color: var(--cw-faint)"
             >
-                {{ t('daoDiscuss', { comments: detail.comments }) }}
-                <ExternalLink :size="13" aria-hidden="true" />
-            </a>
+                {{ t('daoCommentsLoading') }}
+            </p>
+            <p v-else-if="comments.length === 0" class="cw-prose">
+                {{ t('daoCommentsEmpty') }}
+            </p>
+
+            <div v-else class="cw-stack" style="gap: 10px">
+                <div
+                    v-for="comment in comments"
+                    :key="comment.id"
+                    class="cw-card"
+                >
+                    <div class="cw-row" style="margin-bottom: 8px">
+                        <span class="cw-label" style="color: var(--cw-muted)">{{
+                            comment.who?.name ?? t('feedSomeone')
+                        }}</span>
+                        <span class="cw-label" style="color: var(--cw-faint)">{{
+                            relativeTime(seconds(comment.at), locale)
+                        }}</span>
+                    </div>
+                    <!-- The site's own sanitised markdown, as the proposal body. -->
+                    <div
+                        class="cw-prose"
+                        style="font-size: 14px"
+                        v-html="comment.bodyHtml"
+                    ></div>
+                    <div
+                        v-if="comment.replies && comment.replies.length > 0"
+                        class="cw-stack"
+                        style="
+                            gap: 10px;
+                            margin-top: 12px;
+                            padding-left: 12px;
+                            border-left: 1px solid var(--cw-hairline);
+                        "
+                    >
+                        <div v-for="reply in comment.replies" :key="reply.id">
+                            <div class="cw-row" style="margin-bottom: 6px">
+                                <span
+                                    class="cw-label"
+                                    style="color: var(--cw-muted)"
+                                    >{{
+                                        reply.who?.name ?? t('feedSomeone')
+                                    }}</span
+                                >
+                                <span
+                                    class="cw-label"
+                                    style="color: var(--cw-faint)"
+                                    >{{
+                                        relativeTime(seconds(reply.at), locale)
+                                    }}</span
+                                >
+                            </div>
+                            <div
+                                class="cw-prose"
+                                style="font-size: 14px"
+                                v-html="reply.bodyHtml"
+                            ></div>
+                        </div>
+                    </div>
+                    <button
+                        v-if="canVote"
+                        type="button"
+                        class="cw-back"
+                        style="margin-top: 10px"
+                        @click="replyTo = comment"
+                    >
+                        {{ t('daoCommentReply') }}
+                    </button>
+                </div>
+            </div>
+
+            <form
+                class="cw-stack"
+                style="gap: 10px; margin-top: 14px"
+                @submit.prevent="sendComment"
+            >
+                <div v-if="replyTo" class="cw-row">
+                    <span class="cw-label" style="color: var(--cw-muted)">{{
+                        t('daoCommentReplyingTo', {
+                            name: replyTo.who?.name ?? t('feedSomeone'),
+                        })
+                    }}</span>
+                    <button
+                        type="button"
+                        class="cw-back"
+                        @click="replyTo = null"
+                    >
+                        {{ t('cancel') }}
+                    </button>
+                </div>
+                <textarea
+                    v-model="commentDraft"
+                    class="cw-input"
+                    rows="3"
+                    maxlength="5000"
+                    :placeholder="t('daoCommentPlaceholder')"
+                    :aria-label="t('daoCommentPlaceholder')"
+                    :disabled="!canVote"
+                    style="min-height: 84px; resize: vertical"
+                ></textarea>
+                <p v-if="!canVote" class="cw-note cw-note-warn">
+                    <span>{{ t('daoCommentWatchOnly') }}</span>
+                </p>
+                <p v-if="commentError" class="cw-note cw-note-bad">
+                    <span>{{ commentError }}</span>
+                </p>
+                <button
+                    type="submit"
+                    class="cw-btn cw-btn-primary"
+                    :disabled="
+                        !canVote || commenting || commentDraft.trim() === ''
+                    "
+                >
+                    {{
+                        commenting
+                            ? t('daoCommentSending')
+                            : t('daoCommentSend')
+                    }}
+                </button>
+            </form>
         </template>
 
         <template v-else>

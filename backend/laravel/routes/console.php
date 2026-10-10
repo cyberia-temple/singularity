@@ -114,3 +114,14 @@ Schedule::command('tracker:prune')->hourly()->withoutOverlapping();
 // Who owns each release. The token is transferable and a sold release moves
 // with it; everything else on the row is fixed by the CID it was minted from.
 Schedule::command('tracker:sync')->dailyAt('05:20')->withoutOverlapping();
+
+// Every new on-chain action (from the Telegram bot's activity_events) pushed
+// to everyone subscribed, like posts and DAO activity. Cursor-driven, so a
+// missed minute is caught up on the next one.
+Schedule::command('feed:announce-activity')->everyMinute()->withoutOverlapping();
+
+// New launches on both launchpads: each opens its token's DAO, lands in the
+// feed and is pushed to everyone. The launch screens also ask for a sweep the
+// moment a launch confirms (POST /api/launchpad/watch), so this is the floor
+// for launches made anywhere else — a script, the contract directly.
+Schedule::command('launchpad:watch')->everyMinute()->withoutOverlapping();

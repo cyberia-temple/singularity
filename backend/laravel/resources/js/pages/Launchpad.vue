@@ -1829,6 +1829,20 @@ const launchOnChain = async (target: LaunchTarget): Promise<void> => {
 
     persistDraft();
 
+    // Every launch opens its token's DAO, lands in the feed and is pushed to
+    // everyone; asking the server to read the launchpads now makes that
+    // seconds rather than the next scheduled sweep. Nothing waits on it.
+    if (target.token) {
+        void fetch('/api/launchpad/watch', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ address: target.token.toLowerCase() }),
+        }).catch(() => undefined);
+    }
+
     if (!target.token) {
         throw new Error(
             `Launch on ${target.label} was mined but the TokenLaunched event was missing from the receipt — attach the metadata from the token list.`,

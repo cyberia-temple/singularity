@@ -5,17 +5,25 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
 use App\Models\Dao;
+use App\Models\LaunchpadToken;
 use App\Models\Post;
 use App\Models\Proposal;
 use App\Models\ProposalComment;
 use App\Models\ProposalVote;
 use App\Models\User;
 use App\Services\AchievementService;
+use App\Support\ChainActivity;
+use App\Support\TradeAmount;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -37,6 +45,9 @@ class WalletSocialController extends Controller
     /** Rows any one feed request will return. */
     private const FEED_LIMIT = 40;
 
+    /** Top-level comments one thread will return; the site pages past this. */
+    private const COMMENT_LIMIT = 100;
+
     /** Long enough to absorb a wallet's refresh, short enough to feel live. */
     private const TTL_SECONDS = 30;
 
@@ -52,10 +63,12 @@ class WalletSocialController extends Controller
     public function feed(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'tab' => ['sometimes', 'string', 'in:all,posts,dao'],
+            // `trades` is what the on-chain tab was called while it held swaps
+            // only, and a wallet left open across a deploy still asks for it.
+            'tab' => ['sometimes', 'string', 'in:all,posts,dao,onchain,trades'],
         ]);
 
-        $tab = $data['tab'] ?? 'all';
+        $tab = ($data['tab'] ?? 'all') === 'trades' ? 'onchain' : ($data['tab'] ?? 'all');
 
         $items = Cache::remember(
             "wallet.feed.{$tab}",
@@ -118,6 +131,41 @@ class WalletSocialController extends Controller
                 'descriptionHtml' => $proposal->description_html,
             ],
         ]);
+    }
+
+    /**
+     * A proposal's discussion: top-level comments oldest first, each with its
+     * replies (the site threads one level deep, and so does this).
+     *
+     * Oldest first rather than the site's newest first, because the wallet
+     * draws the whole thread under the proposal and a conversation reads
+     * downwards. Bodies are the same sanitised markdown the site renders.
+     */
+    public function comments(Proposal $proposal): JsonResponse
+    {
+        $present = fn (ProposalComment $comment): array => [
+            'id' => $comment->id,
+            'at' => $comment->created_at?->toIso8601String(),
+            'who' => $this->person($comment->user),
+            'bodyHtml' => $comment->body_html,
+        ];
+
+        $comments = $proposal->comments()
+            ->whereNull('parent_id')
+            ->with([
+                'user:id,name,avatar_path,wallet_address',
+                'replies' => fn ($query) => $query->oldest('id'),
+                'replies.user:id,name,avatar_path,wallet_address',
+            ])
+            ->oldest('id')
+            ->limit(self::COMMENT_LIMIT)
+            ->get()
+            ->map(fn (ProposalComment $comment): array => $present($comment) + [
+                'replies' => $comment->replies->map($present)->values()->all(),
+            ])
+            ->all();
+
+        return response()->json(['comments' => $comments]);
     }
 
     /**
@@ -224,7 +272,7 @@ class WalletSocialController extends Controller
     {
         $items = [];
 
-        if ($tab !== 'dao') {
+        if ($tab === 'all' || $tab === 'posts') {
             $items = array_merge($items, Post::query()
                 ->with('user:id,name,avatar_path,wallet_address')
                 ->latest('id')
@@ -242,7 +290,7 @@ class WalletSocialController extends Controller
                 ->all());
         }
 
-        if ($tab !== 'posts') {
+        if ($tab === 'all' || $tab === 'dao') {
             $items = array_merge($items, Activity::query()
                 ->with([
                     'user:id,name,avatar_path,wallet_address',
@@ -279,9 +327,130 @@ class WalletSocialController extends Controller
                 ->all());
         }
 
+        if ($tab === 'onchain' || $tab === 'all') {
+            $items = array_merge($items, $this->onchainItems($tab === 'all'), $this->launchItems());
+        }
+
         usort($items, fn (array $a, array $b) => ($b['at'] ?? '') <=> ($a['at'] ?? ''));
 
         return array_slice($items, 0, self::FEED_LIMIT);
+    }
+
+    /**
+     * Everything the Telegram bot read off the chain (`activity_events`):
+     * swaps on both exchanges, liquidity, lending, staking, conversions,
+     * pump.fun buys, bridges, mints — every one of them, not only the ones
+     * made in this wallet, which is the point of putting them in a feed.
+     *
+     * "All" carries them too: the project is small enough that each is news.
+     * A dollar floor above zero (`wallet.feed.trade_floor_usd`) keeps the
+     * small and the unpriced ones on the On-chain tab only.
+     *
+     * The actor is an address; where somebody here has claimed it the row
+     * carries their name, and otherwise the address stands for them. The
+     * table belongs to the bot and may be absent (a fresh install, a test
+     * database), in which case there is simply nothing from the chain.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function onchainItems(bool $forAll): array
+    {
+        if (! Schema::hasTable('activity_events')) {
+            return [];
+        }
+
+        $floor = (float) config('wallet.feed.trade_floor_usd');
+
+        $rows = DB::table('activity_events')
+            ->when($forAll && $floor > 0, fn ($query) => $query->where('usd', '>=', $floor))
+            ->orderByDesc('id')
+            ->limit(self::FEED_LIMIT)
+            ->get(['id', 'kind', 'usd', 'sym_in', 'amt_in', 'sym_out', 'amt_out', 'user_addr', 'tx_hash', 'meta', 'created_at']);
+
+        $users = $this->claimedBy($rows->pluck('user_addr'));
+
+        return $rows->map(function ($row) use ($users): array {
+            $address = $row->user_addr === null ? null : (string) $row->user_addr;
+            $user = $address === null ? null : $users->get(Str::lower($address));
+
+            return [
+                'kind' => 'onchain',
+                'id' => "onchain-{$row->id}",
+                // The bot writes SQLite's UTC `datetime('now')`, with no zone.
+                'at' => $row->created_at === null ? null : Carbon::parse($row->created_at, 'UTC')->toIso8601String(),
+                'who' => $user !== null ? $this->person($user) : ChainActivity::person($address),
+                'text' => null,
+                'meta' => null,
+                'onchain' => [
+                    'action' => (string) $row->kind,
+                    'in' => TradeAmount::format($row->amt_in, $row->sym_in),
+                    'out' => TradeAmount::format($row->amt_out, $row->sym_out),
+                    'detail' => ChainActivity::detail($row),
+                    // Null when the price walker found no route — never 0.
+                    'usd' => $row->usd === null ? null : round((float) $row->usd, 2),
+                ],
+                'url' => ChainActivity::txUrl($row) ?? ChainActivity::explorer(),
+            ];
+        })->all();
+    }
+
+    /**
+     * Tokens launched on the launchpads, as `launchpad:watch` read them off
+     * the chain — with the logo and the description where the creator signed
+     * them, and the DAO the launch opened.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function launchItems(): array
+    {
+        $rows = LaunchpadToken::query()
+            ->with('dao:id,name')
+            ->whereNotNull('launched_at')
+            ->latest('launched_at')
+            ->limit(self::FEED_LIMIT)
+            ->get();
+
+        $users = $this->claimedBy($rows->pluck('creator'));
+
+        return $rows->map(function (LaunchpadToken $token) use ($users): array {
+            $user = $token->creator ? $users->get(Str::lower($token->creator)) : null;
+
+            return [
+                'kind' => 'launch',
+                'id' => "launch-{$token->id}",
+                'at' => $token->launched_at?->toIso8601String(),
+                'who' => $user !== null ? $this->person($user) : ChainActivity::person($token->creator),
+                'text' => $token->description,
+                'meta' => null,
+                'launch' => [
+                    'address' => Str::lower($token->address),
+                    'name' => $token->name,
+                    'symbol' => $token->symbol,
+                    'image' => $token->image_path ? Storage::disk('public')->url($token->image_path) : null,
+                    'dao' => $token->dao ? ['id' => $token->dao->id, 'name' => $token->dao->name] : null,
+                ],
+                'url' => ChainActivity::explorer().'/token/'.Str::lower($token->address),
+            ];
+        })->all();
+    }
+
+    /**
+     * The accounts that claimed these addresses, keyed by lowercase address.
+     *
+     * @param  Collection<int, mixed>  $addresses
+     * @return Collection<string, User>
+     */
+    private function claimedBy(Collection $addresses): Collection
+    {
+        $wanted = $addresses->filter(fn ($a) => is_string($a) && preg_match('/^0x[0-9a-fA-F]{40}$/', $a))
+            ->map(fn ($a) => Str::lower((string) $a))
+            ->unique()
+            ->values();
+
+        return $wanted->isEmpty() ? collect() : User::query()
+            ->whereIn(DB::raw('lower(wallet_address)'), $wanted->all())
+            ->get(['id', 'name', 'avatar_path', 'wallet_address'])
+            ->keyBy(fn (User $user) => Str::lower($user->wallet_address));
     }
 
     /** What an activity row is about, named by the proposal behind it. */

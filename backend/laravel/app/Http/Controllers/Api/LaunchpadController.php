@@ -6,6 +6,7 @@ use App\Actions\Wallet\RecoverEvmAddress;
 use App\Http\Controllers\Controller;
 use App\Models\LaunchpadToken;
 use App\Services\IpfsService;
+use App\Services\Launchpad\LaunchWatcher;
 use App\Services\LaunchpadSiteService;
 use App\Support\Handles;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +29,7 @@ class LaunchpadController extends Controller
     /** Return metadata for every token registered with the Launchpad. */
     public function index(): JsonResponse
     {
-        $tokens = LaunchpadToken::orderByDesc('created_at')->get()->map(function (LaunchpadToken $t) {
+        $tokens = LaunchpadToken::with('dao:id,name')->orderByDesc('created_at')->get()->map(function (LaunchpadToken $t) {
             return $this->serialize($t);
         });
 
@@ -193,6 +194,34 @@ class LaunchpadController extends Controller
     }
 
     /**
+     * "Look at the launchpads now" — sent by a launch screen the moment its
+     * launch confirms, so the token's DAO, its feed entry and everybody's push
+     * arrive in seconds rather than at the next scheduled sweep.
+     *
+     * Nothing in the request is believed: it names at most which token the
+     * caller wants back, and the sweep reads every launch from the contracts
+     * exactly as `launchpad:watch` does. Calling it for no reason costs a few
+     * reads and finds nothing.
+     */
+    public function watch(Request $request, LaunchWatcher $watcher): JsonResponse
+    {
+        $data = $request->validate([
+            'address' => ['nullable', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
+        ]);
+
+        $watcher->sweep();
+
+        $token = isset($data['address'])
+            ? LaunchpadToken::query()
+                ->where('chain_id', (int) config('launchpad.watch.chain_id', 49406))
+                ->where('address', Str::lower($data['address']))
+                ->first()
+            : null;
+
+        return response()->json(['token' => $token ? $this->serialize($token) : null]);
+    }
+
+    /**
      * Serve the static HTML page uploaded for `$address`. Sent with a strict
      * Content-Security-Policy sandbox so it can't touch the main app's cookies
      * or hit same-origin endpoints — arbitrary HTML upload is otherwise an XSS
@@ -281,6 +310,10 @@ class LaunchpadController extends Controller
             'ipfs_cid' => $t->ipfs_cid,
             'ipfs_uri' => $t->ipfs_cid ? $this->ipfs->uri($t->ipfs_cid) : null,
             'ipfs_url' => $t->ipfs_cid ? $this->ipfs->gatewayUrl($t->ipfs_cid) : null,
+            // Read off the chain by `launchpad:watch`, not signed by anybody.
+            'launched_at' => $t->launched_at?->toIso8601String(),
+            'launch_tx' => $t->launch_tx,
+            'dao' => $t->dao ? ['id' => $t->dao->id, 'name' => $t->dao->name] : null,
         ];
     }
 

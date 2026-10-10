@@ -973,6 +973,56 @@ export const submitAbout = async (request: {
     }
 };
 
+/**
+ * Ask the server to read the launchpads now, and hand back the DAO the launch
+ * opened.
+ *
+ * Every launch opens a DAO, lands in the feed and is pushed to everyone
+ * (`launchpad:watch`); this only makes it seconds instead of up to a minute.
+ * The request names the token so the answer can carry its DAO — nothing in it
+ * is believed, the server reads the launch from the contract. A sweep already
+ * running elsewhere answers empty, so it is asked a few times; null means the
+ * scheduled sweep will get there, never that there is no DAO.
+ */
+export const watchLaunch = async (
+    token: string,
+    attempts = 4,
+    pauseMs = 4000,
+): Promise<{ id: number; name: string } | null> => {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, pauseMs));
+        }
+
+        try {
+            const response = await fetch('/api/launchpad/watch', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ address: token.toLowerCase() }),
+            });
+
+            if (!response.ok) {
+                continue;
+            }
+
+            const body = (await response.json()) as {
+                token: { dao: { id: number; name: string } | null } | null;
+            };
+
+            if (body.token?.dao) {
+                return body.token.dao;
+            }
+        } catch {
+            // Unreachable now is not "no DAO" — the scheduled sweep opens it.
+        }
+    }
+
+    return null;
+};
+
 /** Where a launch transaction can be looked at. */
 export const launchTxUrl = (chainId: number, hash: string): string =>
     `${launchpadChain(chainId)?.explorerUrl ?? ''}/tx/${hash}`;

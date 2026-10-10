@@ -2122,6 +2122,8 @@ watch(
                         @profile="openProfile"
                         @message="openChatWith"
                         @signed-in="router.reload({ only: ['auth'] })"
+                        @buy="(contract) => openSwapContract(contract)"
+                        @dao="openSection('dao')"
                     />
 
                     <WalletProfile
@@ -2137,6 +2139,7 @@ watch(
                         :prices="prices"
                         @swap="openSwapContract"
                         @domains="openDomains(null)"
+                        @dao="openSection('dao')"
                     />
 
                     <WalletDao v-else-if="section === 'dao'" :wallet="wallet" />

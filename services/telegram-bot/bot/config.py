@@ -113,6 +113,12 @@ RITUAL_V2_ROUTER = os.environ.get(
 RITUAL_V2_FACTORY = os.environ.get(
     "RITUAL_V2_FACTORY", "0xB0aC30907c04b61F1482e62eA66eF4562a690917"
 )
+# Cyberia V3 (the PancakeV3 fork, crypto/hardhat/deployments/cyberia-v3.json):
+# every launchpad v3 token trades only here, so its swaps are announced and
+# recorded exactly like Ritual V2 ones. Blank disables the v3 half.
+CYBERIA_V3_ROUTER = (os.environ.get(
+    "CYBERIA_V3_ROUTER", "0xa9f2A35F8dbA643e199Da0FeEbDF7e1c72ee773e"
+) or "").strip()
 
 # Don't announce swap/liquidity events whose USD volume is below this. Set to 0
 # to disable the filter. Default: $1 — drops dust noise from cheap launchpad
@@ -453,6 +459,25 @@ CYBER_CA_EVM = (os.environ.get(
 CYBERIA_NFT_ADDRESS = (os.environ.get(
     "CYBERIA_NFT_ADDRESS", "0x546462FAbf30734E63b64f32B30EC8ADD9B6EBa7"
 ) or "").strip()
+
+# --- Record-only watchers (bot/watchers.py) ------------------------------------
+# On-chain actions with no Telegram post of their own that still belong in the
+# wallet's feed and its push: Laravel's `feed:announce-activity` pushes every
+# activity_events row to everyone. Blank address = that watcher is off.
+CYBERIA_DOMAINS_ADDRESS = (os.environ.get(
+    "CYBERIA_DOMAINS_ADDRESS", "0xA827D058a5738EaC28DB1d658D3e8cFb82CBb66B"
+) or "").strip()
+PREDICTION_MARKET_ADDRESS = (os.environ.get(
+    "PREDICTION_MARKET_ADDRESS", "0xb88063Cb2db16473Fb6deB71BaE364aFd09fdE54"
+) or "").strip()
+NFT_MARKET_ADDRESS = (os.environ.get(
+    "NFT_MARKET_ADDRESS", "0x12C3EC2019E814be06Bf6386df0F22aBB673Db90"
+) or "").strip()
+WCYBER_ADDRESS = (os.environ.get(
+    "WCYBER_ADDRESS", "0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9"
+) or "").strip()
+EVENT_WATCH_POLL_SECONDS = int(os.environ.get("EVENT_WATCH_POLL_SECONDS", "30"))
+EVENT_WATCH_MAX_BLOCK_RANGE = int(os.environ.get("EVENT_WATCH_MAX_BLOCK_RANGE", "1000"))
 
 # Master switch. Defaults on once both the NFT address and a deployer key exist;
 # set NFT_FROM_POSTS=0 to disable.

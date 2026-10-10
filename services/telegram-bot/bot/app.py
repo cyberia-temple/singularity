@@ -16,7 +16,8 @@ from telegram.request import HTTPXRequest
 from bot.config import (
     TELEGRAM_BOT_TOKEN, HTTP_PROXY,
     BRIDGE_ANNOUNCE_CHAT, BRIDGE_POLL_SECONDS,
-    SWAP_ANNOUNCE_CHAT, SWAP_POLL_SECONDS, RITUAL_V2_ROUTER,
+    SWAP_ANNOUNCE_CHAT, SWAP_POLL_SECONDS, RITUAL_V2_ROUTER, CYBERIA_V3_ROUTER,
+    EVENT_WATCH_POLL_SECONDS,
     LIQUIDITY_ANNOUNCE_CHAT, LIQUIDITY_POLL_SECONDS,
     LENDING_ANNOUNCE_CHAT, LENDING_POLL_SECONDS, LENDING_COMPTROLLER,
     CYBERSOL_SWAP_ADDRESS, CYBERSOL_SWAP_ANNOUNCE_CHAT, CYBERSOL_SWAP_POLL_SECONDS,
@@ -58,6 +59,7 @@ from bot.announcers import (
     pumpfun_announcer_loop, digest_loop, market_snapshot_loop, whale_loop,
     run_snapshot_once,
 )
+from bot.watchers import WATCHERS, event_watcher_loop
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +125,22 @@ async def post_init(application: Application):
         f"Bridge announcer started: chat={BRIDGE_ANNOUNCE_CHAT} interval={BRIDGE_POLL_SECONDS}s"
     )
 
-    # Background loop that announces Ritual DEX swaps in the public chat.
+    # Background loop that announces swaps on both exchanges in the public chat.
     application.create_task(swap_announcer_loop(application))
     logger.info(
         f"Swap announcer started: chat={SWAP_ANNOUNCE_CHAT} "
-        f"router={RITUAL_V2_ROUTER} interval={SWAP_POLL_SECONDS}s"
+        f"v2={RITUAL_V2_ROUTER} v3={CYBERIA_V3_ROUTER or 'off'} interval={SWAP_POLL_SECONDS}s"
     )
+
+    # Record-only watchers (NFTs, domains, predictions): no chat post, but every
+    # row reaches the wallet's feed and everybody's push through Laravel.
+    if WATCHERS:
+        application.create_task(event_watcher_loop(application))
+        logger.info(
+            "Event watchers started: "
+            + ", ".join(w.kind for w in WATCHERS)
+            + f" interval={EVENT_WATCH_POLL_SECONDS}s"
+        )
 
     # Background loop that announces Ritual DEX liquidity add/remove.
     application.create_task(liquidity_announcer_loop(application))

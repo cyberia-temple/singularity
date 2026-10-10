@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Proposal;
 use App\Models\ProposalVote;
+use App\Services\Dao\ProposalCommenter;
 use App\Services\Dao\ProposalPublisher;
 use App\Services\Dao\ProposalVoter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Voting, and proposing, from inside the wallet.
@@ -102,6 +104,46 @@ class WalletDaoVoteController extends Controller
         $vote = $voter->cast($user, $proposal, $user->wallet_address, (bool) $validated['support']);
 
         return response()->json(['vote' => $this->present($vote)]);
+    }
+
+    /**
+     * Comment on a proposal, or reply to a top-level comment, as the address
+     * this session signed in with — the vote's address check, and the same
+     * `ProposalCommenter` the site's thread posts through. Commenting stays
+     * open after voting closes, as it does on the site.
+     */
+    public function comment(Request $request, Proposal $proposal, ProposalCommenter $commenter): JsonResponse
+    {
+        $validated = $request->validate([
+            'address' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{40}$/'],
+            'body' => ['required', 'string', 'max:5000'],
+            'parent_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('proposal_comments', 'id')
+                    ->where('proposal_id', $proposal->id)
+                    ->whereNull('parent_id'),
+            ],
+        ]);
+
+        $user = $request->user();
+
+        if ($user->wallet_address === null
+            || strcasecmp($user->wallet_address, $validated['address']) !== 0) {
+            return response()->json([
+                'message' => 'This browser is signed in as a different wallet.',
+                'reason' => 'otherAccount',
+            ], 409);
+        }
+
+        $comment = $commenter->post(
+            $user,
+            $proposal,
+            trim($validated['body']),
+            isset($validated['parent_id']) ? (int) $validated['parent_id'] : null,
+        );
+
+        return response()->json(['id' => $comment->id], 201);
     }
 
     /** @return array{support: bool, power: string}|null */

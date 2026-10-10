@@ -32,7 +32,11 @@ const props = defineProps<{
     prices: Record<string, number | null>;
 }>();
 
-const emit = defineEmits<{ swap: [contract: string]; domains: [] }>();
+const emit = defineEmits<{
+    swap: [contract: string];
+    domains: [];
+    dao: [];
+}>();
 
 const { locale, t } = useLocale(walletMessages);
 
@@ -91,6 +95,7 @@ onMounted(load);
             @launched="load"
             @swap="(contract) => emit('swap', contract)"
             @domains="emit('domains')"
+            @dao="emit('dao')"
         />
 
         <template v-else-if="detail">

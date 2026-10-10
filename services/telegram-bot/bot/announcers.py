@@ -24,6 +24,7 @@ from bot.config import (
     STAKING_MASTERCHEF, STAKING_ANNOUNCE_CHAT,
     STAKING_POLL_SECONDS, STAKING_MAX_BLOCK_RANGE,
     MIN_ANNOUNCE_USD, BIG_ANNOUNCE_USD, RITUAL_V2_FACTORY,
+    RITUAL_V2_ROUTER, CYBERIA_V3_ROUTER,
     DIGEST_ANNOUNCE_CHAT, DIGEST_INTERVAL_SECONDS, DIGEST_RETENTION_DAYS,
     DIGEST_PRICE_CHANGE_MIN_BPS, DIGEST_PRICE_TOKEN_LIMIT,
     MARKET_SNAPSHOT_SECONDS, CYBER_CA_EVM,
@@ -34,12 +35,13 @@ from bot.config import (
 )
 from bot.db import (
     engine, _kv_get, _kv_set, _record_activity,
-    _get_block_cursor, _set_block_cursor, _get_swap_cursor, _set_swap_cursor,
+    _get_block_cursor, _set_block_cursor,
 )
 from bot.chain import (
-    SWAP_EVENT_TOPIC, PAIR_RESERVES_ABI,
-    _event_topic, _router_topic_hex,
+    SWAP_EVENT_TOPIC, V3_SWAP_EVENT_TOPIC, PAIR_RESERVES_ABI,
+    _event_topic, _router_topic_hex, _address_topic_hex,
     _hex_no_prefix, _decode_topic_address, _decode_swap_data, _decode_data_words,
+    _decode_v3_swap_data,
     _get_pair_tokens, _get_token_meta, _get_tx_sender,
     _get_token_usd_price, _swap_usd_volume, _liquidity_usd_volume,
     _get_lending_markets, _get_market_underlying,
@@ -216,27 +218,85 @@ def _decode_swap_hop(w3: Web3, log) -> dict | None:
         "to": _decode_topic_address(log["topics"][2]),
         "route": None,
     }
-async def _announce_swap_tick(bot) -> None:
-    """Scan new Swap events from the Ritual V2 router and post one msg per
-    trade. A routed swap (A → B → C) emits one Swap event per pair with the
-    *next pair* as the intermediate recipient, so consecutive events of the
-    same tx are merged into a single first-in → last-out announcement.
+def _decode_v3_swap_hop(w3: Web3, log) -> dict | None:
+    """Decode one Cyberia V3 pool Swap log into the same hop dict as V2.
+
+    A V3 pool reports its two amounts signed from its own side: the positive
+    one went into the pool (the trader's input), the negative one came out.
+    token0/token1 are read exactly as for a V2 pair — the pool has both.
+    """
+    tokens = _get_pair_tokens(w3, log["address"])
+    if not tokens:
+        return None
+    t0, t1 = tokens
+    a0, a1 = _decode_v3_swap_data(log["data"])
+
+    if a0 > 0 and a1 < 0:
+        (in_addr, in_amt), (out_addr, out_amt) = (t0, a0), (t1, -a1)
+    elif a1 > 0 and a0 < 0:
+        (in_addr, in_amt), (out_addr, out_amt) = (t1, a1), (t0, -a0)
+    else:
+        return None
+
+    in_sym, in_dec = _get_token_meta(w3, in_addr)
+    out_sym, out_dec = _get_token_meta(w3, out_addr)
+    return {
+        "in_addr": in_addr, "in_sym": in_sym, "in_amt": in_amt, "in_dec": in_dec,
+        "out_addr": out_addr, "out_sym": out_sym, "out_amt": out_amt, "out_dec": out_dec,
+        "to": _decode_topic_address(log["topics"][2]),
+        "route": None,
+    }
+
+
+# Both of Cyberia's exchanges, announced by one loop. Each keeps its own
+# `block:log_index` cursor; v2's key is the one it has always had, so adding v3
+# neither replays nor skips a v2 swap. Only swaps sent through the venue's own
+# router are read (`sender` is indexed on both events), which is what keeps a
+# pool's internal hops and arbitrary contracts out.
+SWAP_VENUES = {
+    "v2": {
+        "cursor": "last_announced_swap_cursor",
+        "topic": SWAP_EVENT_TOPIC,
+        "router": RITUAL_V2_ROUTER,
+        "decode": _decode_swap_hop,
+    },
+    "v3": {
+        "cursor": "last_announced_v3_swap_cursor",
+        "topic": V3_SWAP_EVENT_TOPIC,
+        "router": CYBERIA_V3_ROUTER,
+        "decode": _decode_v3_swap_hop,
+    },
+}
+
+
+async def _announce_swap_tick(bot, venue: str = "v2") -> None:
+    """Scan new Swap events from one venue's router and post one msg per
+    trade. A routed swap (A → B → C) emits one Swap event per pool with the
+    *next pool* (v2) or the router (v3) as the intermediate recipient, so
+    consecutive events of the same tx are merged into a single first-in →
+    last-out announcement.
 
     Cursor is stored as `block:log_index` so a mid-tick Telegram failure
     resumes exactly where it stopped without duplicating earlier sends.
     """
+    spec = SWAP_VENUES[venue]
+    router = spec["router"]
+    if not router:
+        return
+    cursor_key = spec["cursor"]
+
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
     try:
         latest = w3.eth.block_number
     except Exception as e:
-        logger.error(f"swap_announcer: block_number failed: {e}")
+        logger.error(f"swap_announcer[{venue}]: block_number failed: {e}")
         return
 
-    cursor = _get_swap_cursor()
+    cursor = _get_block_cursor(cursor_key)
     if cursor is None:
         # Don't backfill historical swaps on first run.
-        _set_swap_cursor(latest, 10**9)
-        logger.info(f"swap_announcer: bootstrapped cursor to head block={latest}")
+        _set_block_cursor(cursor_key, latest, 10**9)
+        logger.info(f"swap_announcer[{venue}]: bootstrapped cursor to head block={latest}")
         return
     cur_block, cur_idx = cursor
 
@@ -249,10 +309,10 @@ async def _announce_swap_tick(bot) -> None:
         logs = w3.eth.get_logs({
             "fromBlock": cur_block,
             "toBlock": end,
-            "topics": [SWAP_EVENT_TOPIC, _router_topic_hex()],
+            "topics": [spec["topic"], _address_topic_hex(router)],
         })
     except Exception as e:
-        logger.error(f"swap_announcer: get_logs {cur_block}..{end}: {e}")
+        logger.error(f"swap_announcer[{venue}]: get_logs {cur_block}..{end}: {e}")
         return
 
     new_logs = [
@@ -281,12 +341,12 @@ async def _announce_swap_tick(bot) -> None:
         tx_hash = "0x" + _hex_no_prefix(tx_raw).lower()
 
         try:
-            hops = [h for h in (_decode_swap_hop(w3, log) for log in group) if h is not None]
+            hops = [h for h in (spec["decode"](w3, log) for log in group) if h is not None]
         except Exception as e:
-            logger.error(f"swap_announcer: decode failed tx={tx_hash}: {e}")
+            logger.error(f"swap_announcer[{venue}]: decode failed tx={tx_hash}: {e}")
             hops = []
         if not hops:
-            _set_swap_cursor(last_blk, last_idx)
+            _set_block_cursor(cursor_key, last_blk, last_idx)
             cur_block, cur_idx = last_blk, last_idx
             continue
 
@@ -306,6 +366,13 @@ async def _announce_swap_tick(bot) -> None:
             }]
         else:
             announcements = hops
+
+        # A swap paid out in the coin lands on the router, which unwraps it and
+        # forwards it on — so "the recipient" would name the router as the
+        # trader. The transaction's sender is who actually traded.
+        for ann in announcements:
+            if ann["to"].lower() == router.lower():
+                ann["to"] = _get_tx_sender(w3, tx_hash) or ann["to"]
 
         aborted = False
         for ann in announcements:
@@ -347,7 +414,7 @@ async def _announce_swap_tick(bot) -> None:
                     f"Tx: {EXPLORER_URL}/tx/{tx_hash}",
                 ]
             except Exception as e:
-                logger.error(f"swap_announcer: build failed tx={tx_hash}: {e}")
+                logger.error(f"swap_announcer[{venue}]: build failed tx={tx_hash}: {e}")
                 continue
 
             try:
@@ -357,33 +424,34 @@ async def _announce_swap_tick(bot) -> None:
                     disable_web_page_preview=True,
                 )
             except TelegramError as e:
-                logger.error(f"swap_announcer: send failed tx={tx_hash}: {e}")
+                logger.error(f"swap_announcer[{venue}]: send failed tx={tx_hash}: {e}")
                 aborted = True
                 break
 
             # Record only after a successful send so a mid-tick retry can't
             # double-count the same swap in the digest.
             _record_activity(**event_kwargs)
-            logger.info(f"swap_announcer: posted swap block={last_blk} tx={tx_hash}")
+            logger.info(f"swap_announcer[{venue}]: posted swap block={last_blk} tx={tx_hash}")
 
         if aborted:
             return  # cursor still before this tx; the whole group retries next tick
 
-        _set_swap_cursor(last_blk, last_idx)
+        _set_block_cursor(cursor_key, last_blk, last_idx)
         cur_block, cur_idx = last_blk, last_idx
 
     # Empty range, or fully drained — advance past the scanned window so we
     # don't refetch the same blocks indefinitely.
     if end > cur_block:
-        _set_swap_cursor(end, 10**9)
+        _set_block_cursor(cursor_key, end, 10**9)
 
 
 async def swap_announcer_loop(application: Application) -> None:
     while True:
-        try:
-            await _announce_swap_tick(application.bot)
-        except Exception as e:
-            logger.error(f"swap_announcer_loop: {e}")
+        for venue in SWAP_VENUES:
+            try:
+                await _announce_swap_tick(application.bot, venue)
+            except Exception as e:
+                logger.error(f"swap_announcer_loop[{venue}]: {e}")
         await asyncio.sleep(SWAP_POLL_SECONDS)
 # keccak256("Mint(address,uint256,uint256)") / "Burn(address,uint256,uint256,address)".
 LP_MINT_TOPIC = _event_topic("Mint(address,uint256,uint256)")

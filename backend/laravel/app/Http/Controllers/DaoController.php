@@ -6,9 +6,11 @@ use App\Http\Requests\StoreDaoRequest;
 use App\Http\Requests\UpdateDaoRequest;
 use App\Models\Activity;
 use App\Models\Dao;
+use App\Models\LaunchpadToken;
 use App\Models\Proposal;
 use App\Models\ProposalComment;
 use App\Models\ProposalVote;
+use App\Services\Dao\DaoNotifier;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
@@ -52,12 +54,14 @@ class DaoController extends Controller
         ]);
     }
 
-    public function store(StoreDaoRequest $request): RedirectResponse
+    public function store(StoreDaoRequest $request, DaoNotifier $notifier): RedirectResponse
     {
-        Dao::create([
+        $dao = Dao::create([
             ...$request->validated(),
             'user_id' => $request->user()->id,
         ]);
+
+        $notifier->daoCreated($dao);
 
         return back()->with('success', 'DAO created');
     }
@@ -66,7 +70,15 @@ class DaoController extends Controller
     {
         Gate::authorize('update', $dao);
 
-        $dao->update($request->validated());
+        $data = $request->validated();
+
+        // A launched token's DAO is voted in that token and in nothing else;
+        // its owner may rename it, never point it at another contract.
+        if (LaunchpadToken::query()->where('dao_id', $dao->id)->exists()) {
+            unset($data['address']);
+        }
+
+        $dao->update($data);
 
         return back()->with('success', 'DAO updated');
     }

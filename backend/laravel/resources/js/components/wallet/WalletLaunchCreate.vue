@@ -28,6 +28,7 @@ import {
     quoteLaunch,
     readMinLiquidity,
     submitAbout,
+    watchLaunch,
 } from '@/lib/wallet/launchpad';
 import type {
     LaunchAbout,
@@ -62,6 +63,7 @@ const emit = defineEmits<{
     launched: [];
     swap: [contract: string];
     domains: [];
+    dao: [];
 }>();
 
 const { t } = useLocale(walletMessages);
@@ -99,6 +101,12 @@ const token = ref<string | null>(null);
 /** Mined, but the receipt did not name the token, or the wait timed out. */
 const unread = ref(false);
 const aboutState = ref<'none' | 'saving' | 'saved' | 'failed'>('none');
+/**
+ * The DAO the launch opened. Every launch gets one without anybody asking —
+ * this screen only asks the server to look now and says when it has.
+ */
+const dao = ref<{ id: number; name: string } | null>(null);
+const daoState = ref<'none' | 'opening' | 'opened' | 'later'>('none');
 const aboutError = ref<string | null>(null);
 
 const chainId = computed(() => {
@@ -343,6 +351,14 @@ const launch = async (): Promise<void> => {
     emit('launched');
     void props.wallet.refreshBalances();
 
+    if (token.value) {
+        daoState.value = 'opening';
+        void watchLaunch(token.value).then((opened) => {
+            dao.value = opened;
+            daoState.value = opened ? 'opened' : 'later';
+        });
+    }
+
     // The zone is the second half of the same act the hold agreed to, so it
     // is signed straight away — anyone could open it, and the creator should
     // not have to come back to be first.
@@ -461,6 +477,33 @@ onMounted(async () => {
                 >
                     {{ t('retry') }}
                 </button>
+            </p>
+
+            <p
+                v-if="daoState === 'opening'"
+                class="cw-label"
+                style="margin-top: 14px; color: var(--cw-faint)"
+            >
+                {{ t('launchDaoOpening') }}
+            </p>
+            <p
+                v-else-if="daoState === 'opened' && dao"
+                class="cw-note"
+                style="margin-top: 14px"
+            >
+                <span style="flex: 1">{{
+                    t('launchDaoOpened', { dao: dao.name })
+                }}</span>
+                <button type="button" class="cw-back" @click="emit('dao')">
+                    {{ t('dao') }} →
+                </button>
+            </p>
+            <p
+                v-else-if="daoState === 'later'"
+                class="cw-label"
+                style="margin-top: 14px; color: var(--cw-faint)"
+            >
+                {{ t('launchDaoLater') }}
             </p>
 
             <p

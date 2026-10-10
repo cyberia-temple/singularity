@@ -27,6 +27,13 @@ _swap_topic_hex = Web3.keccak(
 ).hex()
 SWAP_EVENT_TOPIC = "0x" + _swap_topic_hex.removeprefix("0x").removeprefix("0X")
 
+# The PancakeV3 pool's Swap: signed amounts (positive = into the pool), then
+# price, liquidity, tick and the two protocol fees this fork adds.
+_v3_swap_topic_hex = Web3.keccak(
+    text="Swap(address,address,int256,int256,uint160,uint128,int24,uint128,uint128)"
+).hex()
+V3_SWAP_EVENT_TOPIC = "0x" + _v3_swap_topic_hex.removeprefix("0x").removeprefix("0X")
+
 PAIR_ABI = [
     {"inputs": [], "name": "token0",
      "outputs": [{"name": "", "type": "address"}],
@@ -257,7 +264,40 @@ def _liquidity_usd_volume(
         return val0 * 2
     return val0 + val1
 def _router_topic_hex() -> str:
-    return "0x" + RITUAL_V2_ROUTER.lower().replace("0x", "").rjust(64, "0")
+    return _address_topic_hex(RITUAL_V2_ROUTER)
+
+
+def _address_topic_hex(address: str) -> str:
+    """An address as an indexed-topic filter: left-padded to 32 bytes."""
+    return "0x" + address.lower().replace("0x", "").rjust(64, "0")
+
+
+def _decode_v3_swap_data(data) -> tuple[int, int]:
+    """V3 Swap data: the first two words are int256 amount0 / amount1, signed
+    from the pool's side — positive went in, negative came out."""
+    h = _hex_no_prefix(data)
+
+    def signed(word: str) -> int:
+        value = int(word, 16)
+        return value - (1 << 256) if value >= (1 << 255) else value
+
+    return signed(h[0:64]), signed(h[64:128])
+
+
+def _decode_abi_string(data, head_word: int) -> str | None:
+    """A dynamic `string` out of an event's data, found through the offset in
+    head word `head_word`. None rather than raising on anything malformed."""
+    h = _hex_no_prefix(data)
+    try:
+        offset = int(h[head_word * 64:(head_word + 1) * 64], 16) * 2
+        length = int(h[offset:offset + 64], 16)
+        raw = bytes.fromhex(h[offset + 64:offset + 64 + length * 2])
+    except (ValueError, IndexError):
+        return None
+    if len(raw) != length:
+        return None
+    text = raw.decode("utf-8", errors="replace")
+    return "".join(ch for ch in text if ch.isprintable()).strip() or None
 def _decode_data_words(data, n: int) -> list[int]:
     """Decode the first `n` 32-byte words of an event's data blob to ints."""
     h = _hex_no_prefix(data)

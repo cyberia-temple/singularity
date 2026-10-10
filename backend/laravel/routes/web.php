@@ -406,6 +406,8 @@ Route::prefix('api/wallet')->name('wallet.social.')->group(function () {
         ->middleware('throttle:60,1')->name('dao');
     Route::get('dao/proposals/{proposal}', [WalletSocialController::class, 'proposal'])
         ->middleware('throttle:60,1')->name('proposal');
+    Route::get('dao/proposals/{proposal}/comments', [WalletSocialController::class, 'comments'])
+        ->middleware('throttle:60,1')->name('proposal.comments');
     Route::get('profile/{address}', [WalletSocialController::class, 'profile'])
         ->middleware('throttle:60,1')->name('profile');
 });
@@ -446,6 +448,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('throttle:60,1')->name('wallet.social.vote.show');
     Route::post('api/wallet/dao/proposals/{proposal}/vote', [WalletDaoVoteController::class, 'store'])
         ->middleware('throttle:20,1')->name('wallet.social.vote');
+    Route::post('api/wallet/dao/proposals/{proposal}/comments', [WalletDaoVoteController::class, 'comment'])
+        ->middleware('throttle:10,1')->name('wallet.social.comment');
 
     // Own profile: account info + bridge deposit addresses for every chain.
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');

@@ -21,8 +21,31 @@ export type FeedPerson = {
     url: string;
 };
 
+/**
+ * Something somebody did on chain, as the Telegram bot read it: `action` is
+ * the bot's kind (`swap`, `liq_add`, `lend_borrowed`, `bridge`, …) and the two
+ * amounts are already formatted. `detail` is what the row's extras say in
+ * words — a bridge's route, a domain's name.
+ */
+export type FeedOnchain = {
+    action: string;
+    in: string | null;
+    out: string | null;
+    detail: string | null;
+    usd: number | null;
+};
+
+/** A token launched on the launchpad, and the DAO the launch opened. */
+export type FeedLaunch = {
+    address: string;
+    name: string | null;
+    symbol: string | null;
+    image: string | null;
+    dao: { id: number; name: string } | null;
+};
+
 export type FeedItem = {
-    kind: 'post' | 'dao';
+    kind: 'post' | 'dao' | 'onchain' | 'launch';
     id: string;
     at: string | null;
     who: FeedPerson | null;
@@ -30,8 +53,12 @@ export type FeedItem = {
     type?: string;
     text: string | null;
     meta: string | null;
+    onchain?: FeedOnchain;
+    launch?: FeedLaunch;
     url: string;
 };
+
+export type FeedTab = 'all' | 'posts' | 'dao' | 'onchain';
 
 export type DaoSummary = {
     id: number;
@@ -90,9 +117,7 @@ const read = async <T>(path: string): Promise<T> => {
     return (await response.json()) as T;
 };
 
-export const fetchFeed = async (
-    tab: 'all' | 'posts' | 'dao' = 'all',
-): Promise<FeedItem[]> =>
+export const fetchFeed = async (tab: FeedTab = 'all'): Promise<FeedItem[]> =>
     (await read<{ items: FeedItem[] }>(`/api/wallet/feed?tab=${tab}`)).items;
 
 /**
@@ -208,4 +233,42 @@ export const createProposal = async (proposal: {
                 ends_at: proposal.endsAt,
             }),
         })
+    ).id;
+
+export type ProposalComment = {
+    id: number;
+    at: string | null;
+    who: FeedPerson | null;
+    /** Server-rendered through the site's own markdown sanitiser. */
+    bodyHtml: string;
+    replies?: ProposalComment[];
+};
+
+/** A proposal's thread, oldest first, replies under their comment. */
+export const fetchComments = async (id: number): Promise<ProposalComment[]> =>
+    (
+        await read<{ comments: ProposalComment[] }>(
+            `/api/wallet/dao/proposals/${id}/comments`,
+        )
+    ).comments;
+
+/**
+ * Comment on a proposal (or reply to a top-level comment) as the address this
+ * session signed in with — the same 409 as a vote when it belongs to another
+ * key. Answers with the new comment's id.
+ */
+export const postComment = async (
+    id: number,
+    address: string,
+    body: string,
+    parentId: number | null = null,
+): Promise<number> =>
+    (
+        await sessionCall<{ id: number }>(
+            `/api/wallet/dao/proposals/${id}/comments`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ address, body, parent_id: parentId }),
+            },
+        )
     ).id;

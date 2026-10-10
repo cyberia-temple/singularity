@@ -5,33 +5,22 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreProposalCommentRequest;
 use App\Models\Proposal;
 use App\Models\ProposalComment;
-use App\Services\Dao\ActivityRecorder;
-use App\Services\Dao\DaoNotifier;
+use App\Services\Dao\ProposalCommenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 
 class ProposalCommentController extends Controller
 {
-    public function __construct(
-        private ActivityRecorder $activityRecorder,
-        private DaoNotifier $notifier,
-    ) {}
+    public function __construct(private ProposalCommenter $commenter) {}
 
     public function store(StoreProposalCommentRequest $request, Proposal $proposal): RedirectResponse
     {
-        $comment = $proposal->comments()->create([
-            ...$request->validated(),
-            'user_id' => $request->user()->id,
-        ]);
-
-        $this->activityRecorder->record(
-            'comment.posted',
+        $this->commenter->post(
             $request->user(),
-            $comment,
-            $proposal->dao,
+            $proposal,
+            $request->validated('body'),
+            $request->validated('parent_id'),
         );
-
-        $this->notifier->commentPosted($comment);
 
         return back()->with('success', 'Comment added');
     }

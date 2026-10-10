@@ -6,8 +6,11 @@ use App\Models\Post;
 use App\Models\Proposal;
 use App\Models\ProposalVote;
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * What the wallet reads about the rest of Cyberia.
@@ -172,4 +175,108 @@ it('answers for a claimed address without leaking an account', function () {
 it('refuses anything that is not an address', function () {
     $this->getJson('/api/wallet/profile/not-an-address')->assertStatus(422);
     $this->getJson('/api/wallet/profile/0x123')->assertStatus(422);
+});
+
+/**
+ * `activity_events` belongs to the Telegram bot and is created by it, not by a
+ * migration, so the test builds the bot's own schema.
+ */
+function createActivityEvents(): void
+{
+    Schema::create('activity_events', function (Blueprint $table) {
+        $table->id();
+        $table->string('kind');
+        $table->float('usd')->nullable();
+        $table->string('sym_in')->nullable();
+        $table->float('amt_in')->nullable();
+        $table->string('sym_out')->nullable();
+        $table->float('amt_out')->nullable();
+        $table->string('user_addr')->nullable();
+        $table->string('tx_hash')->nullable();
+        $table->integer('block')->nullable();
+        $table->text('meta')->nullable();
+        $table->string('created_at')->nullable();
+    });
+}
+
+it('puts every on-chain action into the feed, named where the address is claimed', function () {
+    createActivityEvents();
+    User::factory()->create(['name' => 'ghostline', 'wallet_address' => '0xAAAAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']);
+
+    DB::table('activity_events')->insert([
+        ['kind' => 'swap', 'usd' => 12.5, 'sym_in' => 'CYBER', 'amt_in' => 100, 'sym_out' => 'USDC', 'amt_out' => 12.5,
+            'user_addr' => '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tx_hash' => '0xfeed', 'meta' => null,
+            'created_at' => now('UTC')->subMinutes(3)->format('Y-m-d H:i:s')],
+        ['kind' => 'swap', 'usd' => 0.2, 'sym_in' => 'USDC', 'amt_in' => 0.2, 'sym_out' => 'CYBER', 'amt_out' => 1.6,
+            'user_addr' => '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'tx_hash' => '0xdust', 'meta' => null,
+            'created_at' => now('UTC')->subMinutes(2)->format('Y-m-d H:i:s')],
+        ['kind' => 'liq_add', 'usd' => 50, 'sym_in' => 'CYBER', 'amt_in' => 1, 'sym_out' => 'USDC', 'amt_out' => 25,
+            'user_addr' => null, 'tx_hash' => '0xlp', 'meta' => null,
+            'created_at' => now('UTC')->subMinute()->format('Y-m-d H:i:s')],
+        ['kind' => 'pumpfun_buy', 'usd' => null, 'sym_in' => 'SOL', 'amt_in' => 0.5, 'sym_out' => 'CYBER.sol', 'amt_out' => 900,
+            'user_addr' => '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', 'tx_hash' => '5sig', 'meta' => null,
+            'created_at' => now('UTC')->format('Y-m-d H:i:s')],
+    ]);
+
+    $chain = $this->getJson('/api/wallet/feed?tab=onchain')->assertOk()->json('items');
+
+    expect($chain)->toHaveCount(4)
+        ->and($chain[0]['kind'])->toBe('onchain')
+        // A Solana buyer is shortened and opens no profile — the wallet's
+        // profile lookup takes EVM addresses only — and its receipt is Solscan.
+        ->and($chain[0]['onchain']['action'])->toBe('pumpfun_buy')
+        ->and($chain[0]['onchain']['usd'])->toBeNull()
+        ->and($chain[0]['who']['address'])->toBeNull()
+        ->and($chain[0]['url'])->toBe('https://solscan.io/tx/5sig')
+        ->and($chain[1]['onchain']['action'])->toBe('liq_add')
+        ->and($chain[1]['who'])->toBeNull()
+        ->and($chain[2]['who']['name'])->toBe('0xbbbb…bbbb')
+        ->and($chain[3]['who']['name'])->toBe('ghostline')
+        ->and($chain[3]['onchain'])->toBe(['action' => 'swap', 'in' => '100 CYBER', 'out' => '12.5 USDC', 'detail' => null, 'usd' => 12.5])
+        ->and($chain[3]['url'])->toEndWith('/tx/0xfeed');
+
+    // Every one of them is news, so "All" carries every one too.
+    expect(collect($this->getJson('/api/wallet/feed?tab=all')->json('items'))->where('kind', 'onchain'))->toHaveCount(4);
+
+    // A wallet left open across the deploy still asks for the old tab name.
+    expect($this->getJson('/api/wallet/feed?tab=trades')->json('items'))->toHaveCount(4);
+
+    // And the other tabs carry nothing from the chain.
+    expect(collect($this->getJson('/api/wallet/feed?tab=posts')->json('items'))->where('kind', 'onchain'))->toBeEmpty();
+});
+
+it('keeps the small and the unpriced off "All" when a floor is set', function () {
+    createActivityEvents();
+    config()->set('wallet.feed.trade_floor_usd', 1);
+
+    DB::table('activity_events')->insert([
+        ['kind' => 'swap', 'usd' => 12.5, 'sym_in' => 'CYBER', 'amt_in' => 100, 'sym_out' => 'USDC', 'amt_out' => 12.5,
+            'user_addr' => null, 'tx_hash' => '0x1', 'meta' => null, 'created_at' => now('UTC')->format('Y-m-d H:i:s')],
+        ['kind' => 'swap', 'usd' => 0.2, 'sym_in' => 'USDC', 'amt_in' => 0.2, 'sym_out' => 'CYBER', 'amt_out' => 1.6,
+            'user_addr' => null, 'tx_hash' => '0x2', 'meta' => null, 'created_at' => now('UTC')->format('Y-m-d H:i:s')],
+        ['kind' => 'stake', 'usd' => null, 'sym_in' => 'ASH', 'amt_in' => 5, 'sym_out' => null, 'amt_out' => null,
+            'user_addr' => null, 'tx_hash' => '0x3', 'meta' => null, 'created_at' => now('UTC')->format('Y-m-d H:i:s')],
+    ]);
+
+    expect(collect($this->getJson('/api/wallet/feed?tab=all')->json('items'))->where('kind', 'onchain'))->toHaveCount(1)
+        ->and($this->getJson('/api/wallet/feed?tab=onchain')->json('items'))->toHaveCount(3);
+});
+
+it('says where a bridge went', function () {
+    createActivityEvents();
+
+    DB::table('activity_events')->insert([
+        'kind' => 'bridge', 'usd' => 40, 'sym_in' => 'USDC', 'amt_in' => 40, 'sym_out' => null, 'amt_out' => null,
+        'user_addr' => '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tx_hash' => '0xb', 'meta' => 'base_to_evm',
+        'created_at' => now('UTC')->format('Y-m-d H:i:s'),
+    ]);
+
+    $item = $this->getJson('/api/wallet/feed?tab=onchain')->json('items.0');
+
+    expect($item['onchain']['detail'])->toBe('Base → Cyberia')
+        ->and($item['url'])->toBe('https://basescan.org/tx/0xb');
+});
+
+it('serves the feed without chain rows when the bot has never run', function () {
+    $this->getJson('/api/wallet/feed?tab=onchain')->assertOk()->assertJsonCount(0, 'items');
 });

@@ -189,6 +189,9 @@ Route::post('nft/upload', [NFTController::class, 'upload'])->middleware('throttl
 Route::prefix('launchpad')->group(function () {
     Route::get('tokens', [LaunchpadController::class, 'index']);
     Route::post('tokens', [LaunchpadController::class, 'store'])->middleware('throttle:30,1');
+    // A launch screen's "look now": the token's DAO, feed entry and push
+    // without waiting for the scheduled `launchpad:watch`.
+    Route::post('watch', [LaunchpadController::class, 'watch'])->middleware('throttle:20,1');
 });
 
 /*

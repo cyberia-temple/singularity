@@ -176,4 +176,23 @@ return [
         'operator_min_wei' => (string) env('WALLET_GAS_OPERATOR_MIN_WEI', '50000000000000000'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | On-chain actions in the feed
+    |--------------------------------------------------------------------------
+    |
+    | Everything the Telegram bot reads off the chain into `activity_events` —
+    | swaps on both exchanges, liquidity, lending, staking, bridges, mints —
+    | plus every launch (`launchpad:watch`). All of it goes into the feed and
+    | is pushed to everyone by `feed:announce-activity`: the project is small
+    | enough that each one is news. A floor above zero brings back the old
+    | behaviour — only rows priced at or above it reach "All" and the push —
+    | for the day a phone buzzing for every 20-cent swap stops being welcome.
+    |
+    */
+
+    'feed' => [
+        'trade_floor_usd' => (float) env('WALLET_TRADE_FLOOR_USD', 0),
+    ],
+
 ];

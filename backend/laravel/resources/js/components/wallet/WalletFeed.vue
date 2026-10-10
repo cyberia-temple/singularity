@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MessageSquare } from 'lucide-vue-next';
+import { ExternalLink, MessageSquare } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
@@ -7,15 +7,18 @@ import { growComposer } from '@/lib/wallet/composer';
 import { relativeTime, shortAddress } from '@/lib/wallet/format';
 import { signInWithWallet } from '@/lib/wallet/session';
 import { fetchFeed, publishPost } from '@/lib/wallet/social';
-import type { FeedItem } from '@/lib/wallet/social';
+import type { FeedItem, FeedOnchain, FeedTab } from '@/lib/wallet/social';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
  * What is happening across Cyberia, as one column you can write into.
  *
- * Two sources, because that is what exists: posts people wrote and activity the
- * DAO recorded, merged server-side so this screen does not page two lists
- * against each other.
+ * Four sources, because that is what exists: posts people wrote, activity the
+ * DAO recorded, everything done on chain — swaps on both exchanges, liquidity,
+ * lending, staking, bridges, mints — and every token launched, with the DAO
+ * the launch opened. Merged server-side so this screen does not page four
+ * lists against each other. All of it is in "All": the project is small
+ * enough that each one is news, and the same is pushed to everybody.
  *
  * It used to be read-only, with a note at the bottom explaining that a wallet
  * has no account to post from. That was true of the plumbing and false about
@@ -41,6 +44,10 @@ const emit = defineEmits<{
     message: [address: string];
     /** A session was just created, so the page can re-read who it is. */
     signedIn: [];
+    /** Buy a launched token: the swap screen, on its contract. */
+    buy: [contract: string];
+    /** The DAO tab, where a launched token's DAO now is. */
+    dao: [];
 }>();
 
 const { locale, t } = useLocale(walletMessages);
@@ -48,9 +55,63 @@ const { locale, t } = useLocale(walletMessages);
 /** The chain whose key signs the challenge: one address, every EVM network. */
 const SIGNING_CHAIN = 'cyberia';
 
-type Tab = 'all' | 'posts' | 'dao';
+type Tab = FeedTab;
 
-const TABS: Tab[] = ['all', 'posts', 'dao'];
+const TABS: Tab[] = ['all', 'posts', 'dao', 'onchain'];
+
+const TAB_LABEL: Record<Tab, string> = {
+    all: 'feedTabAll',
+    posts: 'feedTabPosts',
+    dao: 'feedTabDao',
+    onchain: 'feedTabOnchain',
+};
+
+/**
+ * The bot's kinds, said in the reader's language. An unknown kind reads as
+ * "on-chain action" — a watcher added to the bot tomorrow should read plainly,
+ * not vanish.
+ */
+const ACTION: Record<string, string> = {
+    swap: 'feedActSwap',
+    liq_add: 'feedActLiqAdd',
+    liq_remove: 'feedActLiqRemove',
+    lend_supplied: 'feedActLendSupplied',
+    lend_withdrew: 'feedActLendWithdrew',
+    lend_borrowed: 'feedActLendBorrowed',
+    lend_repaid: 'feedActLendRepaid',
+    stake: 'feedActStake',
+    unstake: 'feedActUnstake',
+    convert: 'feedActConvert',
+    pumpfun_buy: 'feedActPumpfunBuy',
+    bridge: 'feedActBridge',
+    nft_mint: 'feedActNftMint',
+    nft_sale: 'feedActNftSale',
+    domain: 'feedActDomain',
+    zone: 'feedActZone',
+    predict_market: 'feedActPredictMarket',
+    predict_bet: 'feedActPredictBet',
+};
+
+/** What went in and what came out, a pair added together, or one amount. */
+const amounts = (onchain: FeedOnchain): string | null => {
+    if (onchain.in === null || onchain.out === null) {
+        return onchain.in ?? onchain.out;
+    }
+
+    const join = onchain.action.startsWith('liq_') ? ' + ' : ' → ';
+
+    return `${onchain.in}${join}${onchain.out}`;
+};
+
+/** A dollar figure the way a trade row says it; null is "unpriced", not $0. */
+const usd = (value: number | null): string | null =>
+    value === null
+        ? null
+        : value.toLocaleString(locale.value, {
+              style: 'currency',
+              currency: 'USD',
+              maximumFractionDigits: value >= 100 ? 0 : 2,
+          });
 
 const tab = ref<Tab>('all');
 const items = ref<FeedItem[]>([]);
@@ -158,7 +219,7 @@ const publish = async (): Promise<void> => {
         draft.value = '';
         await nextTick(() => growComposer(composer.value));
 
-        if (tab.value !== 'dao') {
+        if (tab.value === 'all' || tab.value === 'posts') {
             items.value = [post, ...items.value];
         }
     } catch (error) {
@@ -244,15 +305,7 @@ onMounted(load);
                 :aria-pressed="tab === entry"
                 @click="tab = entry"
             >
-                {{
-                    t(
-                        entry === 'all'
-                            ? 'feedTabAll'
-                            : entry === 'posts'
-                              ? 'feedTabPosts'
-                              : 'feedTabDao',
-                    )
-                }}
+                {{ t(TAB_LABEL[entry]) }}
             </button>
         </div>
 
@@ -390,6 +443,80 @@ onMounted(load);
                     }}</span>
                     <template v-if="item.text"> — {{ item.text }}</template>
                 </p>
+                <!--
+                  Something done on chain, read off it rather than said by
+                  anybody: what it was, what moved, and what it was worth where
+                  a route to a price exists. The explorer link is the receipt.
+                -->
+                <p
+                    v-else-if="item.kind === 'onchain' && item.onchain"
+                    style="
+                        margin: 0;
+                        font: 400 15px/1.6 var(--cw-sans);
+                        color: var(--cw-body);
+                    "
+                >
+                    <span style="color: var(--cw-accent)">{{
+                        t(ACTION[item.onchain.action] ?? 'feedActOther')
+                    }}</span>
+                    <span v-if="amounts(item.onchain)" class="cw-data">
+                        {{ amounts(item.onchain) }}
+                    </span>
+                    <template v-if="item.onchain.detail">
+                        · {{ item.onchain.detail }}</template
+                    >
+                </p>
+                <!--
+                  A launch: the token, its logo and what its creator said about
+                  it where they said anything, and below it the two things a
+                  reader can do next — buy it, or walk into the DAO that opened
+                  with it.
+                -->
+                <div v-else-if="item.kind === 'launch' && item.launch">
+                    <div style="display: flex; align-items: center; gap: 12px">
+                        <img
+                            v-if="item.launch.image"
+                            :src="item.launch.image"
+                            alt=""
+                            style="
+                                width: 40px;
+                                height: 40px;
+                                flex: none;
+                                object-fit: cover;
+                                border: 1px solid var(--cw-border-soft);
+                            "
+                        />
+                        <p
+                            style="
+                                margin: 0;
+                                font: 400 15px/1.6 var(--cw-sans);
+                                color: var(--cw-body);
+                            "
+                        >
+                            <span style="color: var(--cw-accent)">{{
+                                t('feedLaunched')
+                            }}</span>
+                            {{
+                                item.launch.name ??
+                                shortAddress(item.launch.address)
+                            }}
+                            <span v-if="item.launch.symbol" class="cw-data"
+                                >· {{ item.launch.symbol }}</span
+                            >
+                        </p>
+                    </div>
+                    <p
+                        v-if="item.text"
+                        style="
+                            margin: 10px 0 0;
+                            white-space: pre-wrap;
+                            font: 400 14px/1.6 var(--cw-sans);
+                            color: var(--cw-muted);
+                        "
+                    >
+                        {{ item.text }}
+                    </p>
+                </div>
                 <p
                     v-else
                     style="
@@ -403,7 +530,73 @@ onMounted(load);
                 </p>
 
                 <div
-                    v-if="item.meta"
+                    v-if="item.kind === 'launch' && item.launch"
+                    style="
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        gap: 12px;
+                        margin-top: 14px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--cw-line);
+                    "
+                >
+                    <button
+                        type="button"
+                        class="cw-ghost"
+                        @click="emit('buy', item.launch.address)"
+                    >
+                        {{ t('feedLaunchBuy') }}
+                    </button>
+                    <button
+                        v-if="item.launch.dao"
+                        type="button"
+                        class="cw-ghost"
+                        @click="emit('dao')"
+                    >
+                        {{ t('feedLaunchDao') }}
+                    </button>
+                    <span v-else class="cw-label">{{
+                        t('feedLaunchDaoOpening')
+                    }}</span>
+                    <span class="cw-fill"></span>
+                    <a
+                        class="cw-ghost"
+                        :href="item.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        {{ t('feedLaunchToken') }}
+                        <ExternalLink :size="13" aria-hidden="true" />
+                    </a>
+                </div>
+                <div
+                    v-else-if="item.kind === 'onchain'"
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        margin-top: 14px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--cw-line);
+                    "
+                >
+                    <span class="cw-label">{{
+                        usd(item.onchain?.usd ?? null) ?? t('feedTradeUnpriced')
+                    }}</span>
+                    <span class="cw-fill"></span>
+                    <a
+                        class="cw-ghost"
+                        :href="item.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        {{ t('feedTradeTx') }}
+                        <ExternalLink :size="13" aria-hidden="true" />
+                    </a>
+                </div>
+                <div
+                    v-else-if="item.meta"
                     style="
                         display: flex;
                         align-items: center;
