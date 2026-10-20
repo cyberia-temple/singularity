@@ -213,6 +213,15 @@ Two consequences worth knowing before touching `src/main.js`:
   window focus — otherwise the app opens with a password field that ignores
   typing until it is clicked.
 
+The window is transparent, and the wallet rounds its own corners like the card
+it is on the site (`desktop.css`, `src/offline.html`). The shell tells the page
+which corners to draw (`windowEdge` in `src/frame.js`, mirrored onto
+`<html data-window-edge>` by the preload): round while the window floats, square
+while it is maximised or full screen. A transparent window loses the invisible
+resize border Chromium draws around a frameless one, so the preload hangs thin
+grips on the page's edges and the shell resizes the window as they are dragged
+(`resizedBounds`).
+
 There is no application menu attached to the frameless window. `commandForInput`
 in `src/frame.js` answers the useful accelerators directly — matched on the
 physical key as well as the letter, so Ctrl+R still reloads on a Cyrillic layout.

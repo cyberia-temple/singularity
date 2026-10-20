@@ -29,6 +29,7 @@ const {
     net,
     nativeImage,
     protocol,
+    screen,
     session,
     shell,
 } = require('electron');
@@ -43,7 +44,14 @@ const {
     resolveProxyDecision,
     resolveStartUrl,
 } = require('./config');
-const { commandForInput, usesFramelessWindow, zoomLevel } = require('./frame');
+const {
+    MIN_WINDOW,
+    commandForInput,
+    resizedBounds,
+    usesFramelessWindow,
+    windowEdge,
+    zoomLevel,
+} = require('./frame');
 const { createAutostart } = require('./autostart');
 const { loadProxySetting, saveProxySetting } = require('./proxy-settings');
 const torrent = require('./torrent');
@@ -120,6 +128,8 @@ let tray = null;
 let proxyWindow = null;
 let shellSession = null;
 let settleTimer = null;
+/** The drag in progress on one of the page's resize grips, if any. */
+let resizeDrag = null;
 let autostart = null;
 let quitting = false;
 let startHidden = false;
@@ -555,6 +565,48 @@ function relayout() {
     settleTimer = setTimeout(layoutViews, SETTLE_MS);
 }
 
+/** The corners the page should draw right now; see `windowEdge`. */
+function currentWindowEdge() {
+    return windowEdge({
+        frameless: FRAMELESS,
+        maximized: Boolean(mainWindow?.isMaximized()),
+        fullScreen: Boolean(mainWindow?.isFullScreen()),
+    });
+}
+
+function sendWindowEdge() {
+    const contents = pageContents();
+
+    contents?.send('shell:window-edge', currentWindowEdge());
+}
+
+/**
+ * Starts a drag on a resize grip. The cursor is read here rather than taken
+ * from the page, whose coordinates follow its zoom.
+ */
+function startResize(edge) {
+    if (!mainWindow || mainWindow.isDestroyed() || currentWindowEdge() !== 'round') {
+        return;
+    }
+
+    resizeDrag = { edge, bounds: mainWindow.getBounds(), cursor: screen.getCursorScreenPoint() };
+}
+
+function continueResize() {
+    if (!resizeDrag || !mainWindow || mainWindow.isDestroyed()) {
+        return;
+    }
+
+    const cursor = screen.getCursorScreenPoint();
+
+    mainWindow.setBounds(resizedBounds(
+        resizeDrag.bounds,
+        resizeDrag.edge,
+        cursor.x - resizeDrag.cursor.x,
+        cursor.y - resizeDrag.cursor.y,
+    ));
+}
+
 function setWindowTitle(title) {
     const text = typeof title === 'string' && title.trim() !== '' ? title : 'Cyberia';
 
@@ -648,14 +700,16 @@ function createWindow() {
         y: state.y,
         width: state.width,
         height: state.height,
-        minWidth: 380,
-        minHeight: 520,
+        minWidth: MIN_WINDOW.width,
+        minHeight: MIN_WINDOW.height,
         show: false,
-        backgroundColor: '#0b0f10',
+        backgroundColor: FRAMELESS ? '#00000000' : '#0b0f10',
         title: 'Cyberia',
         // The wallet itself is the window. `--native-frame` is retained as an
         // accessibility/compatibility escape hatch for unusual window managers.
         frame: !FRAMELESS,
+        // See-through so the wallet can round its own corners (`windowEdge`).
+        transparent: FRAMELESS,
         autoHideMenuBar: true,
         icon: process.platform === 'linux' ? appIconPath() : undefined,
     });
@@ -671,7 +725,7 @@ function createWindow() {
         },
     });
 
-    contentView.setBackgroundColor('#0b0f10');
+    contentView.setBackgroundColor(FRAMELESS ? '#00000000' : '#0b0f10');
     mainWindow.contentView.addChildView(contentView);
 
     layoutViews();
@@ -739,6 +793,10 @@ function createWindow() {
     mainWindow.on('unmaximize', relayout);
     mainWindow.on('enter-full-screen', relayout);
     mainWindow.on('leave-full-screen', relayout);
+
+    for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'restore']) {
+        mainWindow.on(event, sendWindowEdge);
+    }
     mainWindow.on('focus', focusPage);
 
     // Closing the window leaves the wallet reachable from the tray. Explicit
@@ -1000,6 +1058,12 @@ if (!app.requestSingleInstanceLock()) {
         // Opening the window is all the site (and the offline page) may do:
         // reading and changing the proxy lives behind the window's own preload.
         ipcMain.on('shell:open-proxy', () => openProxyWindow());
+        // The grips the preload draws in a transparent window; see resizedBounds.
+        ipcMain.on('shell:resize-start', (_event, edge) => startResize(String(edge)));
+        ipcMain.on('shell:resize-move', () => continueResize());
+        ipcMain.on('shell:resize-end', () => {
+            resizeDrag = null;
+        });
         ipcMain.on('shell:info', (event) => {
             event.returnValue = {
                 shell: 'desktop',
@@ -1010,6 +1074,7 @@ if (!app.requestSingleInstanceLock()) {
                 proxy: describeProxy(activeProxy),
                 startup: autostart.state(),
                 tray: Boolean(tray),
+                windowEdge: currentWindowEdge(),
             };
         });
         ipcMain.handle('shell:set-startup', (event, enabled) => {

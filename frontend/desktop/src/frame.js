@@ -65,6 +65,61 @@ function usesFramelessWindow(env, argv) {
     return !TRUE_VALUES.has(value);
 }
 
+/**
+ * The corners the wallet draws for a window in this state.
+ *
+ * A frameless window is transparent and the wallet rounds itself like the card
+ * it is on the site. A maximised or full-screen window meets the screen edges,
+ * where a rounded corner would show slivers of desktop, so it goes square — as
+ * does a window the desktop frames itself.
+ */
+function windowEdge({ frameless, maximized, fullScreen }) {
+    return frameless && !maximized && !fullScreen ? 'round' : 'square';
+}
+
+/** The smallest window the wallet still lays out in. */
+const MIN_WINDOW = { width: 380, height: 520 };
+
+/** The window sides a resize grip may name, as compass points. */
+const RESIZE_EDGES = new Set(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']);
+
+/**
+ * The window's bounds while a grip is dragged.
+ *
+ * A transparent window loses the resize border Chromium draws around a
+ * frameless one, so the page carries its own grips and the shell moves the
+ * window. `start` is the bounds when the drag began and `dx`/`dy` how far the
+ * pointer has travelled since; the side opposite the grip stays put, also when
+ * the window has reached its minimum size.
+ */
+function resizedBounds(start, edge, dx, dy, min = MIN_WINDOW) {
+    if (!RESIZE_EDGES.has(edge)) {
+        return start;
+    }
+
+    let { x, y, width, height } = start;
+
+    if (edge.includes('e')) {
+        width = Math.max(min.width, start.width + dx);
+    }
+
+    if (edge.includes('w')) {
+        width = Math.max(min.width, start.width - dx);
+        x = start.x + start.width - width;
+    }
+
+    if (edge.includes('s')) {
+        height = Math.max(min.height, start.height + dy);
+    }
+
+    if (edge.includes('n')) {
+        height = Math.max(min.height, start.height - dy);
+        y = start.y + start.height - height;
+    }
+
+    return { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
+}
+
 /** The command a key stroke asks for, or `null` if it asks for nothing. */
 function commandForInput(input) {
     if (!input || input.type !== 'keyDown' || typeof input.key !== 'string') {
@@ -110,8 +165,11 @@ function zoomLevel(current, command) {
 }
 
 module.exports = {
+    MIN_WINDOW,
     ZOOM_RANGE,
     commandForInput,
+    resizedBounds,
     usesFramelessWindow,
+    windowEdge,
     zoomLevel,
 };

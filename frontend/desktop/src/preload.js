@@ -22,6 +22,97 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const info = ipcRenderer.sendSync('shell:info');
 
+/** How far into the window a side grip reaches, and a corner grip. */
+const GRIP = 6;
+const CORNER_GRIP = 16;
+
+/**
+ * Resize grips for the transparent window, which has lost the invisible border
+ * Chromium draws around a frameless one. They hang off `<html>`, outside the
+ * body the page clips to its rounded corners, and exist only while the corners
+ * are round: a maximised window is not resized by its edges.
+ */
+const GRIPS = {
+    n: { top: 0, left: CORNER_GRIP, right: CORNER_GRIP, height: GRIP, cursor: 'ns-resize' },
+    s: { bottom: 0, left: CORNER_GRIP, right: CORNER_GRIP, height: GRIP, cursor: 'ns-resize' },
+    e: { right: 0, top: CORNER_GRIP, bottom: CORNER_GRIP, width: GRIP, cursor: 'ew-resize' },
+    w: { left: 0, top: CORNER_GRIP, bottom: CORNER_GRIP, width: GRIP, cursor: 'ew-resize' },
+    nw: { top: 0, left: 0, width: CORNER_GRIP, height: CORNER_GRIP, cursor: 'nwse-resize' },
+    se: { bottom: 0, right: 0, width: CORNER_GRIP, height: CORNER_GRIP, cursor: 'nwse-resize' },
+    ne: { top: 0, right: 0, width: CORNER_GRIP, height: CORNER_GRIP, cursor: 'nesw-resize' },
+    sw: { bottom: 0, left: 0, width: CORNER_GRIP, height: CORNER_GRIP, cursor: 'nesw-resize' },
+};
+
+let grips = [];
+
+const createGrip = (edge, placement) => {
+    const grip = document.createElement('div');
+    const { cursor, ...box } = placement;
+
+    Object.assign(grip.style, { position: 'fixed', zIndex: '2147483647', cursor });
+    grip.style.setProperty('-webkit-app-region', 'no-drag');
+
+    for (const [side, value] of Object.entries(box)) {
+        grip.style[side] = `${value}px`;
+    }
+
+    grip.addEventListener('pointerdown', (event) => {
+        if (!event.isTrusted || event.button !== 0) {
+            return;
+        }
+
+        event.preventDefault();
+        grip.setPointerCapture(event.pointerId);
+        ipcRenderer.send('shell:resize-start', edge);
+    });
+    grip.addEventListener('pointermove', (event) => {
+        if (event.isTrusted && grip.hasPointerCapture(event.pointerId)) {
+            ipcRenderer.send('shell:resize-move');
+        }
+    });
+    grip.addEventListener('lostpointercapture', () => ipcRenderer.send('shell:resize-end'));
+
+    return grip;
+};
+
+const showGrips = (round) => {
+    if (!document.body) {
+        document.addEventListener('DOMContentLoaded', () => showGrips(round), { once: true });
+
+        return;
+    }
+
+    for (const grip of grips) {
+        grip.remove();
+    }
+
+    grips = round
+        ? Object.entries(GRIPS).map(([edge, placement]) => createGrip(edge, placement))
+        : [];
+    document.documentElement.append(...grips);
+};
+
+/**
+ * Round or square corners, mirrored onto `<html data-window-edge>` for the
+ * page's CSS: the window is transparent, so the wallet draws its own corners
+ * and squares them while the window is maximised or full screen.
+ */
+const showWindowEdge = (edge) => {
+    if (!document.documentElement) {
+        document.addEventListener('DOMContentLoaded', () => showWindowEdge(edge), { once: true });
+
+        return;
+    }
+
+    const round = edge === 'round';
+
+    document.documentElement.dataset.windowEdge = round ? 'round' : 'square';
+    showGrips(round);
+};
+
+showWindowEdge(info.windowEdge);
+ipcRenderer.on('shell:window-edge', (_event, edge) => showWindowEdge(edge));
+
 /** Progress is pushed from the engine; listeners live only in this scope. */
 const torrentListeners = new Set();
 

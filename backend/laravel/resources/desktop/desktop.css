@@ -20,6 +20,22 @@ html[data-native-shell='desktop'] .cw-shell-native {
     border-radius: 0;
 }
 
+/* The window is see-through and the wallet rounds its own corners, as the card
+ * does on the site; the shell squares them while maximised or full screen (see
+ * windowEdge in frontend/desktop/src/frame.js). An image, even an empty one, on
+ * the root keeps body's ground from spreading to the canvas, which the clip
+ * would not reach; WalletFrameLayout paints the root inline, hence !important.
+ * Clipping body rather than the shell takes overlays too; 20px is
+ * --cw-radius-shell, which is scoped to .cw and not set on body. */
+html[data-window-edge='round'] {
+    background: linear-gradient(transparent, transparent);
+    background-color: transparent !important;
+}
+
+html[data-window-edge='round'] body {
+    clip-path: inset(0 round 20px);
+}
+
 html[data-native-shell='desktop'] .cw-context {
     -webkit-app-region: drag;
 }

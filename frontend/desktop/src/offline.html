@@ -21,6 +21,16 @@
                 box-sizing: border-box;
             }
 
+            /* The window is see-through; the page rounds its own corners. An
+             * image, even an empty one, keeps body's ground off the canvas. */
+            :root[data-window-edge='round'] {
+                background: linear-gradient(transparent, transparent);
+            }
+
+            :root[data-window-edge='round'] body {
+                clip-path: inset(0 round 20px);
+            }
+
             body {
                 min-height: 100vh;
                 margin: 0;

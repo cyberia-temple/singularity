@@ -12,8 +12,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 const {
+    MIN_WINDOW,
     commandForInput,
+    resizedBounds,
     usesFramelessWindow,
+    windowEdge,
     zoomLevel,
 } = require('../src/frame');
 
@@ -33,6 +36,34 @@ test('the packaged window has one full-size site view and no titlebar view', () 
     assert.match(source, /frame: !FRAMELESS/);
     assert.equal(source.match(/new WebContentsView\(/g)?.length, 1);
     assert.doesNotMatch(source, /titlebar\.html|preload-frame|chromeView/);
+});
+
+test('a floating frameless window is round; one that meets the screen edges is square', () => {
+    assert.equal(windowEdge({ frameless: true, maximized: false, fullScreen: false }), 'round');
+    assert.equal(windowEdge({ frameless: true, maximized: true, fullScreen: false }), 'square');
+    assert.equal(windowEdge({ frameless: true, maximized: false, fullScreen: true }), 'square');
+    assert.equal(windowEdge({ frameless: false, maximized: false, fullScreen: false }), 'square');
+});
+
+test('a resize grip moves its own sides and keeps the opposite ones', () => {
+    const start = { x: 100, y: 50, width: 1000, height: 800 };
+
+    assert.deepEqual(resizedBounds(start, 'e', 40, 99), { x: 100, y: 50, width: 1040, height: 800 });
+    assert.deepEqual(resizedBounds(start, 'nw', 30, -20), { x: 130, y: 30, width: 970, height: 820 });
+    assert.deepEqual(resizedBounds(start, 'sw', -10, 15), { x: 90, y: 50, width: 1010, height: 815 });
+    assert.deepEqual(resizedBounds(start, 'middle', 40, 40), start);
+});
+
+test('a window dragged below its minimum stops there without sliding', () => {
+    const start = { x: 100, y: 50, width: 1000, height: 800 };
+    const shrunk = resizedBounds(start, 'nw', 5000, 5000);
+
+    assert.deepEqual(shrunk, {
+        x: 100 + 1000 - MIN_WINDOW.width,
+        y: 50 + 800 - MIN_WINDOW.height,
+        width: MIN_WINDOW.width,
+        height: MIN_WINDOW.height,
+    });
 });
 
 test('the strokes the missing menu bar used to answer', () => {
