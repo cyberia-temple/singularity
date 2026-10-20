@@ -324,4 +324,49 @@ contract LaunchpadTest is ProtocolHarness {
         lending.borrow(market, deposited * 4 / 10, 0, lp, lp);
         vm.stopPrank();
     }
+
+    // ------------------------------------------------------------------------- oracle history
+
+    /// A tiny observation ring, wrapped by a few swaps in a row, must not shorten the average the
+    /// credit markets read: the oracle falls back to checkpoints a keeper writes every 5 minutes.
+    function test_spammingTheRingDoesNotShortenTheAverage() public {
+        uint256 t = 1_800_000_000; // absolute times throughout: see README, "Tests"
+        vm.warp(t);
+        launchpad.setObservationCardinality(2);
+        address token = _launch(launchpad.KIT_CREDIT());
+        V3TwapOracle oracle = V3TwapOracle(launchpad.economyOf(token).tokenOracle);
+
+        for (uint256 i = 1; i <= 8; i++) {
+            vm.warp(t + i * 5 minutes);
+            oracle.poke();
+        }
+        uint256 fair = oracle.price();
+
+        _fundWrapped(trader, 400 ether);
+        vm.warp(t + 40 minutes + 1);
+        _buy(trader, token, 0.01 ether);
+        vm.warp(t + 40 minutes + 2);
+        _buy(trader, token, 0.01 ether);
+        vm.warp(t + 40 minutes + 3);
+        _buy(trader, token, 300 ether);
+        vm.warp(t + 40 minutes + 4);
+
+        (uint32 ringAge, bool wrapped) = oracle.ringHistory();
+        assertTrue(wrapped);
+        assertLt(ringAge, 10 minutes, "the ring now remembers only seconds");
+        assertApproxEqRel(oracle.price(), fair, 0.01e18, "the average still spans half an hour");
+    }
+
+    function test_pokeIsRateLimited() public {
+        uint256 t = 1_800_000_000;
+        vm.warp(t);
+        address token = _launch(launchpad.KIT_CREDIT());
+        V3TwapOracle oracle = V3TwapOracle(launchpad.economyOf(token).tokenOracle);
+
+        vm.warp(t + 1 minutes);
+        assertFalse(oracle.poke());
+        vm.warp(t + 5 minutes);
+        assertTrue(oracle.poke());
+        assertEq(oracle.checkpointCount(), 2);
+    }
 }

@@ -126,6 +126,18 @@ The DEX factory has a plain owner; the deploy script makes the authority its own
   replay that key's old transactions on the new chain, because its nonces start from zero again.
   Use a new chain id, new keys, or both.
 
+## Keepers
+
+Nothing here depends on a keeper for safety, but several things are better for one. All of these
+calls are permissionless; the backend's scheduler should make them:
+
+| Every | Call | Why |
+| --- | --- | --- |
+| 5 min | `V3TwapOracle.poke()` on every credit oracle (`Launchpad.economyOf(token).tokenOracle` / `cyberOracle`) | checkpoints keep the average a full window long even when a pool's observation ring is spammed; without them it gets staler, never shorter |
+| week (Thursday 00:00 UTC) | `Minter.updatePeriod()`, then `Voter.distributeMany(gauges, epoch)` | a week nobody mints is simply not emitted |
+| day | `RevenueRouter.harvestLaunch(positionId)` / `harvestPool(pool)` / `harvestLending(market)`, then `distribute(token)` / `distributeNative()` | pays voters their pools' fees and refills the gas tank |
+| hour | `LiquidityVault.compound()` on active vaults | deposits and withdrawals compound anyway; this keeps quiet vaults' shares current |
+
 ## Relaunch checklist
 
 1. Generate the L1 with avalanche-cli (PoA validator manager, precompiles above), then add the
@@ -158,7 +170,7 @@ absolute times or epoch numbers computed before the warp.
   ABIs. The new ones differ (one V3 venue, `Lending` instead of Compound-style markets, the
   gateway instead of owner-minted wrappers), so each integration has to be ported.
 - **The relayer** has to call `BridgeGateway` (release / finalize / refund) instead of minting and
-  burning wrappers directly.
+  burning wrappers directly, and the scheduler has to run the keeper calls above.
 - **An audit.** The lending book and oracles follow well-studied designs, but this is new code
   holding money.
 - **ICTT** for assets native to Avalanche (USDC on the C-Chain, AVAX) and for CYBER on the
