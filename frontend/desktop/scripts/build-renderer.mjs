@@ -32,9 +32,13 @@ cpSync(path.join(backend, 'resources/desktop'), path.join(stage, 'resources/desk
 for (const name of ['desktop.ts', 'components/wallet/DesktopWalletGate.vue']) {
     cpSync(path.join(backend, 'resources/js', name), path.join(stage, 'resources/js', name));
 }
-execFileSync('git', ['apply', '--verbose', '--unsafe-paths', '-p3', `--directory=${stage}`, path.join(desktop, 'renderer-desktop.patch')], {
-    cwd: path.resolve(desktop, '../..'), stdio: 'inherit',
-});
+// Since the desktop changes reached master the source may carry them already;
+// the patch is only for a wallet checkout that predates them.
+const patchArgs = ['apply', '--unsafe-paths', '-p3', `--directory=${stage}`, path.join(desktop, 'renderer-desktop.patch')];
+const patchCwd = path.resolve(desktop, '../..');
+if (spawnSync('git', [...patchArgs.slice(0, 1), '--check', '--reverse', ...patchArgs.slice(1)], { cwd: patchCwd }).status !== 0) {
+    execFileSync('git', [patchArgs[0], '--verbose', ...patchArgs.slice(1)], { cwd: patchCwd, stdio: 'inherit' });
+}
 if (!readFileSync(path.join(stage, 'resources/js/lib/wallet/vault.ts'), 'utf8').includes('The desktop wallet requires a vault password')) {
     throw new Error('The desktop vault protection patch was not applied.');
 }
@@ -50,15 +54,17 @@ edit('composables/useMultiWallet.ts', 'vault = installVault(contents);', `vault 
                 ? await protectVault(contents, password)
                 : installVault(contents);`);
 const messagesPath = path.join(stage, 'resources/js/lib/walletMessages.ts');
-const desktopMessages = readFileSync(path.join(backend, 'resources/js/lib/walletMessages.ts'), 'utf8')
-    .match(/^\s*browserDesktopSite:.*$/gm);
-let messageIndex = 0;
-const messages = readFileSync(messagesPath, 'utf8').replace(/^\s*browserOwnSite:/gm, (match) => {
-    if (!desktopMessages?.[messageIndex]) throw new Error('Desktop browser locale is missing');
-    return `${desktopMessages[messageIndex++]}\n${match}`;
-});
-if (messageIndex !== 3) throw new Error('Unexpected wallet locale count');
-writeFileSync(messagesPath, messages);
+if (!readFileSync(messagesPath, 'utf8').includes('browserDesktopSite:')) {
+    const desktopMessages = readFileSync(path.join(backend, 'resources/js/lib/walletMessages.ts'), 'utf8')
+        .match(/^\s*browserDesktopSite:.*$/gm);
+    let messageIndex = 0;
+    const messages = readFileSync(messagesPath, 'utf8').replace(/^\s*browserOwnSite:/gm, (match) => {
+        if (!desktopMessages?.[messageIndex]) throw new Error('Desktop browser locale is missing');
+        return `${desktopMessages[messageIndex++]}\n${match}`;
+    });
+    if (messageIndex !== 3) throw new Error('Unexpected wallet locale count');
+    writeFileSync(messagesPath, messages);
+}
 
 const hash = (data) => createHash('sha256').update(data).digest('hex');
 const inputs = [];

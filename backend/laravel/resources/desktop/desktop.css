@@ -4,8 +4,20 @@ html[data-native-shell='desktop'] .cw-masthead {
     display: none;
 }
 
+/* The frameless window is the wallet's edge. On the site the wallet is a card
+ * on a desk: 16px of ground, a 20px corner and a 1400px cap. Here that read as
+ * a window inside a window, and a maximised one gained 260px dead bars a side. */
+html[data-native-shell='desktop'] .cw-frame {
+    padding: 0;
+}
+
+html[data-native-shell='desktop'] .cw-frame > * {
+    max-width: none;
+}
+
 html[data-native-shell='desktop'] .cw-shell-native {
-    border-radius: var(--cw-radius-shell);
+    border: 0;
+    border-radius: 0;
 }
 
 html[data-native-shell='desktop'] .cw-context {
