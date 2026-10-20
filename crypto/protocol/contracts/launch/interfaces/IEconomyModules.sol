@@ -5,7 +5,7 @@ pragma solidity ^0.8.28;
 /// optional: a module left unset is simply not offered.
 
 interface IGaugeRegistry {
-    function createGauge(address stakingToken) external returns (address gauge);
+    function createGauge(address stakingToken, address manager) external returns (address gauge);
     function gaugeOf(address stakingToken) external view returns (address gauge);
 }
 

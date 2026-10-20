@@ -441,7 +441,7 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
 
     function _openFarm(address token, Economy storage e) internal {
         address gauge = gauges.gaugeOf(e.vault);
-        if (gauge == address(0)) gauge = gauges.createGauge(e.vault);
+        if (gauge == address(0)) gauge = gauges.createGauge(e.vault, e.creator);
         e.gauge = gauge;
         emit FarmOpened(token, gauge);
     }
