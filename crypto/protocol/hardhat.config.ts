@@ -5,11 +5,13 @@ import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 
 // The protocol itself: 0.8.28 against Cancun, which subnet-evm has run since the Etna upgrade
-// (transient storage and MCOPY yes, blobs no). Nothing here depends on blobs.
+// (transient storage and MCOPY yes, blobs no). Nothing here depends on blobs. Compiled through the
+// IR pipeline: a launch or a lending action keeps more values live than the legacy stack allows.
 const PROTOCOL = {
   version: "0.8.28",
   settings: {
     evmVersion: "cancun",
+    viaIR: true,
     optimizer: { enabled: true, runs: 200 },
   },
 };
