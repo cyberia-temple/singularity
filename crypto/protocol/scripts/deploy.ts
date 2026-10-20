@@ -19,6 +19,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  concat,
   createPublicClient,
   createWalletClient,
   getAbiItem,
@@ -30,6 +31,16 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+
+import {
+  CREATE2_DEPLOYER,
+  CREATE2_DEPLOYER_CODE,
+  SALT_AUTHORITY,
+  SALT_GATEWAY,
+  authorityInitCode,
+  gatewayInitCode,
+  predictCore,
+} from "./lib/create2.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -51,10 +62,22 @@ type Config = {
   wiredSigner: Address;
   /** A genesis-predeployed WCYBER, or null to deploy one */
   wcyber: Address | null;
-  ash: { cap: string; initialSupply: string; initialHolder: Address; weekly: string; decayBps: number; treasuryBps: number };
+  ash: {
+    cap: string;
+    /** ASH for the pioneer drop: the only ASH that exists before the fire */
+    pioneerDrop: string;
+    pioneerLockWeeks: number;
+    /** ASH per CYBER of fire */
+    rate: number;
+    ceilingBps: number;
+    kindling: string;
+    kindlingDecayBps: number;
+    buildersBps: number;
+    treasuryBps: number;
+  };
   launch: { minLiquidity: string; creditLltv: string; twapWindow: number; twapMinWindow: number; cardinality: number };
   lltvs: string[];
-  router: { treasuryWeight: number; gasStationWeight: number; votersBps: number };
+  router: { furnaceWeight: number; gasStationWeight: number; treasuryWeight: number; votersBps: number };
   domains: { rootPrice: string; reserved: string[] };
   predictions: { createFee: string };
   nft: { feeBps: number };
@@ -134,6 +157,24 @@ async function deploy(key: string, contract: string, args: unknown[] = []): Prom
   return receipt.contractAddress;
 }
 
+/** Deploy through the deterministic CREATE2 deployer, at the address genesis already knows. */
+async function deployDeterministic(key: string, salt: Hex, initCode: Hex, expected: Address): Promise<Address> {
+  if (record.contracts[key]) {
+    console.log(`  = ${key} ${record.contracts[key]}`);
+    return record.contracts[key];
+  }
+  if (!(await publicClient.getCode({ address: expected }))) {
+    const hash = await wallet.sendTransaction({ to: CREATE2_DEPLOYER, data: concat([salt, initCode]) });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`deploy ${key} failed: ${hash}`);
+  }
+  if (!(await publicClient.getCode({ address: expected }))) throw new Error(`${key} did not land at ${expected}`);
+  record.contracts[key] = expected;
+  save();
+  console.log(`  + ${key} ${expected} (deterministic)`);
+  return expected;
+}
+
 async function read<T>(key: string, contract: string, functionName: string, args: unknown[] = []): Promise<T> {
   return (await publicClient.readContract({
     address: record.contracts[key],
@@ -171,8 +212,18 @@ const wad = (x: string) => parseEther(x);
 
 console.log(`deploying to chain ${chainId} from ${account.address}`);
 
-// The authority every contract answers to. The deployer is its first admin, for setup only.
-const manager = await deploy("AccessManager", "CyberiaAuthority", [account.address]);
+// The deterministic deployer must exist: genesis places it. A local rehearsal node gets it injected.
+if (!(await publicClient.getCode({ address: CREATE2_DEPLOYER }))) {
+  if (chainId !== 31337) throw new Error(`no CREATE2 deployer at ${CREATE2_DEPLOYER}: add it in genesis (scripts/genesis.ts)`);
+  await publicClient.request({ method: "hardhat_setCode" as never, params: [CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE] as never });
+}
+
+// The authority every contract answers to, and the bridge gateway that holds CYBER.sol's backing
+// from genesis: both at the addresses genesis credited. The deployer is the first admin, for setup.
+const core = predictCore(account.address);
+const manager = await deployDeterministic("AccessManager", SALT_AUTHORITY, authorityInitCode(account.address), core.authority);
+const gateway = await deployDeterministic("BridgeGateway", SALT_GATEWAY, gatewayInitCode(manager), core.gateway);
+console.log(`  gateway holds ${(await publicClient.getBalance({ address: gateway })) / 10n ** 18n} CYBER of backing`);
 
 // Wrapped CYBER: the genesis predeploy when there is one.
 if (config.wcyber) record.contracts.WCYBER = config.wcyber;
@@ -212,6 +263,7 @@ const vaults = await deploy("LiquidityVaultFactory", "LiquidityVaultFactory", [d
 await deploy("CreditVaultFactory", "CreditVaultFactory", [lending]);
 
 // --- revenue
+const furnace = await deploy("Furnace", "Furnace", [wcyber]);
 const router = await deploy("RevenueRouter", "RevenueRouter", [
   manager,
   dexFactory,
@@ -219,11 +271,12 @@ const router = await deploy("RevenueRouter", "RevenueRouter", [
   wcyber,
   lending,
   vaults,
-  // The coin is split between the treasury and the gas tank; tokens only to the treasury, since a
-  // gas tank has no use for them.
+  // The coin: part burned (it becomes ASH), part to the gas tank, part to the treasury. Tokens only
+  // to the treasury, since neither the furnace nor a gas tank has a use for them.
   [
-    { recipient: config.treasury, weight: config.router.treasuryWeight },
+    { recipient: furnace, weight: config.router.furnaceWeight },
     { recipient: gasStation, weight: config.router.gasStationWeight },
+    { recipient: config.treasury, weight: config.router.treasuryWeight },
   ],
   [{ recipient: config.treasury, weight: 10_000 }],
 ]);
@@ -255,17 +308,43 @@ await step("launchpad.setObservationCardinality", "Launchpad", "Launchpad", "set
 ]);
 
 // --- ASH and its emission
-const ash = await deploy("Ash", "Ash", [manager, wad(config.ash.cap), config.ash.initialHolder, wad(config.ash.initialSupply)]);
+// The pioneer drop is minted to the deployer and moved to its contract at once: it is the only ASH
+// that exists before the fire.
+const ash = await deploy("Ash", "Ash", [manager, wad(config.ash.cap), account.address, wad(config.ash.pioneerDrop)]);
 const ve = await deploy("VotingEscrow", "VotingEscrow", [ash]);
 const voter = await deploy("Voter", "Voter", [manager, ve, router]);
-const minter = await deploy("Minter", "Minter", [manager, ash, voter, config.ash.decayBps, config.treasury, config.ash.treasuryBps]);
+const buildersFund = await deploy("BuildersFund", "BuildersFund", [manager, ash]);
+const pioneerDrop = await deploy("PioneerDrop", "PioneerDrop", [
+  manager,
+  ash,
+  ve,
+  config.ash.pioneerLockWeeks * 7 * 24 * 3600,
+  buildersFund,
+]);
+await step("ash.transfer(pioneerDrop)", "Ash", "Ash", "transfer", [pioneerDrop, wad(config.ash.pioneerDrop)]);
+const minter = await deploy("Minter", "Minter", [
+  manager,
+  ash,
+  voter,
+  launchpad,
+  config.ash.rate,
+  config.ash.ceilingBps,
+  config.ash.kindlingDecayBps,
+]);
+await step("minter.setSplit", "Minter", "Minter", "setSplit", [
+  buildersFund,
+  config.ash.buildersBps,
+  config.treasury,
+  config.ash.treasuryBps,
+]);
 await step("ash.setMinter", "Ash", "Ash", "setMinter", [minter]);
 await step("voter.setMinter", "Voter", "Voter", "setMinter", [minter]);
 await step("router.setModules", "RevenueRouter", "RevenueRouter", "setModules", [locker, voter]);
 await step("router.setVotersBps", "RevenueRouter", "RevenueRouter", "setVotersBps", [config.router.votersBps]);
 
 // --- identity and governance
-const domains = await deploy("Domains", "Domains", [manager, launchpad, router, wad(config.domains.rootPrice)]);
+// A `.cyber` name is paid for in CYBER that is burned: naming yourself feeds the fire.
+const domains = await deploy("Domains", "Domains", [manager, launchpad, furnace, wad(config.domains.rootPrice)]);
 if (config.domains.reserved.length > 0) {
   await step("domains.reserve", "Domains", "Domains", "reserve", [config.domains.reserved, true]);
 }
@@ -274,7 +353,6 @@ const daos = await deploy("DAOFactory", "DAOFactory");
 await step("launchpad.setModules", "Launchpad", "Launchpad", "setModules", [voter, domains, daos]);
 
 // --- bridge
-await deploy("BridgeGateway", "BridgeGateway", [manager]);
 await step("bridge.setRefundDelay", "BridgeGateway", "BridgeGateway", "setRefundDelay", [config.bridge.refundDelay]);
 
 // --- apps
@@ -301,6 +379,7 @@ const functionRoles: [string, string, string[], bigint][] = [
   ["Domains", "Domains", ["registerFor"], ROLE.OPERATOR],
   ["Badges", "Badges", ["award", "awardBatch"], ROLE.OPERATOR],
   ["PredictionMarket", "PredictionMarket", ["createOperatorMarket", "resolveByOperator"], ROLE.OPERATOR],
+  ["BuildersFund", "BuildersFund", ["publishRound"], ROLE.OPERATOR],
   ["BridgeGateway", "BridgeGateway", ["release", "finalize", "refund"], ROLE.RELAYER],
   ["Voter", "Voter", ["createGauge"], ROLE.LAUNCHPAD],
   ["PredictionMarket", "PredictionMarket", ["arbitrate"], ROLE.ARBITER],
@@ -347,6 +426,7 @@ if (config.renounceDeployer) {
 
 console.log(`\ndone: ${RECORD_PATH}`);
 console.log("Not done here, on purpose:");
-console.log("  - minter.start(weekly): starts the ASH schedule; an admin call, scheduled through the delay");
+console.log("  - minter.start(kindling): lights the fire; an admin call, scheduled through the delay");
+console.log("  - pioneerDrop.setRoot(root, deadline): after the migration window, from the bridge's release events");
 console.log("  - bridge assets (createWrapped / setAsset / setDestination): per corridor, by admin");
-console.log("  - RewardManager precompile: point transaction fees at the RevenueRouter");
+console.log("  - keep transaction fees burning (no RewardManager redirect): burned fees are the fire");

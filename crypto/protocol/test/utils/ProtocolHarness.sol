@@ -19,6 +19,9 @@ import {VotingEscrow} from "../../contracts/incentives/VotingEscrow.sol";
 import {Voter} from "../../contracts/incentives/Voter.sol";
 import {Minter} from "../../contracts/incentives/Minter.sol";
 import {RevenueRouter} from "../../contracts/treasury/RevenueRouter.sol";
+import {Furnace} from "../../contracts/treasury/Furnace.sol";
+import {BuildersFund} from "../../contracts/incentives/BuildersFund.sol";
+import {ILockedCyber} from "../../contracts/incentives/Minter.sol";
 import {Domains} from "../../contracts/identity/Domains.sol";
 import {DAOFactory} from "../../contracts/governance/DAOFactory.sol";
 import {IGaugeRegistry, IZoneRegistry, IDAOFactory, ILaunchRegistry} from
@@ -77,6 +80,8 @@ abstract contract ProtocolHarness is Test {
     Voter voter;
     Minter minter;
     RevenueRouter router;
+    Furnace furnace;
+    BuildersFund buildersFund;
     Domains domains;
     DAOFactory daos;
 
@@ -132,9 +137,12 @@ abstract contract ProtocolHarness is Test {
         ash = new Ash(address(authority), 100_000_000e18, address(this), 10_000_000e18);
         ve = new VotingEscrow(ash);
 
-        RevenueRouter.Share[] memory nativeShares = new RevenueRouter.Share[](2);
-        nativeShares[0] = RevenueRouter.Share(treasury, 8_000);
-        nativeShares[1] = RevenueRouter.Share(gasTank, 2_000);
+        furnace = new Furnace(IWETH9(address(wcyber)));
+        // The coin: half burned, a quarter to the gas tank, a quarter to the treasury.
+        RevenueRouter.Share[] memory nativeShares = new RevenueRouter.Share[](3);
+        nativeShares[0] = RevenueRouter.Share(address(furnace), 5_000);
+        nativeShares[1] = RevenueRouter.Share(gasTank, 2_500);
+        nativeShares[2] = RevenueRouter.Share(treasury, 2_500);
         RevenueRouter.Share[] memory tokenShares = new RevenueRouter.Share[](1);
         tokenShares[0] = RevenueRouter.Share(treasury, 10_000);
         router = new RevenueRouter(
@@ -142,7 +150,9 @@ abstract contract ProtocolHarness is Test {
         );
 
         voter = new Voter(address(authority), ve, address(router));
-        minter = new Minter(address(authority), ash, voter, 9_900, treasury, 500);
+        minter = new Minter(address(authority), ash, voter, ILockedCyber(address(launchpad)), 100, 100, 9_600);
+        buildersFund = new BuildersFund(address(authority), ash);
+        minter.setSplit(address(buildersFund), 1_500, treasury, 1_000);
         ash.setMinter(address(minter));
         voter.setMinter(address(minter));
 

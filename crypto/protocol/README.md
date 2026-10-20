@@ -18,8 +18,8 @@ Cyberia plugs into that economy.
 | `contracts/liquidity` | `LiquidityVault` (full-range V3 liquidity as an ERC-20) and its factory |
 | `contracts/lending` | `Lending` (isolated markets, Morpho Blue model), `AdaptiveCurveIrm`, `CreditVault` (ERC-4626 over markets), `LendingViews` |
 | `contracts/oracles` | `V3TwapOracle`, `LiquidityVaultOracle`, `ChainedOracle`, `OracleFactory` |
-| `contracts/incentives` | `VotingEscrow` (veASH), `Voter`, `Gauge`, `Minter` |
-| `contracts/treasury` | `RevenueRouter` — where every protocol fee arrives and where it goes |
+| `contracts/incentives` | `VotingEscrow` (veASH), `Voter`, `Gauge`, `Minter` (ASH from fire), `BuildersFund`, `PioneerDrop` |
+| `contracts/treasury` | `RevenueRouter` — where every protocol fee arrives and where it goes; `Furnace` — where CYBER burns |
 | `contracts/bridge` | `BridgeGateway` and one `BridgedToken` implementation for every bridged asset |
 | `contracts/identity` | `Domains` (the one naming system), `Badges` (soulbound achievements) |
 | `contracts/governance` | `DAOFactory`, `TokenGovernor`, `VotesWrapper` |
@@ -29,7 +29,8 @@ Cyberia plugs into that economy.
 | `contracts/apps` | `GasStation`, `PixelBattle`, `WiredForge`, `MinecraftLand` |
 | `contracts/vendor` | PancakeSwap V3 core + periphery (two factory changes, below), Multicall3 |
 | `scripts/deploy.ts` | Resumable deployment of everything, roles included |
-| `scripts/genesis.ts` | Adds WCYBER, Multicall3 and the CREATE2 deployer to an Avalanche genesis |
+| `scripts/genesis.ts` | CYBER's genesis: the fixed supply, the bridge backing at the gateway's address, the predeploys; refuses minting and fee redirection |
+| `scripts/tokenomics.ts` | The Minter's arithmetic over activity scenarios |
 | `scripts/smoke-launch.ts` | One full-kit launch against a deployment, with its gas |
 
 ## How the pieces fit
@@ -47,9 +48,9 @@ Cyberia plugs into that economy.
                                      ▼                               ▼
                                RevenueRouter ◄── pool protocol fees, names, predictions, NFT sales
                                 │        │
-              half to the pool's voters  rest split: treasury, GasStation tank (as the coin)
-                                │
-                      Voter ◄── veASH votes weekly ── Minter mints ASH (decaying, capped)
+              half to the pool's voters  rest as the coin: Furnace (burned) · gas tank · treasury
+                                │                               │
+                      Voter ◄── veASH votes weekly ── Minter makes ASH from burned CYBER
                                 │
                              Gauges ── stream ASH (+ the project's own token) to LP stakers
 ```
@@ -68,7 +69,7 @@ vault, and liquidations.
 | `CyberBridge`, `WrappedCyberSol`, `CyberSolSwap`, `CyberSolBurnSwap` | `BridgeGateway` | one door for every corridor |
 | `Launchpad`, `LaunchpadNative`, `LaunchpadV3` | `Launchpad` | one launch, on V3, with the economy kit; the old V3 one could be bricked forever by creating the next token's pool first — the factory now refuses a pool for an address without code |
 | `LaunchpadToken`, `LaunchToken` (0.7.6) | `LaunchToken` (0.8, clone) | votes on a timestamp clock, so a launched token has a DAO without wrapping |
-| `MasterChef`, `FundedFarm`, `EmissionChannel` | `Minter` + `Voter` + `Gauge` | emission by time, not blocks; directed by votes; a satellite chain's share is a gauge like any other |
+| `MasterChef`, `FundedFarm`, `EmissionChannel` | `Minter` + `Voter` + `Gauge` + `Furnace` | ASH made from burned CYBER rather than a block schedule; directed by votes; a satellite chain's share is a gauge like any other |
 | `Lending*` (Compound-style) | `Lending` + `AdaptiveCurveIrm` + oracles + `CreditVault` | the old markets could be drained: collateral shares were freely transferable, prices came from a V2 spot reserve, and an empty market's exchange rate could be inflated |
 | `CyberiaProfile` nicknames, `CyberiaNames`, `CyberiaDomains` | `Domains` + `Badges` | one naming system; the primary name is the nickname; records reset on transfer |
 | `DAOFactory`, `DAOGovernor`, `StakingVault` | `DAOFactory`, `TokenGovernor`, `VotesWrapper` | timestamp clock (Avalanche blocks come only with transactions), clones, no admin key left behind |
@@ -79,6 +80,98 @@ vault, and liquidations.
 | `TelegramTokenFactory`, `TokenFactory`, `VotingToken`, `TelegramChatToken` | `CommunityTokenFactory` + `CommunityToken` | the Telegram bot's `/create_token`: a mintable reward token for a chat, now on a timestamp clock so it can open a DAO; optional supply cap; owner can renounce minting |
 | fixed-supply tokens (`CHATGPT`, `CLAUDE`, `OPENCLAW`, `HERMES`, `X`, `GitHub`, …), `CyberToken`, `Counter` | — | clean start: not carried over; a token that should exist again is launched through the `Launchpad` |
 | QuickSwap V2 | — | one venue: V3 pools, with full-range `LiquidityVault`s where a fungible LP token is needed |
+
+## Tokenomics: Fire and Ash
+
+Two coins, one rule: **CYBER is the fuel and only ever burns; ASH is what the fire leaves behind.**
+
+### CYBER — fixed, backed, burning
+
+- **1,000,000 CYBER, forever.** One CYBER for every 1,000 CYBER.sol on Solana — the rate the
+  project has always published. Genesis (`scripts/genesis.ts`) refuses a chain that enables the
+  NativeMinter precompile, so no CYBER can ever be created; the cap is a property of the chain.
+- **Every CYBER on Cyberia is a CYBER.sol that crossed over.** Genesis credits the whole supply,
+  less any direct allocations, to the bridge gateway's address (deployed later at exactly that
+  address through CREATE2). The backing is visibly in place from block 0, and there is no
+  premine: whoever wants CYBER — the team included — brings CYBER.sol across at 1000 : 1.
+- **The fire.** CYBER leaves circulation for good in three ways, all readable on-chain:
+  - transaction fees, which the chain burns into the blackhole address (genesis refuses fee
+    redirection);
+  - the `Furnace`, which burns into the same address: half of the protocol's CYBER revenue,
+    and every `.cyber` name fee;
+  - CYBER locked by launches. A launch puts the token's entire supply into its pool, so the CYBER
+    paired with it can never come back out — even if every buyer sells, the position returns to at
+    least what it started with. It is as gone as burned.
+- **Mirror burn.** CYBER burned on Cyberia no longer backs any CYBER.sol, so the bridge burns the
+  matching 1,000 × that amount of CYBER.sol from its Solana reserve. Using the chain shrinks the
+  supply of the token that already trades — the existing community's asset.
+
+### ASH — made only from fire
+
+- **100 ASH for every CYBER of fire.** `Minter.updatePeriod` measures the week's fire (blackhole
+  balance + `Launchpad.totalCyberLocked`, as deltas) and mints that many ASH. The 100,000,000 cap
+  is 100 × CYBER's supply: all of ASH can only exist once all of CYBER has burned.
+- **No week mints more than 1% of what is left** under the cap; heat above that burns without
+  making ASH. This also bounds how fast a whale could turn burned CYBER into emissions.
+- **Kindling.** 100,000 ASH in the first week, 4% less every week after (about 2.5M in all), so the
+  farms have something before the fire is large. The fire is what lasts.
+- **Each week's ASH:** 75% to the farms by veASH votes, 15% to the **builders' fund** (merged
+  open-source work, in published Merkle rounds — the project's thesis that open source should be
+  paid, made mechanical), 10% to the treasury.
+- **No team allocation.** The only ASH before the fire is the **pioneer drop**: 5% of the cap for the
+  people who bring CYBER.sol over in the first 12 weeks, pro rata, delivered as year-long veASH
+  locks — the first voters are the first arrivals, and none of it is liquid on day one. Unclaimed
+  drop goes to the builders.
+- **What locking ASH earns:** the direction of emissions, half of the protocol fees of the pools you
+  vote for, and every incentive projects pay for votes.
+
+### Where every fee goes
+
+| Source | Split |
+| --- | --- |
+| Launch pool trades (creator fee ≤ 10% + protocol 1%) | creator side to the creator and holders as they chose; the protocol's 1%: half to that launch's voters, half on to the coin split below |
+| Other V3 pools (protocol share of LP fees) | half to that pool's voters, half on to the coin split |
+| Protocol revenue in CYBER/WCYBER (the coin split) | 50% burned in the Furnace · 25% the gas station · 25% treasury |
+| Protocol revenue in other tokens | treasury |
+| Lending interest | fee set per market (≤ 25%) to the router |
+| `.cyber` names | 100% burned |
+| Token-zone names | the zone's token, burned |
+| Predictions / NFT market | 2% / 2% to the router |
+| Gas | burned |
+
+### The loop
+
+```text
+ use the chain ──► CYBER burns (gas, furnace, names, launch locks) ──► CYBER.sol burns on Solana
+      ▲                         │
+      │                         ▼
+ deeper markets ◄── farms ◄── ASH minted from the fire ──► builders ──► better software
+                        ▲                            │
+                        └── veASH votes ◄── lockers paid by the fees of the pools they vote for
+```
+
+### What the numbers do
+
+`node scripts/tokenomics.ts` runs the Minter's arithmetic on steady scenarios (CYBER of fire per
+week). With the example config:
+
+| Scenario | Fire / week | ASH after 1 year | after 5 years | from fire at 5 years | CYBER gone in 5 years |
+| --- | --- | --- | --- | --- | --- |
+| cold (today) | ~3 CYBER | 7.2M | 7.6M | 1% | 0.07% |
+| village | 60 | 7.5M | 9.1M | 17% | 1.6% |
+| town | 650 | 10.6M | 24.4M | 69% | 16.9% |
+| city | 7,500 | 43.0M | 75.0M | 91% | 100% |
+
+A chain nobody uses mints almost nothing beyond the drop and the kindling; ASH grows only as fast as
+CYBER disappears.
+
+### Enforced by code, and done by people
+
+On-chain and in genesis: the fixed CYBER supply, fees burning, the furnace, the fire measurement,
+the mint rate, ceiling and kindling, the 75/15/10 split's bounds (builders ≤ 25%, treasury ≤ 15%),
+the drop's locks. Off-chain, published and checkable: the mirror burn on Solana (the relayer, weekly,
+equal to 1,000 × CYBER burned), the pioneer list (from the gateway's release events), and the
+builders' rounds (each with a link to the contributions it pays).
 
 ## Vendored PancakeSwap V3
 
@@ -118,10 +211,9 @@ The DEX factory has a plain owner; the deploy script makes the authority its own
 - **Gas:** a launch with the whole kit uses ~12.0M gas (`scripts/smoke-launch.ts`), under the
   16.7M per-transaction cap of EIP-7825. Set `feeConfig.gasLimit` to at least 15M; 20–30M is
   comfortable. `scripts/genesis.ts` refuses less than 15M.
-- **Precompiles worth turning on in genesis:** RewardManager (send transaction fees to the
-  RevenueRouter, so fees refill the gas station), FeeManager (admin: the governance multisig),
-  NativeMinter (admin only; nothing here mints CYBER — validator rewards will, once PoS replaces
-  PoA), Warp (for ICM / ICTT with the C-Chain).
+- **Precompiles:** FeeManager (admin: the governance multisig) and Warp (ICM / ICTT with the
+  C-Chain) on; **NativeMinter off** and **fees burning** (no fee recipients, no RewardManager
+  redirect) — both are tokenomics, and `scripts/genesis.ts` refuses a genesis that breaks them.
 - **Chain id and keys:** relaunching as chain 49406 with the old deployer key would let anyone
   replay that key's old transactions on the new chain, because its nonces start from zero again.
   Use a new chain id, new keys, or both.
@@ -134,20 +226,24 @@ calls are permissionless; the backend's scheduler should make them:
 | Every | Call | Why |
 | --- | --- | --- |
 | 5 min | `V3TwapOracle.poke()` on every credit oracle (`Launchpad.economyOf(token).tokenOracle` / `cyberOracle`) | checkpoints keep the average a full window long even when a pool's observation ring is spammed; without them it gets staler, never shorter |
-| week (Thursday 00:00 UTC) | `Minter.updatePeriod()`, then `Voter.distributeMany(gauges, epoch)` | a week nobody mints is simply not emitted |
+| week (Thursday 00:00 UTC) | `Minter.updatePeriod()`, then `Voter.distributeMany(gauges, epoch)` (or `rolloverUnvoted`) | turns the week's fire into ASH; a late call loses only that week's kindling |
+| week | mirror burn: burn 1,000 × (CYBER burned since last time) CYBER.sol from the Solana bridge reserve, and publish the transaction | keeps CYBER.sol's supply equal to 1,000 × the CYBER that still exists |
 | day | `RevenueRouter.harvestLaunch(positionId)` / `harvestPool(pool)` / `harvestLending(market)`, then `distribute(token)` / `distributeNative()` | pays voters their pools' fees and refills the gas tank |
 | hour | `LiquidityVault.compound()` on active vaults | deposits and withdrawals compound anyway; this keeps quiet vaults' shares current |
 
 ## Relaunch checklist
 
-1. Generate the L1 with avalanche-cli (PoA validator manager, precompiles above), then add the
-   predeploys: `node scripts/genesis.ts genesis.json genesis.cyberia.json`.
+1. Generate the L1 with avalanche-cli (PoA validator manager, precompiles above), then write
+   CYBER's genesis: `node scripts/genesis.ts --in genesis.json --out genesis.cyberia.json
+   --deployer <deployer address> [--alloc restored-balances.json]`. The deployer address fixes the
+   gateway's address, so the same key must run the deploy.
 2. `npx hardhat build`, write a config from `deploy.config.example.json` with the real multisig,
    operator, relayer and treasury addresses, and run
    `RPC_URL=… DEPLOYER_PK=… node scripts/deploy.ts config.json`. Rehearse it first against
    `npx hardhat node` — it is resumable and records to `deployments/<chainId>.json`.
-3. As admin (scheduled through the delay): `Minter.start(weekly)`; bridge corridors
-   (`createWrapped`, `setAsset`, `setDestination`); the RewardManager address.
+3. As admin (scheduled through the delay): `Minter.start(kindling)`; bridge corridors
+   (`createWrapped`, `setAsset`, `setDestination`), starting with native CYBER ↔ CYBER.sol; after
+   the 12-week migration window, `PioneerDrop.setRoot`.
 4. Check the multisig can schedule and execute an admin call, then rerun with
    `renounceDeployer: true`.
 5. `node scripts/smoke-launch.ts` against the new chain.

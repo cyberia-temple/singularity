@@ -37,7 +37,7 @@ contract Voter is AccessManaged, ReentrancyGuardTransient, IGaugeRegistry {
     address public immutable gaugeImplementation;
 
     address public minter;
-    /// @notice Receives emission nobody voted for and emission of retired gauges
+    /// @notice Receives the emission of retired gauges
     address public treasury;
 
     mapping(address stakingToken => address gauge) public gaugeOf;
@@ -52,7 +52,6 @@ contract Voter is AccessManaged, ReentrancyGuardTransient, IGaugeRegistry {
 
     mapping(uint256 epoch => uint256) public emission;
     mapping(uint256 epoch => mapping(address gauge => bool)) public distributed;
-    mapping(uint256 epoch => bool) public unvotedSwept;
 
     mapping(uint256 epoch => mapping(address gauge => mapping(address token => uint256))) public incentives;
     mapping(uint256 epoch => mapping(address gauge => mapping(address token => mapping(address voter => bool)))) public
@@ -64,6 +63,7 @@ contract Voter is AccessManaged, ReentrancyGuardTransient, IGaugeRegistry {
     event Voted(uint256 indexed epoch, address indexed voter, address indexed gauge, uint256 weight);
     event VoteReset(uint256 indexed epoch, address indexed voter);
     event EmissionNotified(uint256 indexed epoch, uint256 amount);
+    event EmissionRolledOver(uint256 indexed fromEpoch, uint256 indexed toEpoch, uint256 amount);
     event Distributed(uint256 indexed epoch, address indexed gauge, uint256 amount);
     event Incentivized(uint256 indexed epoch, address indexed gauge, address indexed token, address from, uint256 amount);
     event IncentiveClaimed(uint256 indexed epoch, address indexed gauge, address indexed token, address voter, uint256 amount);
@@ -233,13 +233,16 @@ contract Voter is AccessManaged, ReentrancyGuardTransient, IGaugeRegistry {
         }
     }
 
-    /// @notice A week nobody voted in leaves its emission with nobody to send it to: the treasury
-    function sweepUnvoted(uint256 epoch) external nonReentrant {
+    /// @notice A week nobody voted in has nobody to send its emission to: it waits for next week's
+    /// votes instead, so no ASH made by the fire leaks out of the farms
+    function rolloverUnvoted(uint256 epoch) external nonReentrant {
         if (epoch > Epoch.current()) revert FutureEpoch();
         if (totalVotes[epoch - 1] != 0 || emission[epoch] == 0) revert NothingToDistribute();
-        if (unvotedSwept[epoch]) revert AlreadyDone();
-        unvotedSwept[epoch] = true;
-        ash.safeTransfer(treasury, emission[epoch]);
+
+        uint256 amount = emission[epoch];
+        emission[epoch] = 0;
+        emission[Epoch.current() + 1] += amount;
+        emit EmissionRolledOver(epoch, Epoch.current() + 1, amount);
     }
 
     // ----------------------------------------------------------------------------- incentives

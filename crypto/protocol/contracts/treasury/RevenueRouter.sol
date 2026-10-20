@@ -250,7 +250,9 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
 
     function _payNative(address recipient, uint256 amount) internal {
         if (amount == 0) return;
-        (bool ok,) = recipient.call{value: amount, gas: 50_000}("");
+        // Enough for the furnace to burn on arrival (a cold write and a value transfer); a recipient
+        // that needs more, or refuses, is owed instead of blocking everyone else.
+        (bool ok,) = recipient.call{value: amount, gas: 150_000}("");
         if (ok) {
             emit Paid(address(0), recipient, amount);
         } else {

@@ -62,14 +62,23 @@ contract VotingEscrow is ReentrancyGuardTransient {
     // -------------------------------------------------------------------------------- actions
 
     function createLock(uint256 amount, uint256 duration) external nonReentrant {
+        _createLock(msg.sender, amount, duration);
+    }
+
+    /// @notice Lock the caller's ASH for `owner` -- how a drop arrives already voting
+    function createLockFor(address owner, uint256 amount, uint256 duration) external nonReentrant {
+        _createLock(owner, amount, duration);
+    }
+
+    function _createLock(address owner, uint256 amount, uint256 duration) internal {
         if (amount == 0) revert ZeroAmount();
-        if (locks[msg.sender].amount != 0) revert LockExists();
+        if (locks[owner].amount != 0) revert LockExists();
 
         uint64 end = _end(duration);
-        locks[msg.sender] = Lock(uint128(amount), end, false);
+        locks[owner] = Lock(uint128(amount), end, false);
         _pull(amount);
 
-        emit Locked(msg.sender, amount, end, false);
+        emit Locked(owner, amount, end, false);
     }
 
     /// @notice Add ASH to a live lock -- yours or anyone's

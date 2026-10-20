@@ -140,6 +140,11 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
     mapping(address token => Economy) internal _economies;
     address[] public allTokens;
 
+    /// @notice CYBER locked forever in launch pools, all launches together
+    /// @dev Locked liquidity can never be withdrawn, so the protocol counts it as burned: the
+    /// `Minter` turns it into ASH like any other fire.
+    uint256 public totalCyberLocked;
+
     event Launched(
         address indexed token,
         address indexed creator,
@@ -248,7 +253,7 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
 
         e.pool = _openPool(token, p.totalSupply, poolFee);
         e.positionId = _lockFullRange(token, e.pool, p.totalSupply, msg.sender, creatorBps, holdersBps);
-        _refundDust(token, msg.sender);
+        totalCyberLocked += msg.value - _refundDust(token, msg.sender);
 
         // The vault is opened in the launch itself, never later: the token must exclude it while
         // it is still empty, and only here is that guaranteed.
@@ -422,11 +427,11 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
 
     /// @dev A full-range mint takes almost but not exactly both amounts: the token's few wei leave
     /// circulation, the CYBER's go back to the creator.
-    function _refundDust(address token, address creator) internal {
+    function _refundDust(address token, address creator) internal returns (uint256 wrappedDust) {
         uint256 tokenDust = IERC20(token).balanceOf(address(this));
         if (tokenDust > 0) IERC20(token).safeTransfer(BURN, tokenDust);
 
-        uint256 wrappedDust = wcyber.balanceOf(address(this));
+        wrappedDust = wcyber.balanceOf(address(this));
         if (wrappedDust > 0) {
             wcyber.withdraw(wrappedDust);
             (bool ok,) = creator.call{value: wrappedDust}("");

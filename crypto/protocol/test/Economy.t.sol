@@ -109,7 +109,7 @@ contract EconomyTest is ProtocolHarness {
         weights[0] = 1;
         voter.vote(gauges, weights);
         vm.stopPrank();
-        minter.start(1_000_000e18);
+        minter.start(100_000e18);
 
         // ...an LP provides liquidity and stakes the vault shares...
         LiquidityVault vault = LiquidityVault(e.vault);
@@ -133,7 +133,7 @@ contract EconomyTest is ProtocolHarness {
         skip(7 days);
         Gauge(e.gauge).getReward(lp);
 
-        assertApproxEqRel(ash.balanceOf(lp), 950_000e18, 0.001e18, "the whole voter share of the week");
+        assertApproxEqRel(ash.balanceOf(lp), 75_000e18, 0.001e18, "the whole voter share of the week");
     }
 
     // ------------------------------------------------------------------------------- revenue
@@ -148,8 +148,9 @@ contract EconomyTest is ProtocolHarness {
         uint256 held = wcyber.balanceOf(address(router));
         assertGt(held, 0);
         router.distributeNative();
-        assertApproxEqAbs(treasury.balance, held * 8 / 10, 1);
-        assertApproxEqAbs(gasTank.balance, held * 2 / 10, 1);
+        assertApproxEqAbs(furnace.totalBurned(), held / 2, 1, "half of the protocol's coin is burned");
+        assertApproxEqAbs(gasTank.balance, held / 4, 1);
+        assertApproxEqAbs(treasury.balance, held / 4, 1);
 
         // The token side of the fees goes only where a token is of use: never to the gas tank.
         uint256 tokens = IERC20(token).balanceOf(address(router));
@@ -241,5 +242,36 @@ contract EconomyTest is ProtocolHarness {
 
         assertEq(IERC20(token).balanceOf(lp), bought / 10);
         assertEq(uint8(governor.state(proposalId)), uint8(IGovernor.ProposalState.Executed));
+    }
+
+    // ------------------------------------------------------------------------------------ fire
+
+    /// Trading burns CYBER through the router and the furnace; launches lock it; the minter turns
+    /// both into ASH.
+    function test_feesAndLaunchesBecomeAsh() public {
+        minter.start(0); // no kindling: whatever is minted came from the fire
+
+        Launchpad.LaunchParams memory p = _params("Second", "TWO", SUPPLY, 0, 0, 0);
+        p.salt = bytes32(uint256(2));
+        vm.prank(creator);
+        launchpad.launch{value: 40 ether}(p);
+
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 bought = _buy(trader, token, 20 ether);
+            _sell(trader, token, bought);
+        }
+        router.harvestLaunch(e.positionId);
+        router.distributeNative();
+        uint256 burned = furnace.totalBurned();
+        assertGt(burned, 0);
+
+        (uint256 heatBurned, uint256 heatLocked) = minter.heat();
+        assertEq(heatBurned, burned, "the furnace's burns are the chain's burns");
+        assertApproxEqAbs(heatLocked, 40 ether, 1e6, "the launch's locked CYBER, less refunded dust");
+
+        vm.warp(Epoch.next() + 1);
+        uint256 minted = minter.updatePeriod();
+        assertApproxEqAbs(minted, (burned + heatLocked) * 100, 1e3);
+        assertEq(ash.balanceOf(address(buildersFund)), minted * 1_500 / 10_000, "builders are paid by the same fire");
     }
 }

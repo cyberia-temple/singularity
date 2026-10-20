@@ -9,20 +9,32 @@ import {Ash} from "../contracts/tokens/Ash.sol";
 import {VotingEscrow} from "../contracts/incentives/VotingEscrow.sol";
 import {Voter} from "../contracts/incentives/Voter.sol";
 import {Gauge} from "../contracts/incentives/Gauge.sol";
-import {Minter} from "../contracts/incentives/Minter.sol";
+import {Minter, ILockedCyber} from "../contracts/incentives/Minter.sol";
 import {Epoch} from "../contracts/libraries/Epoch.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
+
+contract MockLaunchpad {
+    uint256 public totalCyberLocked;
+
+    function lock(uint256 amount) external {
+        totalCyberLocked += amount;
+    }
+}
 
 contract IncentivesTest is Test {
     uint256 constant WEEK = 7 days;
     uint256 constant CAP = 100_000_000e18;
-    uint256 constant WEEKLY = 1_000_000e18;
+    /// The first week's kindling: 100k ASH, 3/4 of it to the voter after builders and treasury.
+    uint256 constant WEEKLY = 100_000e18;
+    uint256 constant TO_VOTER = WEEKLY * 7_500 / 10_000;
+    address constant BLACKHOLE = 0x0100000000000000000000000000000000000000;
 
     AccessManager authority;
     Ash ash;
     VotingEscrow ve;
     Voter voter;
     Minter minter;
+    MockLaunchpad launches;
     MockERC20 lpA;
     MockERC20 lpB;
     MockERC20 bribe;
@@ -30,6 +42,7 @@ contract IncentivesTest is Test {
     Gauge gaugeB;
 
     address treasury = makeAddr("treasury");
+    address builders = makeAddr("builders");
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
     address farmer = makeAddr("farmer");
@@ -41,7 +54,10 @@ contract IncentivesTest is Test {
         ash = new Ash(address(authority), CAP, address(this), 10_000_000e18);
         ve = new VotingEscrow(ash);
         voter = new Voter(address(authority), ve, treasury);
-        minter = new Minter(address(authority), ash, voter, 9_900, treasury, 500);
+        launches = new MockLaunchpad();
+        // 100 ASH per CYBER of fire; no week above 1% of what is left; kindling falls 4% a week.
+        minter = new Minter(address(authority), ash, voter, ILockedCyber(address(launches)), 100, 100, 9_600);
+        minter.setSplit(builders, 1_500, treasury, 1_000);
         ash.setMinter(address(minter));
         voter.setMinter(address(minter));
 
@@ -137,13 +153,69 @@ contract IncentivesTest is Test {
         voter.distribute(address(gaugeA), epoch);
         voter.distribute(address(gaugeB), epoch);
 
-        uint256 toVoter = WEEKLY - WEEKLY * 500 / 10_000;
-        assertApproxEqRel(gaugeA.left(address(ash)), toVoter * 3 / 4, 0.0001e18);
-        assertApproxEqRel(gaugeB.left(address(ash)), toVoter / 4, 0.0001e18);
-        assertEq(ash.balanceOf(treasury), WEEKLY * 500 / 10_000, "treasury share");
+        assertApproxEqRel(gaugeA.left(address(ash)), TO_VOTER * 3 / 4, 0.0001e18);
+        assertApproxEqRel(gaugeB.left(address(ash)), TO_VOTER / 4, 0.0001e18);
+        assertEq(ash.balanceOf(builders), WEEKLY * 1_500 / 10_000, "builders' share");
+        assertEq(ash.balanceOf(treasury), WEEKLY * 1_000 / 10_000, "treasury share");
 
         vm.expectRevert(Voter.AlreadyDone.selector);
         voter.distribute(address(gaugeA), epoch);
+    }
+
+    // ------------------------------------------------------------------------------------ fire
+
+    function test_burnedAndLockedCyberBecomeAsh() public {
+        minter.start(0); // no kindling: only fire makes ASH
+        uint256 burnedBefore = BLACKHOLE.balance;
+
+        // A week of fire: 7 CYBER of fees burned, 30 CYBER locked by a launch.
+        vm.deal(BLACKHOLE, burnedBefore + 7 ether);
+        launches.lock(30 ether);
+        (uint256 burned, uint256 locked) = minter.heat();
+        assertEq(burned + locked, 37 ether);
+
+        _nextEpoch();
+        uint256 minted = minter.updatePeriod();
+        assertEq(minted, 3_700e18, "100 ASH for every CYBER of fire");
+        assertEq(minter.totalHeat(), 37 ether);
+
+        // The heat is spent: next week starts cold.
+        _nextEpoch();
+        assertEq(minter.updatePeriod(), 0);
+    }
+
+    function test_aColdChainMakesNothingButKindling() public {
+        minter.start(WEEKLY);
+        uint256 previous = type(uint256).max;
+        for (uint256 i = 0; i < 4; i++) {
+            _nextEpoch();
+            uint256 minted = minter.updatePeriod();
+            assertLt(minted, previous, "kindling decays");
+            previous = minted;
+        }
+        assertApproxEqRel(previous, WEEKLY * 96 ** 3 / 100 ** 3, 0.0001e18);
+    }
+
+    function test_noWeekMintsMoreThanItsCeiling() public {
+        minter.start(0);
+        uint256 room = ash.cap() - ash.totalSupply();
+
+        // A whale burns half the CYBER supply in one week.
+        vm.deal(BLACKHOLE, BLACKHOLE.balance + 500_000 ether);
+        _nextEpoch();
+        assertEq(minter.updatePeriod(), room / 100, "1% of what is left, and the rest of the heat is just gone");
+        assertEq(ash.totalSupply() <= ash.cap(), true);
+    }
+
+    function test_unvotedEmissionWaitsForTheNextVote() public {
+        minter.start(WEEKLY);
+        _nextEpoch();
+        minter.updatePeriod();
+        uint256 epoch = Epoch.current();
+
+        voter.rolloverUnvoted(epoch);
+        assertEq(voter.emission(epoch), 0);
+        assertEq(voter.emission(epoch + 1), TO_VOTER, "nothing leaks to the treasury");
     }
 
     function test_votesAreReplacedNotAdded() public {
@@ -152,35 +224,6 @@ contract IncentivesTest is Test {
         uint256 epoch = Epoch.current();
         assertEq(voter.gaugeVotes(epoch, address(gaugeA)), 0);
         assertEq(voter.gaugeVotes(epoch, address(gaugeB)), ve.votingPower(alice));
-    }
-
-    function test_unvotedWeekGoesToTreasury() public {
-        minter.start(WEEKLY);
-        _nextEpoch();
-        minter.updatePeriod();
-        uint256 before = ash.balanceOf(treasury);
-        voter.sweepUnvoted(Epoch.current());
-        assertGt(ash.balanceOf(treasury) - before, WEEKLY * 9 / 10);
-    }
-
-    function test_scheduleDecaysAndStopsAtCap() public {
-        minter.start(WEEKLY);
-        uint256 previous = type(uint256).max;
-        for (uint256 i = 0; i < 5; i++) {
-            uint256 minted = minter.updatePeriod();
-            assertLt(minted, previous);
-            previous = minted;
-            _nextEpoch();
-        }
-
-        // Jump the supply to the cap's doorstep: the schedule mints only what is left.
-        uint256 almostAll = CAP - ash.totalSupply() - 10e18;
-        vm.prank(address(minter));
-        ash.mint(treasury, almostAll);
-        assertEq(minter.updatePeriod(), 10e18);
-        _nextEpoch();
-        assertEq(minter.updatePeriod(), 0);
-        assertEq(ash.totalSupply(), CAP);
     }
 
     // ---------------------------------------------------------------------------------- farming
@@ -200,8 +243,7 @@ contract IncentivesTest is Test {
 
         skip(WEEK);
         gaugeA.getReward(farmer);
-        uint256 toVoter = WEEKLY - WEEKLY * 500 / 10_000;
-        assertApproxEqRel(ash.balanceOf(farmer), toVoter, 0.001e18, "the whole week, minus nothing lost");
+        assertApproxEqRel(ash.balanceOf(farmer), TO_VOTER, 0.001e18, "the whole week, minus nothing lost");
     }
 
     function test_rewardsWhileNobodyStakesAreCarriedForward() public {
@@ -221,7 +263,7 @@ contract IncentivesTest is Test {
 
         skip(WEEK);
         uint256 streamed = gaugeA.earned(farmer, address(ash));
-        assertApproxEqRel(gaugeA.left(address(ash)) + streamed, WEEKLY - WEEKLY * 500 / 10_000, 0.001e18);
+        assertApproxEqRel(gaugeA.left(address(ash)) + streamed, TO_VOTER, 0.001e18);
     }
 
     function test_projectStreamsItsOwnToken() public {

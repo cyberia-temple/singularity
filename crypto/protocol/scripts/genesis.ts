@@ -1,72 +1,119 @@
 /**
- * Add Cyberia's predeploys to an Avalanche L1 genesis.
+ * Write CYBER's genesis: the supply, its backing, and the predeploys.
  *
- *   node scripts/genesis.ts <genesis-in.json> <genesis-out.json> [wcyberAddress]
+ *   node scripts/genesis.ts --in genesis.json --out genesis.cyberia.json --deployer 0x… \
+ *       [--supply 1000000] [--alloc allocations.json] [--wcyber 0x…]
  *
  * Start from the genesis avalanche-cli (or the Builder Console) produces -- it owns the parts that
- * are about the chain: the validator manager, the precompile admins, the fee config, the initial
- * balances. This script only adds contracts that every wallet and tool expects to find at a fixed
- * address from block 0, and checks the one fee setting the protocol depends on:
+ * are about the chain itself: the validator manager, precompile admins, the fee config. This adds
+ * what is about CYBER:
  *
- *   - WCYBER at `wcyberAddress` (default 0x...C0FE): the wrapped native coin;
- *   - Multicall3 at 0xcA11bde05977b3631167028862bE2a173976CA11, where every library looks for it;
- *   - the deterministic CREATE2 deployer at 0x4e59b44847b379578588920cA78FbF26c0B4956C, so contracts
- *     can be deployed at the same address on Cyberia as on other chains;
- *   - the block gas limit: a launch with its whole kit takes about 12M gas, so less than 15M
- *     is refused.
- *
- * Pass the WCYBER address chosen here as `wcyber` in the deploy config.
+ *   - **The supply.** CYBER is 1,000,000 coins, forever: one for every 1,000 CYBER.sol on Solana.
+ *     `--alloc` lists balances genesis gives out directly (e.g. restoring the old chain's users);
+ *     everything else is credited to the bridge gateway's address, as the backing of the CYBER.sol
+ *     that has not crossed yet. The gateway is deployed later at exactly that address (CREATE2,
+ *     see scripts/lib/create2.ts), so the backing is visibly in place from block 0.
+ *   - **No minting, ever.** A genesis that enables the NativeMinter precompile is refused: CYBER's
+ *     fixed supply is a property of the chain, not a promise.
+ *   - **Fees burn.** Burned fees are part of the fire ASH is made from; a genesis that redirects
+ *     them (fee recipients, a RewardManager reward address) is refused.
+ *   - **Predeploys:** WCYBER at `--wcyber` (default 0x…C0FE), Multicall3 at its canonical address,
+ *     the deterministic CREATE2 deployer.
+ *   - **Gas:** a launch with its whole kit takes about 12M gas, so a block limit under 15M is refused.
  */
 
 import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import { getAddress, parseEther, toHex, type Address } from "viem";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+import { CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE, ROOT, predictCore } from "./lib/create2.ts";
 
-const [input, output, wcyberArg] = process.argv.slice(2);
-if (!input || !output) throw new Error("usage: node scripts/genesis.ts <in.json> <out.json> [wcyberAddress]");
+function arg(name: string, fallback?: string): string {
+  const i = process.argv.indexOf(`--${name}`);
+  if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1];
+  if (fallback !== undefined) return fallback;
+  throw new Error(`missing --${name}`);
+}
 
-const WCYBER = (wcyberArg ?? "0x000000000000000000000000000000000000C0FE").toLowerCase();
-const MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11";
-const CREATE2_DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c";
-// The runtime code of Arachnid's deterministic deployment proxy, as deployed on every chain.
-const CREATE2_DEPLOYER_CODE =
-  "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3";
-
+const input = arg("in");
+const output = arg("out");
+const deployer = getAddress(arg("deployer"));
+const supply = parseEther(arg("supply", "1000000"));
+const allocPath = arg("alloc", "");
+const WCYBER = getAddress(arg("wcyber", "0x000000000000000000000000000000000000C0FE"));
+const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
 const MIN_GAS_LIMIT = 15_000_000;
 
-function runtime(name: string, file: string): string {
-  const artifactPath = path.join(ROOT, "artifacts", file, `${name}.json`);
-  if (!fs.existsSync(artifactPath)) throw new Error(`missing ${artifactPath}; run npx hardhat build`);
-  return JSON.parse(fs.readFileSync(artifactPath, "utf8")).deployedBytecode;
-}
-
 const genesis = JSON.parse(fs.readFileSync(input, "utf8"));
-genesis.alloc ??= {};
+const config = genesis.config ?? {};
 
-const predeploys: Record<string, string> = {
-  [WCYBER]: runtime("WCYBER", "contracts/tokens/WCYBER.sol"),
-  [MULTICALL3]: runtime("Multicall3", "contracts/vendor/multicall/Multicall3.sol"),
-  [CREATE2_DEPLOYER]: CREATE2_DEPLOYER_CODE,
-};
+// ------------------------------------------------------------------------------ chain rules
 
-for (const [address, code] of Object.entries(predeploys)) {
-  const key = Object.keys(genesis.alloc).find((k) => k.toLowerCase().replace(/^0x/, "") === address.replace(/^0x/, ""));
-  const existing = key ? genesis.alloc[key] : undefined;
-  if (existing?.code && existing.code !== code) {
-    throw new Error(`${address} already holds different code in the input genesis`);
-  }
-  genesis.alloc[address.replace(/^0x/, "")] = { ...(existing ?? {}), balance: existing?.balance ?? "0x0", code };
-  if (key && key !== address.replace(/^0x/, "")) delete genesis.alloc[key];
-  console.log(`predeploy ${address}`);
+if (config.contractNativeMinterConfig) {
+  throw new Error("genesis enables the NativeMinter: CYBER's supply must be fixed; remove contractNativeMinterConfig");
 }
-
-const gasLimit = Number(genesis.config?.feeConfig?.gasLimit ?? BigInt(genesis.gasLimit ?? "0"));
+if (config.allowFeeRecipients) throw new Error("genesis lets validators keep fees; fees must burn (allowFeeRecipients: false)");
+if (config.rewardManagerConfig?.initialRewardConfig?.rewardAddress) {
+  throw new Error("genesis redirects fees through the RewardManager; fees must burn");
+}
+const gasLimit = Number(config.feeConfig?.gasLimit ?? BigInt(genesis.gasLimit ?? "0"));
 if (gasLimit < MIN_GAS_LIMIT) {
   throw new Error(`feeConfig.gasLimit ${gasLimit} is below ${MIN_GAS_LIMIT}: a full-kit launch would not fit in a block`);
 }
-console.log(`block gas limit ${gasLimit}`);
+
+// ----------------------------------------------------------------------------------- supply
+
+// Whatever the CLI already put in genesis stays (the validator manager and its proxy live there),
+// and any balance it gave out counts against the supply.
+genesis.alloc ??= {};
+let preallocated = 0n;
+for (const entry of Object.values(genesis.alloc) as { balance?: string }[]) {
+  preallocated += BigInt(entry.balance ?? "0x0");
+}
+
+const credit = (address: Address, wei: bigint) => {
+  const key = address.toLowerCase().replace(/^0x/, "");
+  const current = BigInt(genesis.alloc[key]?.balance ?? "0x0");
+  genesis.alloc[key] = { ...(genesis.alloc[key] ?? {}), balance: toHex(current + wei) };
+};
+
+let allocated = preallocated;
+if (allocPath) {
+  const allocations: Record<string, string> = JSON.parse(fs.readFileSync(allocPath, "utf8"));
+  for (const [address, cyber] of Object.entries(allocations)) {
+    const wei = parseEther(cyber);
+    credit(getAddress(address), wei);
+    allocated += wei;
+  }
+}
+if (allocated > supply) throw new Error("allocations exceed the supply");
+
+const { authority, gateway } = predictCore(deployer);
+const backing = supply - allocated;
+credit(gateway, backing);
+
+// ------------------------------------------------------------------------------- predeploys
+
+const runtime = (name: string, file: string) =>
+  JSON.parse(fs.readFileSync(`${ROOT}/artifacts/${file}/${name}.json`, "utf8")).deployedBytecode;
+
+const predeploys: [Address, string][] = [
+  [WCYBER, runtime("WCYBER", "contracts/tokens/WCYBER.sol")],
+  [MULTICALL3, runtime("Multicall3", "contracts/vendor/multicall/Multicall3.sol")],
+  [CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE],
+];
+for (const [address, code] of predeploys) {
+  const key = address.toLowerCase().replace(/^0x/, "");
+  genesis.alloc[key] = { ...(genesis.alloc[key] ?? { balance: "0x0" }), code };
+}
 
 fs.writeFileSync(output, JSON.stringify(genesis, null, 2) + "\n");
+
+const cyber = (wei: bigint) => (Number(wei / 10n ** 14n) / 1e4).toLocaleString("en-US");
+console.log(`supply            ${cyber(supply)} CYBER`);
+console.log(`direct allocations ${cyber(allocated)} CYBER (${cyber(preallocated)} already in the input genesis)`);
+console.log(`bridge backing    ${cyber(backing)} CYBER at the gateway ${gateway}`);
+console.log(`  (= ${cyber(backing * 1000n)} CYBER.sol that can still cross, at 1000:1)`);
+console.log(`authority         ${authority} (deploy with ${deployer})`);
+console.log(`WCYBER            ${WCYBER}`);
+console.log(`block gas limit   ${gasLimit}`);
 console.log(`wrote ${output}`);
