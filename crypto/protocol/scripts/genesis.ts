@@ -1,31 +1,201 @@
 /**
- * Write CYBER's genesis: the supply, its backing, and the predeploys.
+ * Write Cyberia's L1 genesis (Subnet-EVM), or check one.
  *
- *   node scripts/genesis.ts --in genesis.json --out genesis.cyberia.json --deployer 0x… \
- *       [--supply 1000000] [--alloc allocations.json] [--wcyber 0x…]
+ *   node scripts/genesis.ts --network fuji|mainnet --remote-deployer 0x… --operator 0x… --fee-admin 0x… \
+ *       [--remote-gas 100000] [--operator-gas 1000000] [--alloc allocations.json] [--min-base-fee <wei>] \
+ *       --out genesis.json
+ *   node scripts/genesis.ts --check genesis.json --remote-deployer 0x…
  *
- * Start from the genesis avalanche-cli (or the Builder Console) produces -- it owns the parts that
- * are about the chain itself: the validator manager, precompile admins, the fee config. This adds
- * what is about CYBER:
+ * CYBER is CYBER.sol brought over from Solana, one for one: Wormhole NTT locks it on Solana and mints
+ * it on the C-Chain, and ICTT locks that in an ERC20TokenHome and mints the same amount here as the
+ * native coin, through Ava Labs' NativeTokenRemote. Genesis is where the rules that keep this honest
+ * become properties of the chain:
  *
- *   - **The supply.** CYBER is 1,000,000 coins, forever: one for every 1,000 CYBER.sol on Solana.
- *     `--alloc` lists balances genesis gives out directly (e.g. restoring the old chain's users);
- *     everything else is credited to the bridge gateway's address, as the backing of the CYBER.sol
- *     that has not crossed yet. The gateway is deployed later at exactly that address (CREATE2,
- *     see scripts/lib/create2.ts), so the backing is visibly in place from block 0.
- *   - **No minting, ever.** A genesis that enables the NativeMinter precompile is refused: CYBER's
- *     fixed supply is a property of the chain, not a promise.
- *   - **Fees burn.** Burned fees are part of the fire ASH is made from; a genesis that redirects
- *     them (fee recipients, a RewardManager reward address) is refused.
- *   - **Predeploys:** WCYBER at `--wcyber` (default 0x…C0FE), Multicall3 at its canonical address,
- *     the deterministic CREATE2 deployer.
+ *   - **Only NativeTokenRemote mints.** The NativeMinter precompile is on with exactly one enabled
+ *     address -- the remote's proxy, which `--remote-deployer` creates as its second transaction
+ *     (nonce 0: the implementation, nonce 1: the proxy) -- and no admin or manager who could add
+ *     another. That key must send nothing else before.
+ *   - **Every genesis coin is owed collateral.** The balances here (gas for the remote's deployer
+ *     and for the operator, plus any `--alloc`) exist before anything is locked on the C-Chain.
+ *     Their sum is NativeTokenRemote's `initialReserveImbalance`; the home refuses to bridge to
+ *     this chain until that much is deposited as collateral.
+ *   - **Fees burn.** No fee recipients and no RewardManager: burned fees are reported to the home
+ *     (`reportBurnedTxFees`) and burned on the C-Chain too, so the CYBER.sol behind them stays
+ *     locked on Solana for good. They are also the fire ASH is made from.
+ *   - **No replay of the old chain.** Mainnet reuses chain id 49406, so every transaction ever
+ *     signed for the old chain carries a valid chain id here, and every account starts again at
+ *     nonce 0. The minimum base fee is kept far above any gas price the old chain accepted, which
+ *     makes all of them invalid.
+ *   - **Warp** is on and needs Primary Network signatures for C-Chain messages: this chain's own
+ *     validators cannot vouch for what happened on the C-Chain.
+ *   - **Predeploys** at their usual addresses: Safe 1.4.1, TeleporterMessenger v1.0.0 (see
+ *     predeploys.ts), Multicall3, the deterministic CREATE2 deployer and WCYBER. Presigned deployments
+ *     cannot run here because of the base fee, so they have to be in genesis.
  *   - **Gas:** a launch with its whole kit takes about 12M gas, so a block limit under 15M is refused.
  */
 
 import * as fs from "node:fs";
-import { getAddress, parseEther, toHex, type Address } from "viem";
+import * as path from "node:path";
+import { getAddress, getContractAddress, keccak256, parseEther, toHex, type Address, type Hex } from "viem";
 
-import { CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE, ROOT, predictCore } from "./lib/create2.ts";
+import { CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE, ROOT } from "./lib/create2.ts";
+import type { Predeploy } from "./predeploys.ts";
+
+export const CHAIN_IDS = { mainnet: 49406, fuji: 49407 } as const;
+
+/**
+ * The highest gas price seen on the old 49406 chain was 1.875 gwei (sampled from its explorer).
+ * The floor leaves three orders of magnitude on top of that; the real minimum base fee is higher
+ * still (2,500,000 gwei), because a CYBER is worth about a thousandth of an old one.
+ */
+export const REPLAY_FLOOR_WEI = 1_000_000_000_000n;
+export const DEFAULT_MIN_BASE_FEE_WEI = 2_500_000_000_000_000n;
+export const MIN_GAS_LIMIT = 15_000_000;
+export const WCYBER: Address = "0x000000000000000000000000000000000000C0FE";
+export const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
+const NATIVE_MINTER = "contractNativeMinterConfig";
+
+/** The NativeTokenRemote proxy: `remoteDeployer`'s second contract (its first is the implementation). */
+export function predictRemote(remoteDeployer: Address): Address {
+  return getContractAddress({ opcode: "CREATE", from: remoteDeployer, nonce: 1n });
+}
+
+type Genesis = { config: Record<string, any>; alloc: Record<string, any>; [key: string]: unknown };
+
+const key = (address: Address) => address.toLowerCase().replace(/^0x/, "");
+
+/** Every rule above, as checks. Returns the genesis' total balance: the remote's initialReserveImbalance. */
+export function check(genesis: Genesis, remoteDeployer: Address): bigint {
+  const config = genesis.config ?? {};
+  const fail = (message: string): never => {
+    throw new Error(`genesis: ${message}`);
+  };
+
+  const chainId = Number(config.chainId);
+  if (!Object.values(CHAIN_IDS).includes(chainId as never)) fail(`chainId ${chainId} is neither mainnet nor fuji`);
+
+  const minter = config[NATIVE_MINTER];
+  const remote = predictRemote(remoteDeployer);
+  if (!minter) fail("the NativeMinter is off: NativeTokenRemote could not mint");
+  const enabled: string[] = minter.enabledAddresses ?? [];
+  if (enabled.length !== 1 || getAddress(enabled[0]) !== remote) {
+    fail(`the NativeMinter must enable exactly the remote ${remote}, not [${enabled.join(", ")}]`);
+  }
+  if ((minter.adminAddresses ?? []).length || (minter.managerAddresses ?? []).length) {
+    fail("the NativeMinter has an admin or manager who could enable another minter");
+  }
+  if (minter.initialMint && Object.keys(minter.initialMint).length) fail("the NativeMinter mints at genesis");
+
+  if (config.allowFeeRecipients) fail("validators may keep fees; fees must burn (allowFeeRecipients: false)");
+  if (config.rewardManagerConfig) fail("the RewardManager could redirect fees; fees must burn");
+
+  const fees = config.feeConfig ?? {};
+  if (BigInt(fees.minBaseFee ?? 0) < REPLAY_FLOOR_WEI) {
+    fail(`minBaseFee ${fees.minBaseFee} is below the replay floor ${REPLAY_FLOOR_WEI}: old 49406 transactions would be valid`);
+  }
+  const gasLimit = Number(fees.gasLimit ?? 0);
+  if (gasLimit < MIN_GAS_LIMIT) fail(`feeConfig.gasLimit ${gasLimit} is below ${MIN_GAS_LIMIT}: a full-kit launch would not fit`);
+  if (BigInt(String(genesis.gasLimit ?? "0")) !== BigInt(gasLimit)) fail("the header gasLimit differs from feeConfig.gasLimit");
+
+  if (!config.warpConfig) fail("Warp is off: no ICM, so no ICTT");
+  if (config.warpConfig.requirePrimaryNetworkSigners !== true) {
+    fail("Warp must require Primary Network signers for C-Chain messages");
+  }
+
+  for (const predeploy of loadPredeploys()) {
+    const entry = genesis.alloc[key(predeploy.address)];
+    if (!entry || (entry.code ?? "0x") !== predeploy.code) fail(`${predeploy.name} is missing at ${predeploy.address}`);
+  }
+
+  let total = 0n;
+  for (const entry of Object.values(genesis.alloc)) total += BigInt(entry.balance ?? "0x0");
+  return total;
+}
+
+export function loadPredeploys(): Predeploy[] {
+  const predeploys: Predeploy[] = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/lib/predeploys.json"), "utf8"));
+  for (const p of predeploys) {
+    if (keccak256(p.code) !== p.codeHash) throw new Error(`predeploys.json: ${p.name}'s code does not match its hash`);
+  }
+  return predeploys;
+}
+
+function runtime(name: string, file: string): Hex {
+  const artifact = path.join(ROOT, "artifacts", file, `${name}.json`);
+  if (!fs.existsSync(artifact)) throw new Error(`missing ${artifact}; run npx hardhat build`);
+  return JSON.parse(fs.readFileSync(artifact, "utf8")).deployedBytecode;
+}
+
+export type GenesisOptions = {
+  network: keyof typeof CHAIN_IDS;
+  remoteDeployer: Address;
+  operator: Address;
+  feeAdmin: Address;
+  remoteGas: bigint;
+  operatorGas: bigint;
+  allocations?: Record<string, string>;
+  minBaseFee?: bigint;
+  gasLimit?: number;
+  timestamp?: number;
+};
+
+export function build(options: GenesisOptions): Genesis {
+  const gasLimit = options.gasLimit ?? 20_000_000;
+  const minBaseFee = options.minBaseFee ?? DEFAULT_MIN_BASE_FEE_WEI;
+  if (minBaseFee > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("minBaseFee does not fit a JSON number exactly");
+  const alloc: Genesis["alloc"] = {};
+  const credit = (address: Address, wei: bigint) => {
+    const current = BigInt(alloc[key(address)]?.balance ?? "0x0");
+    alloc[key(address)] = { ...(alloc[key(address)] ?? {}), balance: toHex(current + wei) };
+  };
+
+  credit(options.remoteDeployer, options.remoteGas);
+  credit(options.operator, options.operatorGas);
+  for (const [address, cyber] of Object.entries(options.allocations ?? {})) credit(getAddress(address), parseEther(cyber));
+
+  const place = (address: Address, entry: { code: Hex; storage?: Record<string, Hex>; nonce?: number }) => {
+    alloc[key(address)] = { balance: "0x0", ...(alloc[key(address)] ?? {}), ...entry };
+  };
+  for (const p of loadPredeploys()) {
+    place(p.address, { code: p.code, ...(p.storage ? { storage: p.storage } : {}), ...(p.nonce ? { nonce: p.nonce } : {}) });
+  }
+  place(MULTICALL3, { code: runtime("Multicall3", "contracts/vendor/multicall/Multicall3.sol") });
+  place(CREATE2_DEPLOYER, { code: CREATE2_DEPLOYER_CODE });
+  place(WCYBER, { code: runtime("WCYBER", "contracts/tokens/WCYBER.sol") });
+
+  return {
+    config: {
+      chainId: CHAIN_IDS[options.network],
+      feeConfig: {
+        gasLimit,
+        minBaseFee: Number(minBaseFee),
+        targetGas: 60_000_000,
+        baseFeeChangeDenominator: 36,
+        minBlockGasCost: 0,
+        maxBlockGasCost: 1_000_000,
+        targetBlockRate: 2,
+        blockGasCostStep: 200_000,
+      },
+      allowFeeRecipients: false,
+      warpConfig: { blockTimestamp: 0, quorumNumerator: 67, requirePrimaryNetworkSigners: true },
+      [NATIVE_MINTER]: { blockTimestamp: 0, enabledAddresses: [predictRemote(options.remoteDeployer)] },
+      feeManagerConfig: { blockTimestamp: 0, adminAddresses: [options.feeAdmin] },
+    },
+    alloc,
+    nonce: "0x0",
+    timestamp: toHex(options.timestamp ?? Math.floor(Date.now() / 1000)),
+    extraData: "0x",
+    gasLimit: toHex(gasLimit),
+    difficulty: "0x0",
+    mixHash: `0x${"0".repeat(64)}`,
+    coinbase: `0x${"0".repeat(40)}`,
+    number: "0x0",
+    gasUsed: "0x0",
+    parentHash: `0x${"0".repeat(64)}`,
+  };
+}
+
+const cyber = (wei: bigint) => (Number(wei / 10n ** 14n) / 1e4).toLocaleString("en-US");
 
 function arg(name: string, fallback?: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -34,86 +204,43 @@ function arg(name: string, fallback?: string): string {
   throw new Error(`missing --${name}`);
 }
 
-const input = arg("in");
-const output = arg("out");
-const deployer = getAddress(arg("deployer"));
-const supply = parseEther(arg("supply", "1000000"));
-const allocPath = arg("alloc", "");
-const WCYBER = getAddress(arg("wcyber", "0x000000000000000000000000000000000000C0FE"));
-const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
-const MIN_GAS_LIMIT = 15_000_000;
+function main(): void {
+  const remoteDeployer = getAddress(arg("remote-deployer"));
+  const checkPath = arg("check", "");
 
-const genesis = JSON.parse(fs.readFileSync(input, "utf8"));
-const config = genesis.config ?? {};
-
-// ------------------------------------------------------------------------------ chain rules
-
-if (config.contractNativeMinterConfig) {
-  throw new Error("genesis enables the NativeMinter: CYBER's supply must be fixed; remove contractNativeMinterConfig");
-}
-if (config.allowFeeRecipients) throw new Error("genesis lets validators keep fees; fees must burn (allowFeeRecipients: false)");
-if (config.rewardManagerConfig?.initialRewardConfig?.rewardAddress) {
-  throw new Error("genesis redirects fees through the RewardManager; fees must burn");
-}
-const gasLimit = Number(config.feeConfig?.gasLimit ?? BigInt(genesis.gasLimit ?? "0"));
-if (gasLimit < MIN_GAS_LIMIT) {
-  throw new Error(`feeConfig.gasLimit ${gasLimit} is below ${MIN_GAS_LIMIT}: a full-kit launch would not fit in a block`);
-}
-
-// ----------------------------------------------------------------------------------- supply
-
-// Whatever the CLI already put in genesis stays (the validator manager and its proxy live there),
-// and any balance it gave out counts against the supply.
-genesis.alloc ??= {};
-let preallocated = 0n;
-for (const entry of Object.values(genesis.alloc) as { balance?: string }[]) {
-  preallocated += BigInt(entry.balance ?? "0x0");
-}
-
-const credit = (address: Address, wei: bigint) => {
-  const key = address.toLowerCase().replace(/^0x/, "");
-  const current = BigInt(genesis.alloc[key]?.balance ?? "0x0");
-  genesis.alloc[key] = { ...(genesis.alloc[key] ?? {}), balance: toHex(current + wei) };
-};
-
-let allocated = preallocated;
-if (allocPath) {
-  const allocations: Record<string, string> = JSON.parse(fs.readFileSync(allocPath, "utf8"));
-  for (const [address, cyber] of Object.entries(allocations)) {
-    const wei = parseEther(cyber);
-    credit(getAddress(address), wei);
-    allocated += wei;
+  if (checkPath) {
+    const total = check(JSON.parse(fs.readFileSync(checkPath, "utf8")), remoteDeployer);
+    console.log(`${checkPath} passes; initialReserveImbalance ${total} wei (${cyber(total)} CYBER)`);
+    return;
   }
+
+  const network = arg("network") as GenesisOptions["network"];
+  if (!(network in CHAIN_IDS)) throw new Error(`--network must be one of ${Object.keys(CHAIN_IDS).join(", ")}`);
+  const allocPath = arg("alloc", "");
+  const minBaseFee = arg("min-base-fee", "");
+  const genesis = build({
+    network,
+    remoteDeployer,
+    operator: getAddress(arg("operator")),
+    feeAdmin: getAddress(arg("fee-admin")),
+    remoteGas: parseEther(arg("remote-gas", "100000")),
+    operatorGas: parseEther(arg("operator-gas", "1000000")),
+    allocations: allocPath ? JSON.parse(fs.readFileSync(allocPath, "utf8")) : undefined,
+    minBaseFee: minBaseFee ? BigInt(minBaseFee) : undefined,
+  });
+  const total = check(genesis, remoteDeployer);
+
+  const output = arg("out");
+  fs.writeFileSync(output, JSON.stringify(genesis, null, 2) + "\n");
+  console.log(`chain id          ${genesis.config.chainId} (${network})`);
+  console.log(`NativeMinter      only ${predictRemote(remoteDeployer)}: ${remoteDeployer}'s nonce-1 contract`);
+  console.log(`genesis CYBER     ${cyber(total)} = NativeTokenRemote initialReserveImbalance ${total} wei`);
+  console.log(`min base fee      ${genesis.config.feeConfig.minBaseFee} wei (replay floor ${REPLAY_FLOOR_WEI})`);
+  console.log(`fee admin         ${genesis.config.feeManagerConfig.adminAddresses[0]}`);
+  console.log(`block gas limit   ${genesis.config.feeConfig.gasLimit}`);
+  console.log(`wrote ${output}`);
 }
-if (allocated > supply) throw new Error("allocations exceed the supply");
 
-const { authority, gateway } = predictCore(deployer);
-const backing = supply - allocated;
-credit(gateway, backing);
-
-// ------------------------------------------------------------------------------- predeploys
-
-const runtime = (name: string, file: string) =>
-  JSON.parse(fs.readFileSync(`${ROOT}/artifacts/${file}/${name}.json`, "utf8")).deployedBytecode;
-
-const predeploys: [Address, string][] = [
-  [WCYBER, runtime("WCYBER", "contracts/tokens/WCYBER.sol")],
-  [MULTICALL3, runtime("Multicall3", "contracts/vendor/multicall/Multicall3.sol")],
-  [CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE],
-];
-for (const [address, code] of predeploys) {
-  const key = address.toLowerCase().replace(/^0x/, "");
-  genesis.alloc[key] = { ...(genesis.alloc[key] ?? { balance: "0x0" }), code };
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+  main();
 }
-
-fs.writeFileSync(output, JSON.stringify(genesis, null, 2) + "\n");
-
-const cyber = (wei: bigint) => (Number(wei / 10n ** 14n) / 1e4).toLocaleString("en-US");
-console.log(`supply            ${cyber(supply)} CYBER`);
-console.log(`direct allocations ${cyber(allocated)} CYBER (${cyber(preallocated)} already in the input genesis)`);
-console.log(`bridge backing    ${cyber(backing)} CYBER at the gateway ${gateway}`);
-console.log(`  (= ${cyber(backing * 1000n)} CYBER.sol that can still cross, at 1000:1)`);
-console.log(`authority         ${authority} (deploy with ${deployer})`);
-console.log(`WCYBER            ${WCYBER}`);
-console.log(`block gas limit   ${gasLimit}`);
-console.log(`wrote ${output}`);

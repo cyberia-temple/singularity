@@ -1,0 +1,13 @@
+{
+  "network-id": "fuji",
+  "data-dir": "/var/lib/avalanchego",
+  "partial-sync-primary-network": true,
+  "http-host": "127.0.0.1",
+  "http-port": 9650,
+  "staking-port": 9651,
+  "public-ip": "91.132.163.19",
+  "api-admin-enabled": false,
+  "index-enabled": false,
+  "log-level": "info",
+  "log-rotater-max-files": 7
+}
