@@ -1,0 +1,30 @@
+{
+  "admin": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "adminExecutionDelay": 172800,
+  "guardian": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+  "operator": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "relayer": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+  "arbiter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "treasury": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "wiredSigner": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+  "wcyber": null,
+  "ash": {
+    "cap": "100000000",
+    "initialSupply": "10000000",
+    "initialHolder": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+    "weekly": "1000000",
+    "decayBps": 9900,
+    "treasuryBps": 500
+  },
+  "launch": { "minLiquidity": "10", "creditLltv": "0.5", "twapWindow": 1800, "twapMinWindow": 600, "cardinality": 64 },
+  "lltvs": ["0.385", "0.5", "0.625", "0.77", "0.86", "0.915", "0.945"],
+  "router": { "treasuryWeight": 8000, "gasStationWeight": 2000, "votersBps": 5000 },
+  "domains": { "rootPrice": "1", "reserved": ["cyberia", "lain", "dns", "www", "wallet", "bridge", "swap"] },
+  "predictions": { "createFee": "1" },
+  "nft": { "feeBps": 200 },
+  "bridge": { "refundDelay": 259200 },
+  "land": { "mintPrice": "1", "baseURI": "https://cyberia.church/api/land/" },
+  "badgesURI": "https://cyberia.church/api/badges/{id}.json",
+  "positionsBaseURI": "https://cyberia.church/api/v3/positions/",
+  "renounceDeployer": false
+}

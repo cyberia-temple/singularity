@@ -4,3 +4,4 @@ cache/
 types/
 dist/
 .env
+deployments/31337.json

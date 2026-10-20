@@ -7,6 +7,9 @@ import {IAccessManaged} from "@openzeppelin/contracts/access/manager/IAccessMana
 
 import {GasStation} from "../contracts/apps/GasStation.sol";
 import {Badges} from "../contracts/identity/Badges.sol";
+import {CommunityToken} from "../contracts/community/CommunityToken.sol";
+import {CommunityTokenFactory} from "../contracts/community/CommunityTokenFactory.sol";
+import {DAOFactory} from "../contracts/governance/DAOFactory.sol";
 
 contract AppsTest is Test {
     uint64 constant OPERATOR_ROLE = 30;
@@ -90,5 +93,25 @@ contract AppsTest is Test {
         vm.prank(newcomer);
         vm.expectRevert(Badges.Soulbound.selector);
         badges.safeTransferFrom(newcomer, operator, 1, 1, "");
+    }
+
+    // ---------------------------------------------------------------------- community tokens
+
+    function test_chatTokenMintsUpToItsCapAndOpensADao() public {
+        CommunityTokenFactory factory = new CommunityTokenFactory();
+        address bot = makeAddr("bot");
+        CommunityToken token = CommunityToken(factory.createToken("Wired Chat", "WIRED", bot, 1_000e18));
+
+        vm.prank(bot);
+        token.mint(newcomer, 600e18);
+        vm.prank(bot);
+        vm.expectRevert(CommunityToken.CapExceeded.selector);
+        token.mint(newcomer, 401e18);
+        vm.prank(newcomer);
+        vm.expectRevert(CommunityToken.NotOwner.selector);
+        token.mint(newcomer, 1);
+
+        (address governor, address timelock) = new DAOFactory().createDAO(address(token));
+        assertTrue(governor != address(0) && timelock != address(0));
     }
 }

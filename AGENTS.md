@@ -32,7 +32,8 @@ singularity/
 ├── frontend/desktop/     # Cyberia desktop app (Electron shell over the live site)
 ├── frontend/mobile/      # Cyberia mobile app (Capacitor shell, Android + iOS)
 ├── frontend/extension/   # Cyberia Wallet browser extension (MV3, own vault, EIP-1193)
-├── crypto/hardhat/       # EVM contracts, Hardhat 3 + viem
+├── crypto/hardhat/       # EVM contracts, Hardhat 3 + viem (the polygon-edge chain, id 49406)
+├── crypto/protocol/      # The contracts Cyberia relaunches with on its Avalanche L1 (not yet deployed)
 ├── crypto/anchor/        # Solana/Anchor bridge contracts and scripts
 ├── crypto/utxo/          # Bitcoin/Litecoin bridge payouts (bitcoinjs-lib over Esplora): the only half of those corridors that needs a key
 ├── crypto/quickswap-core/ # Legacy QuickSwap/Uniswap v2 core contracts
@@ -349,6 +350,23 @@ npx hardhat test nodejs
 - Mint/burn administration for deployed Cyberia ERC20s is centralized in `scripts/token-admin.ts`, backed by `deployments/cyberia-tokens.json`. Bridge-specific one-shot scripts are `scripts/relay-mint.ts` and `scripts/relay-burn.ts`.
 - `PredictionMarket` (`deployments/cyberia-predictions.json`) takes bets from anyone and lets only its owner report outcomes, with a hard 30-day refund window after close: miss it and resolution is disabled forever. `scripts/predictions-admin.ts` is the human CLI; `scripts/predictions-resolve.ts` is the one Laravel calls, and it signs only — every decision is made in PHP (see the Laravel section).
 - Never commit private keys or `.env` secrets.
+
+### Protocol for the Avalanche relaunch
+
+Path: `crypto/protocol/` -- a separate Hardhat 3 package (OpenZeppelin 5, solc 0.8.28 via IR for the
+protocol, 0.7.6 for the vendored V3). It replaces `crypto/hardhat/contracts` as a whole for the new
+chain; nothing in it is deployed yet, and nothing in `crypto/hardhat` changes because of it. Its
+`README.md` maps every old contract to its successor and lists the relaunch steps.
+
+```bash
+cd crypto/protocol
+npm install
+npx hardhat test solidity
+```
+
+- Everything counts time, never blocks: an Avalanche L1 produces a block only when there is a transaction.
+- Every restricted function answers to one `CyberiaAuthority` (AccessManager); `contracts/access/Roles.sol` is the role map and `scripts/deploy.ts` applies it.
+- In Solidity tests that warp, use absolute times: under the IR pipeline a test's own `block.timestamp` may be read after the warp.
 
 ### Solana / Anchor
 
