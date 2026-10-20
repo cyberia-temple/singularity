@@ -51,29 +51,32 @@ contract AdaptiveCurveIrmTest is Test {
         assertApproxEqRel(_apr(full), 0.16e18, 0.001e18, "four times target when everything is");
     }
 
+    // Times are absolute: under the IR pipeline a test's own `block.timestamp` may be read after
+    // a warp rather than before it.
+    uint256 constant T0 = 1_800_000_000;
+
     function test_targetDoublesInAboutFiveDaysAtFullUtilization() public {
-        irm.borrowRate(params, _market(100, 90, block.timestamp));
+        vm.warp(T0);
+        irm.borrowRate(params, _market(100, 90, T0));
         uint256 start = uint256(irm.rateAtTarget(params.id()));
 
-        uint256 t0 = block.timestamp;
-        skip(5.06 days);
-        irm.borrowRate(params, _market(100, 100, t0));
+        vm.warp(T0 + 5.06 days);
+        irm.borrowRate(params, _market(100, 100, T0));
         uint256 end = uint256(irm.rateAtTarget(params.id()));
 
         assertApproxEqRel(end, start * 2, 0.02e18);
     }
 
     function test_targetFallsWhenIdleAndStaysBounded() public {
-        irm.borrowRate(params, _market(100, 90, block.timestamp));
+        vm.warp(T0);
+        irm.borrowRate(params, _market(100, 90, T0));
 
-        uint256 t0 = block.timestamp;
-        skip(10 * YEAR);
-        irm.borrowRate(params, _market(100, 0, t0));
+        vm.warp(T0 + 10 * YEAR);
+        irm.borrowRate(params, _market(100, 0, T0));
         assertEq(irm.rateAtTarget(params.id()), irm.MIN_RATE_AT_TARGET());
 
-        t0 = block.timestamp;
-        skip(100 * YEAR);
-        irm.borrowRate(params, _market(100, 100, t0));
+        vm.warp(T0 + 110 * YEAR);
+        irm.borrowRate(params, _market(100, 100, T0 + 10 * YEAR));
         assertEq(irm.rateAtTarget(params.id()), irm.MAX_RATE_AT_TARGET(), "a century of full use is capped, not overflowed");
     }
 }

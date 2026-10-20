@@ -14,6 +14,15 @@ import {LiquidityVaultFactory} from "../../contracts/liquidity/LiquidityVaultFac
 import {LaunchLocker} from "../../contracts/launch/LaunchLocker.sol";
 import {Launchpad} from "../../contracts/launch/Launchpad.sol";
 import {TickMath} from "../../contracts/libraries/TickMath.sol";
+import {Ash} from "../../contracts/tokens/Ash.sol";
+import {VotingEscrow} from "../../contracts/incentives/VotingEscrow.sol";
+import {Voter} from "../../contracts/incentives/Voter.sol";
+import {Minter} from "../../contracts/incentives/Minter.sol";
+import {RevenueRouter} from "../../contracts/treasury/RevenueRouter.sol";
+import {Domains} from "../../contracts/identity/Domains.sol";
+import {DAOFactory} from "../../contracts/governance/DAOFactory.sol";
+import {IGaugeRegistry, IZoneRegistry, IDAOFactory, ILaunchRegistry} from
+    "../../contracts/launch/interfaces/IEconomyModules.sol";
 
 interface IPoolDeployer {
     function setFactoryAddress(address factory) external;
@@ -21,6 +30,8 @@ interface IPoolDeployer {
 
 interface IFactoryAdmin {
     function enableFeeAmount(uint24 fee, int24 tickSpacing) external;
+    function setFeeCollector(address collector) external;
+    function setFeeProtocol(address pool, uint32 feeProtocol0, uint32 feeProtocol1) external;
 }
 
 /// @notice Swaps directly against a pool and pays in the callback, so tests need no router.
@@ -61,7 +72,18 @@ abstract contract ProtocolHarness is Test {
     Launchpad launchpad;
     Swapper swapper;
 
+    Ash ash;
+    VotingEscrow ve;
+    Voter voter;
+    Minter minter;
+    RevenueRouter router;
+    Domains domains;
+    DAOFactory daos;
+
     address treasury = makeAddr("treasury");
+    address gasTank = makeAddr("gasTank");
+
+    uint64 constant LAUNCHPAD_ROLE = 20;
 
     function _deployProtocol() internal {
         authority = new AccessManager(address(this));
@@ -101,6 +123,45 @@ abstract contract ProtocolHarness is Test {
         launchpad.setCredit(address(irm), LAUNCH_LLTV, 30 minutes, 10 minutes);
 
         swapper = new Swapper();
+    }
+
+    /// @dev Everything else a launch's economy plugs into, wired the way the deploy script wires it:
+    /// the router receives every protocol fee, the launchpad may create gauges, and the kit modules
+    /// are set on the launchpad.
+    function _deployEconomy() internal {
+        ash = new Ash(address(authority), 100_000_000e18, address(this), 10_000_000e18);
+        ve = new VotingEscrow(ash);
+
+        RevenueRouter.Share[] memory shares = new RevenueRouter.Share[](2);
+        shares[0] = RevenueRouter.Share(treasury, 8_000);
+        shares[1] = RevenueRouter.Share(gasTank, 2_000);
+        router = new RevenueRouter(
+            address(authority), dexFactory, positions, IWETH9(address(wcyber)), lending, vaults, shares
+        );
+
+        voter = new Voter(address(authority), ve, address(router));
+        minter = new Minter(address(authority), ash, voter, 9_900, treasury, 500);
+        ash.setMinter(address(minter));
+        voter.setMinter(address(minter));
+
+        router.setModules(locker, voter);
+        router.setVotersBps(5_000);
+        locker.setTreasury(address(router));
+        lending.setFeeRecipient(address(router));
+        IFactoryAdmin(address(dexFactory)).setFeeCollector(address(router));
+
+        domains = new Domains(address(authority), ILaunchRegistry(address(launchpad)), address(router), 1 ether);
+        daos = new DAOFactory();
+
+        bytes4[] memory gaugeCalls = new bytes4[](1);
+        gaugeCalls[0] = Voter.createGauge.selector;
+        authority.setTargetFunctionRole(address(voter), gaugeCalls, LAUNCHPAD_ROLE);
+        authority.grantRole(LAUNCHPAD_ROLE, address(launchpad), 0);
+        authority.grantRole(LAUNCHPAD_ROLE, address(this), 0);
+
+        launchpad.setModules(
+            IGaugeRegistry(address(voter)), IZoneRegistry(address(domains)), IDAOFactory(address(daos))
+        );
     }
 
     function _params(string memory name, string memory symbol, uint256 supply, uint24 creatorFee, uint16 holdersShare, uint8 kit)
