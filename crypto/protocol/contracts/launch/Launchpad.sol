@@ -96,6 +96,11 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
     IZoneRegistry public zones;
     IDAOFactory public daos;
 
+    /// @notice Protocol contracts that hold launch tokens in escrow for others -- the voter's
+    /// incentives, prediction stakes, NFT offers -- and so must never earn a token's dividend.
+    /// Applied to every token launched after it is set.
+    address[] internal _rewardExclusions;
+
     // ----------------------------------------------------------------------- the registry
 
     struct Economy {
@@ -324,6 +329,15 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
         emit SettingsChanged();
     }
 
+    function setRewardExclusions(address[] calldata accounts) external restricted {
+        _rewardExclusions = accounts;
+        emit SettingsChanged();
+    }
+
+    function rewardExclusions() external view returns (address[] memory) {
+        return _rewardExclusions;
+    }
+
     function setModules(IGaugeRegistry gauges_, IZoneRegistry zones_, IDAOFactory daos_) external restricted {
         gauges = gauges_;
         zones = zones_;
@@ -344,10 +358,14 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
 
     /// @dev Contracts that will hold the token for others and must never earn its dividend.
     function _exclusions() internal view returns (address[] memory accounts) {
-        accounts = new address[](3);
+        uint256 extra = _rewardExclusions.length;
+        accounts = new address[](3 + extra);
         accounts[0] = address(lending);
         accounts[1] = address(locker);
         accounts[2] = locker.treasury();
+        for (uint256 i = 0; i < extra; i++) {
+            accounts[3 + i] = _rewardExclusions[i];
+        }
     }
 
     function _openPool(address token, uint256 supply, uint24 poolFee) internal returns (address pool) {

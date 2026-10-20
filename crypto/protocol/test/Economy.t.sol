@@ -49,6 +49,7 @@ contract EconomyTest is ProtocolHarness {
         assertEq(Gauge(e.gauge).stakingToken().balanceOf(address(0)), 0);
         assertEq(address(Gauge(e.gauge).stakingToken()), e.vault, "the farm stakes the LP vault's shares");
         assertEq(domains.zoneOfToken(token), "moon");
+        assertTrue(LaunchToken(payable(token)).excluded(address(voter)), "incentives in escrow earn no dividend");
     }
 
     function test_aNameThatSpellsNoZoneStillLaunches() public {
@@ -149,6 +150,13 @@ contract EconomyTest is ProtocolHarness {
         router.distributeNative();
         assertApproxEqAbs(treasury.balance, held * 8 / 10, 1);
         assertApproxEqAbs(gasTank.balance, held * 2 / 10, 1);
+
+        // The token side of the fees goes only where a token is of use: never to the gas tank.
+        uint256 tokens = IERC20(token).balanceOf(address(router));
+        assertGt(tokens, 0);
+        router.distribute(token);
+        assertEq(IERC20(token).balanceOf(gasTank), 0);
+        assertEq(IERC20(token).balanceOf(treasury), tokens);
     }
 
     // ---------------------------------------------------------------------------------- names

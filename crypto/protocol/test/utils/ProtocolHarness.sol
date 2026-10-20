@@ -132,11 +132,13 @@ abstract contract ProtocolHarness is Test {
         ash = new Ash(address(authority), 100_000_000e18, address(this), 10_000_000e18);
         ve = new VotingEscrow(ash);
 
-        RevenueRouter.Share[] memory shares = new RevenueRouter.Share[](2);
-        shares[0] = RevenueRouter.Share(treasury, 8_000);
-        shares[1] = RevenueRouter.Share(gasTank, 2_000);
+        RevenueRouter.Share[] memory nativeShares = new RevenueRouter.Share[](2);
+        nativeShares[0] = RevenueRouter.Share(treasury, 8_000);
+        nativeShares[1] = RevenueRouter.Share(gasTank, 2_000);
+        RevenueRouter.Share[] memory tokenShares = new RevenueRouter.Share[](1);
+        tokenShares[0] = RevenueRouter.Share(treasury, 10_000);
         router = new RevenueRouter(
-            address(authority), dexFactory, positions, IWETH9(address(wcyber)), lending, vaults, shares
+            address(authority), dexFactory, positions, IWETH9(address(wcyber)), lending, vaults, nativeShares, tokenShares
         );
 
         voter = new Voter(address(authority), ve, address(router));
@@ -162,6 +164,9 @@ abstract contract ProtocolHarness is Test {
         launchpad.setModules(
             IGaugeRegistry(address(voter)), IZoneRegistry(address(domains)), IDAOFactory(address(daos))
         );
+        address[] memory escrows = new address[](1);
+        escrows[0] = address(voter);
+        launchpad.setRewardExclusions(escrows);
     }
 
     function _params(string memory name, string memory symbol, uint256 supply, uint24 creatorFee, uint16 holdersShare, uint8 kit)

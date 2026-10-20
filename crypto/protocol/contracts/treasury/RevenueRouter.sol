@@ -22,8 +22,9 @@ import {Voter} from "../incentives/Voter.sol";
 ///  - **To the voters of the pool that earned it.** Fees a pool can be credited with -- its own
 ///    protocol fees, its launch's protocol share -- are split `votersBps` to the voters of that
 ///    pool's gauge for the week, as an incentive. Lockers who vote for a pool are paid by that pool.
-///  - **To fixed recipients.** Everything else is split by weights governance sets: the treasury,
-///    the gas station's tank (paid in the coin), and whatever else is added.
+///  - **To fixed recipients.** Everything else is split by weights governance sets -- one table for
+///    the coin (the treasury and the gas station's tank, which runs on it) and one for tokens (only
+///    recipients that can use a token: a gas tank cannot).
 ///
 /// @dev Every harvest and every split is permissionless; nobody has to remember to run a step for
 /// anyone to be paid. Recipients who cannot take the coin are owed it instead of blocking the rest.
@@ -50,7 +51,10 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         uint16 weight;
     }
 
-    Share[] internal _shares;
+    /// @dev How the coin (and WCYBER, unwrapped) is split
+    Share[] internal _nativeShares;
+    /// @dev How every other token is split
+    Share[] internal _tokenShares;
 
     mapping(address => uint256) public owedNative;
     uint256 public totalOwedNative;
@@ -62,7 +66,7 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
     event Distributed(address indexed token, uint256 total);
     event Paid(address indexed token, address indexed recipient, uint256 amount);
     event PayoutDeferred(address indexed recipient, uint256 amount);
-    event SharesSet(Share[] shares);
+    event SharesSet(bool native, Share[] shares);
     event SettingsChanged();
 
     error BadShares();
@@ -79,14 +83,18 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         IWETH9 wcyber_,
         ILending lending_,
         LiquidityVaultFactory vaults_,
-        Share[] memory shares_
+        Share[] memory nativeShares_,
+        Share[] memory tokenShares_
     ) AccessManaged(authority) {
         dexFactory = dexFactory_;
         positions = positions_;
         wcyber = wcyber_;
         lending = lending_;
         vaults = vaults_;
-        _setShares(shares_);
+        _setShares(_nativeShares, nativeShares_);
+        _emitShares(true, nativeShares_);
+        _setShares(_tokenShares, tokenShares_);
+        _emitShares(false, tokenShares_);
     }
 
     receive() external payable {}
@@ -149,14 +157,15 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         total = IERC20(token).balanceOf(address(this));
         if (total == 0) revert NothingToDistribute();
 
-        uint256 last = _shares.length - 1;
+        uint256 last = _tokenShares.length - 1;
         uint256 paid;
         for (uint256 i = 0; i <= last; i++) {
-            uint256 amount = i == last ? total - paid : total * _shares[i].weight / BPS;
+            Share memory share = _tokenShares[i];
+            uint256 amount = i == last ? total - paid : total * share.weight / BPS;
             paid += amount;
             if (amount > 0) {
-                IERC20(token).safeTransfer(_shares[i].recipient, amount);
-                emit Paid(token, _shares[i].recipient, amount);
+                IERC20(token).safeTransfer(share.recipient, amount);
+                emit Paid(token, share.recipient, amount);
             }
         }
         emit Distributed(token, total);
@@ -170,12 +179,12 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         total = address(this).balance - totalOwedNative;
         if (total == 0) revert NothingToDistribute();
 
-        uint256 last = _shares.length - 1;
+        uint256 last = _nativeShares.length - 1;
         uint256 paid;
         for (uint256 i = 0; i <= last; i++) {
-            uint256 amount = i == last ? total - paid : total * _shares[i].weight / BPS;
+            uint256 amount = i == last ? total - paid : total * _nativeShares[i].weight / BPS;
             paid += amount;
-            _payNative(_shares[i].recipient, amount);
+            _payNative(_nativeShares[i].recipient, amount);
         }
         emit Distributed(address(0), total);
     }
@@ -191,14 +200,21 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         emit Paid(address(0), recipient, amount);
     }
 
-    function shares() external view returns (Share[] memory) {
-        return _shares;
+    function nativeShares() external view returns (Share[] memory) {
+        return _nativeShares;
+    }
+
+    function tokenShares() external view returns (Share[] memory) {
+        return _tokenShares;
     }
 
     // ------------------------------------------------------------------------------ governance
 
-    function setShares(Share[] calldata shares_) external restricted {
-        _setShares(shares_);
+    function setShares(Share[] calldata nativeShares_, Share[] calldata tokenShares_) external restricted {
+        _setShares(_nativeShares, nativeShares_);
+        _emitShares(true, nativeShares_);
+        _setShares(_tokenShares, tokenShares_);
+        _emitShares(false, tokenShares_);
     }
 
     function setVotersBps(uint256 bps) external restricted {
@@ -244,7 +260,7 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         }
     }
 
-    function _setShares(Share[] memory shares_) internal {
+    function _setShares(Share[] storage table, Share[] memory shares_) internal {
         uint256 n = shares_.length;
         if (n == 0) revert BadShares();
         uint256 sum;
@@ -254,11 +270,14 @@ contract RevenueRouter is AccessManaged, ReentrancyGuardTransient {
         }
         if (sum != BPS) revert BadShares();
 
-        delete _shares;
+        while (table.length > 0) table.pop();
         for (uint256 i = 0; i < n; i++) {
-            _shares.push(shares_[i]);
+            table.push(shares_[i]);
         }
-        emit SharesSet(shares_);
+    }
+
+    function _emitShares(bool native, Share[] memory shares_) internal {
+        emit SharesSet(native, shares_);
     }
 
     function _token0(address pool) internal view returns (address) {

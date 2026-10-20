@@ -219,10 +219,13 @@ const router = await deploy("RevenueRouter", "RevenueRouter", [
   wcyber,
   lending,
   vaults,
+  // The coin is split between the treasury and the gas tank; tokens only to the treasury, since a
+  // gas tank has no use for them.
   [
     { recipient: config.treasury, weight: config.router.treasuryWeight },
     { recipient: gasStation, weight: config.router.gasStationWeight },
   ],
+  [{ recipient: config.treasury, weight: 10_000 }],
 ]);
 await step("lending.setFeeRecipient(router)", "Lending", "Lending", "setFeeRecipient", [router]);
 await step("factory.setFeeCollector(router)", "PancakeV3Factory", "PancakeV3Factory", "setFeeCollector", [router]);
@@ -275,13 +278,18 @@ await deploy("BridgeGateway", "BridgeGateway", [manager]);
 await step("bridge.setRefundDelay", "BridgeGateway", "BridgeGateway", "setRefundDelay", [config.bridge.refundDelay]);
 
 // --- apps
-await deploy("PredictionMarket", "PredictionMarket", [manager, router, wad(config.predictions.createFee)]);
+const predictions = await deploy("PredictionMarket", "PredictionMarket", [manager, router, wad(config.predictions.createFee)]);
 await deploy("CyberiaNFT", "CyberiaNFT");
-await deploy("NFTMarket", "NFTMarket", [manager, router, config.nft.feeBps]);
+const nftMarket = await deploy("NFTMarket", "NFTMarket", [manager, router, config.nft.feeBps]);
 await deploy("CommunityTokenFactory", "CommunityTokenFactory");
 await deploy("PixelBattle", "PixelBattle");
 await deploy("WiredForge", "WiredForge", [manager, config.wiredSigner]);
 await deploy("MinecraftLand", "MinecraftLand", [manager, wad(config.land.mintPrice), config.land.baseURI]);
+
+// Contracts that hold launch tokens in escrow for others must not earn their dividend.
+await step("launchpad.setRewardExclusions", "Launchpad", "Launchpad", "setRewardExclusions", [
+  [voter, predictions, nftMarket],
+]);
 
 // ------------------------------------------------------------------------------- permissions
 
