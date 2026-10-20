@@ -6,6 +6,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IOracle} from "../lending/interfaces/IOracle.sol";
 import {IV3Pool} from "../interfaces/IV3.sol";
 import {V3TwapOracle} from "./V3TwapOracle.sol";
+import {LiquidityVaultOracle} from "./LiquidityVaultOracle.sol";
+import {LiquidityVault} from "../liquidity/LiquidityVault.sol";
 
 /// @title One address per price
 /// @notice Oracles are deployed here by CREATE2 from what they read, so the oracle for "token X in
@@ -20,6 +22,7 @@ contract OracleFactory {
         address indexed oracle, address indexed pool, address indexed baseToken, uint32 window, uint32 minWindow
     );
     event ChainedOracleCreated(address indexed oracle, address indexed first, address indexed second);
+    event VaultOracleCreated(address indexed oracle, address indexed vault, address indexed quoteToken);
 
     /// @notice The TWAP oracle for these parameters, deploying it if it does not exist yet
     function twap(address pool, address baseToken, uint32 window, uint32 minWindow) external returns (address oracle) {
@@ -41,6 +44,20 @@ contract OracleFactory {
         oracle = address(new ChainedOracle{salt: salt}(IOracle(first), IOracle(second)));
         isOracle[oracle] = true;
         emit ChainedOracleCreated(oracle, first, second);
+    }
+
+    /// @notice The oracle pricing a LiquidityVault's shares in `quoteToken`, at `twap`'s mean price
+    function vaultShare(address vault, address twap_, address quoteToken) external returns (address oracle) {
+        bytes32 salt = keccak256(abi.encode(vault, twap_, quoteToken));
+        bytes memory code = abi.encodePacked(type(LiquidityVaultOracle).creationCode, abi.encode(vault, twap_, quoteToken));
+        oracle = _predict(salt, code);
+        if (oracle.code.length > 0) return oracle;
+
+        oracle = address(
+            new LiquidityVaultOracle{salt: salt}(LiquidityVault(vault), V3TwapOracle(twap_), quoteToken)
+        );
+        isOracle[oracle] = true;
+        emit VaultOracleCreated(oracle, vault, quoteToken);
     }
 
     function predictTwap(address pool, address baseToken, uint32 window, uint32 minWindow)

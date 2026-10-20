@@ -9,6 +9,7 @@ import {Launchpad} from "../contracts/launch/Launchpad.sol";
 import {LaunchToken} from "../contracts/tokens/LaunchToken.sol";
 import {LiquidityVault} from "../contracts/liquidity/LiquidityVault.sol";
 import {V3TwapOracle} from "../contracts/oracles/V3TwapOracle.sol";
+import {IOracle} from "../contracts/lending/interfaces/IOracle.sol";
 import {ILending, MarketParams} from "../contracts/lending/interfaces/ILending.sol";
 
 contract LaunchpadTest is ProtocolHarness {
@@ -283,5 +284,44 @@ contract LaunchpadTest is ProtocolHarness {
         vm.stopPrank();
 
         assertEq(vault.balanceOf(vault.BURN()), vault.MINIMUM_SHARES());
+    }
+
+    // ------------------------------------------------------------------------------ LP credit
+
+    function test_borrowAgainstLpSharesPricedAtTheAverage() public {
+        address token = _launch(launchpad.KIT_CREDIT());
+        Launchpad.Economy memory e = launchpad.economyOf(token);
+        LiquidityVault vault = LiquidityVault(e.vault);
+        (,, address lpOracle,,) = lending.idToMarketParams(e.borrowAgainstLpMarket);
+        MarketParams memory market = MarketParams(address(wcyber), e.vault, lpOracle, address(irm), LAUNCH_LLTV);
+
+        _fundWrapped(lp, 100 ether);
+        _fundWrapped(lender, 100 ether);
+        _buy(lp, token, 20 ether);
+        vm.startPrank(lp);
+        IERC20(token).approve(address(vault), type(uint256).max);
+        wcyber.approve(address(vault), type(uint256).max);
+        (uint256 max0, uint256 max1) = _balances(lp, token);
+        (uint256 shares, uint256 in0, uint256 in1) = vault.deposit(max0, max1, 1, lp);
+        vm.stopPrank();
+
+        vm.prank(lender);
+        lending.supply(market, 50 ether, 0, lender, "");
+
+        skip(15 minutes);
+        uint256 priceBefore = IOracle(lpOracle).price();
+        uint256 deposited = token < address(wcyber) ? in1 + _valueInCyber(token, in0) : in0 + _valueInCyber(token, in1);
+        assertApproxEqRel(shares * priceBefore / 1e36, deposited, 0.05e18, "a share is worth what went in");
+
+        // A huge buy moves the spot price at once, but not the average the oracle reads.
+        _fundWrapped(trader, 400 ether);
+        _buy(trader, token, 300 ether);
+        assertApproxEqRel(IOracle(lpOracle).price(), priceBefore, 0.01e18);
+
+        vm.startPrank(lp);
+        vault.approve(address(lending), shares);
+        lending.supplyCollateral(market, shares, lp, "");
+        lending.borrow(market, deposited * 4 / 10, 0, lp, lp);
+        vm.stopPrank();
     }
 }

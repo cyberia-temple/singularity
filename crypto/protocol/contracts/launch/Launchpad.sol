@@ -25,9 +25,10 @@ import {IGaugeRegistry, IZoneRegistry, IDAOFactory, ILaunchRegistry} from "./int
 ///  - **a market** -- the launch pool, its full-range liquidity locked in `LaunchLocker`, its fee
 ///    named by the creator and shared with the creator, the holders and the protocol;
 ///  - **liquidity anyone can add** -- a full-range LP vault whose shares are an ordinary token;
-///  - **credit** (`KIT_CREDIT`) -- two lending markets priced from the pool's own history: borrow
-///    CYBER against the token, and borrow the token against CYBER, which is how holders earn on it
-///    and how anyone can bet against it;
+///  - **credit** (`KIT_CREDIT`) -- three lending markets priced from the pool's own history: borrow
+///    CYBER against the token; borrow the token against CYBER, which is how holders earn on it and
+///    how anyone can bet against it; and borrow CYBER against LP vault shares, for leverage on
+///    providing liquidity;
 ///  - **a farm** (`KIT_FARM`) -- a gauge for the LP vault, so ASH voters can direct emissions to it;
 ///  - **a name zone** (`KIT_ZONE`) -- a token named `.moon` with the ticker `DOTMOON` opens the
 ///    `.moon` domain zone, whose names are paid for by burning the token;
@@ -108,6 +109,8 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
         address cyberOracle;
         Id borrowCyberMarket;
         Id borrowTokenMarket;
+        /// @dev borrow CYBER against LP vault shares
+        Id borrowAgainstLpMarket;
         address governor;
         address timelock;
         bool zone;
@@ -144,7 +147,7 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
     event LaunchTerms(
         address indexed token, uint256 positionId, uint24 poolFee, uint16 creatorBps, uint16 holdersBps, uint16 protocolBps
     );
-    event CreditOpened(address indexed token, Id borrowCyberMarket, Id borrowTokenMarket);
+    event CreditOpened(address indexed token, Id borrowCyberMarket, Id borrowTokenMarket, Id borrowAgainstLpMarket);
     event FarmOpened(address indexed token, address gauge);
     event ZoneOpened(address indexed token, string zone);
     event DAOOpened(address indexed token, address governor, address timelock);
@@ -420,18 +423,22 @@ contract Launchpad is AccessManaged, IERC721Receiver, ILaunchRegistry {
     function _openCredit(address token, Economy storage e) internal {
         address tokenOracle = oracles.twap(e.pool, token, twapWindow, twapMinWindow);
         address cyberOracle = oracles.twap(e.pool, address(wcyber), twapWindow, twapMinWindow);
+        address lpOracle = oracles.vaultShare(e.vault, tokenOracle, address(wcyber));
 
         MarketParams memory borrowCyber = MarketParams(address(wcyber), token, tokenOracle, creditIrm, creditLltv);
         MarketParams memory borrowToken = MarketParams(token, address(wcyber), cyberOracle, creditIrm, creditLltv);
+        MarketParams memory borrowAgainstLp = MarketParams(address(wcyber), e.vault, lpOracle, creditIrm, creditLltv);
         _ensureMarket(borrowCyber);
         _ensureMarket(borrowToken);
+        _ensureMarket(borrowAgainstLp);
 
         e.tokenOracle = tokenOracle;
         e.cyberOracle = cyberOracle;
         e.borrowCyberMarket = borrowCyber.id();
         e.borrowTokenMarket = borrowToken.id();
+        e.borrowAgainstLpMarket = borrowAgainstLp.id();
 
-        emit CreditOpened(token, e.borrowCyberMarket, e.borrowTokenMarket);
+        emit CreditOpened(token, e.borrowCyberMarket, e.borrowTokenMarket, e.borrowAgainstLpMarket);
     }
 
     function _ensureMarket(MarketParams memory params) internal {
