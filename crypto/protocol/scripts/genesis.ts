@@ -27,7 +27,9 @@
  *     nonce 0. The minimum base fee is kept far above any gas price the old chain accepted, which
  *     makes all of them invalid.
  *   - **Warp** is on and needs Primary Network signatures for C-Chain messages: this chain's own
- *     validators cannot vouch for what happened on the C-Chain.
+ *     validators cannot vouch for what happened on the C-Chain. It activates at the genesis
+ *     timestamp: Subnet-EVM refuses to start a chain whose Warp predates Durango, and a timestamp
+ *     of 0 does.
  *   - **Predeploys** at their usual addresses: Safe 1.4.1, TeleporterMessenger v1.0.0 (see
  *     predeploys.ts), Multicall3, the deterministic CREATE2 deployer and WCYBER. Presigned deployments
  *     cannot run here because of the base fee, so they have to be in genesis.
@@ -51,6 +53,8 @@ export const CHAIN_IDS = { mainnet: 49406, fuji: 49407 } as const;
 export const REPLAY_FLOOR_WEI = 1_000_000_000_000n;
 export const DEFAULT_MIN_BASE_FEE_WEI = 2_500_000_000_000_000n;
 export const MIN_GAS_LIMIT = 15_000_000;
+/** Durango activation (avalanchego upgrade/upgrade.go): Warp may not activate before it. */
+export const DURANGO = { mainnet: 1_709_740_800, fuji: 1_707_840_000 } as const;
 export const WCYBER: Address = "0x000000000000000000000000000000000000C0FE";
 export const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
 const NATIVE_MINTER = "contractNativeMinterConfig";
@@ -101,6 +105,11 @@ export function check(genesis: Genesis, remoteDeployer: Address): bigint {
   if (config.warpConfig.requirePrimaryNetworkSigners !== true) {
     fail("Warp must require Primary Network signers for C-Chain messages");
   }
+  const network = chainId === CHAIN_IDS.mainnet ? "mainnet" : "fuji";
+  const warpAt = Number(config.warpConfig.blockTimestamp ?? 0);
+  if (warpAt < DURANGO[network] || warpAt > Number(genesis.timestamp)) {
+    fail(`Warp activates at ${warpAt}: it must be between Durango (${DURANGO[network]}) and the genesis timestamp`);
+  }
 
   for (const predeploy of loadPredeploys()) {
     const entry = genesis.alloc[key(predeploy.address)];
@@ -141,6 +150,7 @@ export type GenesisOptions = {
 
 export function build(options: GenesisOptions): Genesis {
   const gasLimit = options.gasLimit ?? 20_000_000;
+  const timestamp = options.timestamp ?? Math.floor(Date.now() / 1000);
   const minBaseFee = options.minBaseFee ?? DEFAULT_MIN_BASE_FEE_WEI;
   if (minBaseFee > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("minBaseFee does not fit a JSON number exactly");
   const alloc: Genesis["alloc"] = {};
@@ -177,13 +187,13 @@ export function build(options: GenesisOptions): Genesis {
         blockGasCostStep: 200_000,
       },
       allowFeeRecipients: false,
-      warpConfig: { blockTimestamp: 0, quorumNumerator: 67, requirePrimaryNetworkSigners: true },
+      warpConfig: { blockTimestamp: timestamp, quorumNumerator: 67, requirePrimaryNetworkSigners: true },
       [NATIVE_MINTER]: { blockTimestamp: 0, enabledAddresses: [predictRemote(options.remoteDeployer)] },
       feeManagerConfig: { blockTimestamp: 0, adminAddresses: [options.feeAdmin] },
     },
     alloc,
     nonce: "0x0",
-    timestamp: toHex(options.timestamp ?? Math.floor(Date.now() / 1000)),
+    timestamp: toHex(timestamp),
     extraData: "0x",
     gasLimit: toHex(gasLimit),
     difficulty: "0x0",

@@ -8,6 +8,9 @@ AVALANCHEGO_SHA256="6d57678a0fb9cc90eea31aa86bfdf582f79ec5187162672123c0fbd0d473
 SUBNET_EVM_SHA256="984090867966368608fa2a46353030352d0e8d0b20029c022a3755b991432e21"
 # Subnet-EVM's default VM ID: the plugin file must carry this name.
 SUBNET_EVM_VM_ID="srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy"
+# The L1's blockchain ID (its subnet is track-subnets in node.json) and its chain config.
+L1_BLOCKCHAIN_ID="Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7"
+L1_CHAIN_CONFIG="fuji/chain.json"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RELEASES="https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}"
@@ -51,6 +54,10 @@ ln -sfn "${TARGET}" /opt/avalanchego/current
 install -o avalanche -g avalanche -m 755 "${TARGET}/subnet-evm" "/var/lib/avalanchego/plugins/${SUBNET_EVM_VM_ID}"
 
 install -m 644 "${HERE}/node.json" /etc/avalanchego/node.json
+install -d -o avalanche -g avalanche -m 750 /var/lib/avalanchego/configs /var/lib/avalanchego/configs/chains \
+  "/var/lib/avalanchego/configs/chains/${L1_BLOCKCHAIN_ID}"
+install -o avalanche -g avalanche -m 644 "${HERE}/${L1_CHAIN_CONFIG}" \
+  "/var/lib/avalanchego/configs/chains/${L1_BLOCKCHAIN_ID}/config.json"
 install -m 644 "${HERE}/avalanchego.service" /etc/systemd/system/avalanchego.service
 install -m 755 "${HERE}/nftables.conf" /etc/nftables.conf
 nft -c -f /etc/nftables.conf

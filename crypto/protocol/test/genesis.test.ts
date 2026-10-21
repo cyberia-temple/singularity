@@ -64,6 +64,13 @@ describe("genesis", () => {
     assert.throws(() => check(genesis, REMOTE_DEPLOYER), /Primary Network signers/);
   });
 
+  it("refuses Warp that activates before Durango, which Subnet-EVM will not start", () => {
+    const genesis = fuji();
+    assert.equal(genesis.config.warpConfig.blockTimestamp, 1_790_000_000);
+    genesis.config.warpConfig.blockTimestamp = 0;
+    assert.throws(() => check(genesis, REMOTE_DEPLOYER), /Durango/);
+  });
+
   it("refuses a block gas limit a full-kit launch does not fit in", () => {
     const genesis = fuji();
     genesis.config.feeConfig.gasLimit = 8_000_000;

@@ -61,6 +61,8 @@ const COMPILERS = [PROTOCOL, V3];
 export default defineConfig({
   plugins: [hardhatToolboxViemPlugin],
   solidity: {
+    // The proxy the Validator Manager (and later ICTT) sits behind on the C-Chain; nothing here imports it.
+    npmFilesToBuild: ["@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol"],
     profiles: {
       default: { compilers: COMPILERS, overrides: OVERRIDES },
       production: { compilers: COMPILERS, overrides: OVERRIDES },

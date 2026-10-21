@@ -13,7 +13,7 @@
     },
     "allowFeeRecipients": false,
     "warpConfig": {
-      "blockTimestamp": 0,
+      "blockTimestamp": 1792575972,
       "quorumNumerator": 67,
       "requirePrimaryNetworkSigners": true
     },
@@ -96,7 +96,7 @@
     }
   },
   "nonce": "0x0",
-  "timestamp": "0x6ad72682",
+  "timestamp": "0x6ad889e4",
   "extraData": "0x",
   "gasLimit": "0x1312d00",
   "difficulty": "0x0",

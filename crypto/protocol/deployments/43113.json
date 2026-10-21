@@ -1,0 +1,16 @@
+{
+  "chainId": 43113,
+  "deployer": "0xae8F9c21b082d09857622824ADA365D71b18B44B",
+  "contracts": {
+    "Safe": "0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393",
+    "ValidatorMessages": "0x8dDA033031c45061e5882d09A28c7c8Bf0B3186B",
+    "ValidatorManagerImplementation": "0xe402AEd83eef161b97931910a8Ce1ab26C7ac64f",
+    "ValidatorManager": "0xDF5D0Fd21440267A966e8AcD8B579a2d8B0ECCb0",
+    "PoAManager": "0x63E75b5805D673b514F5F5b37B6BB3aA11D27910",
+    "ProxyAdmin": "0x8b08396794195F7e45B7CC222696EA86b6fD8350"
+  },
+  "steps": [
+    "ValidatorManager.transferOwnership(PoAManager)",
+    "ValidatorManager.initializeValidatorSet"
+  ]
+}

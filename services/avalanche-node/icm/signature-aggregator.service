@@ -1,0 +1,18 @@
+[Unit]
+Description=ICM signature aggregator — Warp signatures for Cyberia's validator manager
+After=avalanchego.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=icm
+Group=icm
+ExecStart=/opt/icm/signature-aggregator/signature-aggregator --config-file=/etc/icm/signature-aggregator.json
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

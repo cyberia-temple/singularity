@@ -30,6 +30,7 @@ Cyberia plugs into that economy.
 | `contracts/vendor` | PancakeSwap V3 core + periphery (two factory changes, below), Multicall3 |
 | `scripts/deploy.ts` | Resumable deployment of everything, roles included |
 | `scripts/genesis.ts` | CYBER's genesis: the fixed supply, the bridge backing at the gateway's address, the predeploys; refuses minting and fee redirection |
+| `scripts/validator-manager.ts` | The L1's validator set on the C-Chain: Ava Labs' ValidatorManager (vendored bytecode, `scripts/lib/validator-manager.json`) behind a proxy, PoAManager, a Safe owning both; initializes the set from the P-Chain's signed conversion |
 | `scripts/tokenomics.ts` | The Minter's arithmetic over activity scenarios |
 | `scripts/smoke-launch.ts` | One full-kit launch against a deployment, with its gas |
 
@@ -233,10 +234,14 @@ calls are permissionless; the backend's scheduler should make them:
 
 ## Relaunch checklist
 
-1. Generate the L1 with avalanche-cli (PoA validator manager, precompiles above), then write
-   CYBER's genesis: `node scripts/genesis.ts --in genesis.json --out genesis.cyberia.json
-   --deployer <deployer address> [--alloc restored-balances.json]`. The deployer address fixes the
-   gateway's address, so the same key must run the deploy.
+1. Bring up the L1 (done on Fuji 2026-10-21, see `services/avalanche-node/README.md`):
+   `node scripts/genesis.ts --network … --remote-deployer … --operator … --fee-admin … --out genesis.json`;
+   `platform-cli subnet create`, `platform-cli chain create --genesis genesis.json`; point the node at
+   the subnet; `node scripts/validator-manager.ts deploy` on the C-Chain; `platform-cli subnet
+   convert-to-l1 --chain-id <C-Chain> --manager <ValidatorManager>` with every planned validator;
+   `node scripts/validator-manager.ts init` through the signature-aggregator; start the ICM relayer.
+   Check a new genesis with Subnet-EVM itself before `chain create`: the P-Chain accepts any bytes,
+   and a chain whose genesis the VM refuses can never be fixed, only abandoned.
 2. `npx hardhat build`, write a config from `deploy.config.example.json` with the real multisig,
    operator, relayer and treasury addresses, and run
    `RPC_URL=… DEPLOYER_PK=… node scripts/deploy.ts config.json`. Rehearse it first against

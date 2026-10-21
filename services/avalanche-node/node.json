@@ -2,6 +2,7 @@
   "network-id": "fuji",
   "data-dir": "/var/lib/avalanchego",
   "partial-sync-primary-network": true,
+  "track-subnets": "UVRXcqMkQM9X8Wv6BmXXEbFbAcbKoW1t8vde5Lds35SLQSVn3",
   "http-host": "127.0.0.1",
   "http-port": 9650,
   "staking-port": 9651,
