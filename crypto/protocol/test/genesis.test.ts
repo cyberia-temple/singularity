@@ -13,8 +13,8 @@ function fuji() {
     remoteDeployer: REMOTE_DEPLOYER,
     operator: OPERATOR,
     feeAdmin: OPERATOR,
-    remoteGas: parseEther("100000"),
-    operatorGas: parseEther("1000000"),
+    remoteGas: parseEther("100"),
+    operatorGas: parseEther("10000"),
     timestamp: 1_790_000_000,
   });
 }
@@ -23,7 +23,7 @@ describe("genesis", () => {
   it("lets only the remote's proxy mint and counts every genesis coin as owed collateral", () => {
     const genesis = fuji();
     assert.deepEqual(genesis.config.contractNativeMinterConfig.enabledAddresses, [predictRemote(REMOTE_DEPLOYER)]);
-    assert.equal(check(genesis, REMOTE_DEPLOYER), parseEther("1100000"));
+    assert.equal(check(genesis, REMOTE_DEPLOYER), parseEther("10100"));
   });
 
   it("refuses a minter other than the remote", () => {

@@ -2,7 +2,7 @@
  * Write Cyberia's L1 genesis (Subnet-EVM), or check one.
  *
  *   node scripts/genesis.ts --network fuji|mainnet --remote-deployer 0x… --operator 0x… --fee-admin 0x… \
- *       [--remote-gas 100000] [--operator-gas 1000000] [--alloc allocations.json] [--min-base-fee <wei>] \
+ *       [--remote-gas 100] [--operator-gas 10000] [--alloc allocations.json] [--min-base-fee <wei>] \
  *       --out genesis.json
  *   node scripts/genesis.ts --check genesis.json --remote-deployer 0x…
  *
@@ -244,8 +244,10 @@ function main(): void {
     remoteDeployer,
     operator: getAddress(arg("operator")),
     feeAdmin: getAddress(arg("fee-admin")),
-    remoteGas: parseEther(arg("remote-gas", "100000")),
-    operatorGas: parseEther(arg("operator-gas", "1000000")),
+    // Gas only, and owed collateral: at the minimum base fee 1 CYBER buys a million gas, so the
+    // remote's two deployments take a few CYBER and the whole protocol a few hundred.
+    remoteGas: parseEther(arg("remote-gas", "100")),
+    operatorGas: parseEther(arg("operator-gas", "10000")),
     allocations: allocPath ? JSON.parse(fs.readFileSync(allocPath, "utf8")) : undefined,
     minBaseFee: minBaseFee ? BigInt(minBaseFee) : undefined,
   });
