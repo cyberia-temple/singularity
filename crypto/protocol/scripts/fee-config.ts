@@ -1,5 +1,5 @@
 /**
- * Read or change the L1's fees through the FeeManager precompile, never below the replay floor.
+ * Read or change the L1's fees through the FeeManager precompile.
  *
  *   node scripts/fee-config.ts                              # print the current config and base fee
  *   node scripts/fee-config.ts --minBaseFee <wei> [--<field> <value> …]   # change fields, keep the rest
@@ -8,20 +8,17 @@
  * allow list. When the key is not on it (on mainnet the admin is a Safe), the calldata is printed for
  * the Safe instead of sent.
  *
- * Fees are small on purpose: the chain has users to win before it has block space to ration. The
- * floor is genesis.ts's REPLAY_FLOOR_WEI: below it, transactions signed for the old chain 49406 would
- * be valid here again.
+ * Fees are minimal on purpose: the chain has users to win before it has block space to ration.
  *
  * A lower minimum does not lower the base fee at once: it falls by at most 1/baseFeeChangeDenominator
- * per block, however long the chain was idle (36 by default: a few hundred blocks for a big cut). To get
- * there in a dozen blocks, set --baseFeeChangeDenominator 2 for that time and put it back after.
+ * per block, however long the chain was idle (36 by default: hundreds of blocks for a big cut). With
+ * --baseFeeChangeDenominator 1 for one block the base fee drops to the minimum; put it back after.
  */
 
 import * as path from "node:path";
 import { createPublicClient, createWalletClient, encodeFunctionData, formatEther, http, parseAbi, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { REPLAY_FLOOR_WEI } from "./genesis.ts";
 
 const FEE_MANAGER = "0x0200000000000000000000000000000000000003";
 const FEE_MANAGER_ABI = parseAbi([
@@ -70,7 +67,7 @@ async function main(): Promise<void> {
   if (!changes.length) return;
   for (const field of changes) args[FIELDS.indexOf(field)] = BigInt(arg(field)!);
   const minBaseFee = args[FIELDS.indexOf("minBaseFee")];
-  if (minBaseFee < REPLAY_FLOOR_WEI) throw new Error(`minBaseFee ${minBaseFee} is below the replay floor ${REPLAY_FLOOR_WEI}`);
+  if (minBaseFee < 1n) throw new Error("minBaseFee must be at least 1 wei: the transaction pool takes nothing cheaper");
   const data = encodeFunctionData({ abi: FEE_MANAGER_ABI, functionName: "setFeeConfig", args });
 
   const PK = process.env.DEPLOYER_PK;

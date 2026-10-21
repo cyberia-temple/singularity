@@ -21,13 +21,14 @@
  *     this chain until that much is deposited as collateral.
  *   - **Fees pay the validators.** RewardManager starts with fee recipients allowed: each block's
  *     fees go to the validator that produced it (its node's `feeRecipient`; burned if it sets none),
- *     and nobody can point them at a fixed address in genesis. They stay small (see
- *     REPLAY_FLOOR_WEI) and are the validators' income for now; RewardManager's admin, the fee admin
- *     (a Safe on mainnet), can send them elsewhere later.
- *   - **No replay of the old chain.** Mainnet reuses chain id 49406, so every transaction ever
- *     signed for the old chain carries a valid chain id here, and every account starts again at
- *     nonce 0. The minimum base fee is kept far above any gas price the old chain accepted, which
- *     makes all of them invalid.
+ *     and nobody can point them at a fixed address in genesis. They are the validators' income for
+ *     now; RewardManager's admin, the fee admin (a Safe on mainnet), can send them elsewhere later.
+ *   - **Minimal fees.** The minimum base fee is 1 wei: a transfer costs 21,000 wei of CYBER.
+ *     FeeManager's admin can raise it (scripts/fee-config.ts) if the chain ever needs rationing.
+ *   - **Old 49406 transactions are not blocked** (the operator's call, 2026-10-21: minimal fees
+ *     matter more). Mainnet reuses the old chain id and nonces start again at 0, so a transaction
+ *     signed for the old chain is valid here once its sender holds coins and reaches its nonce.
+ *     Every project role gets a new key; a key that used the old chain should hold nothing here.
  *   - **Warp** is on and needs Primary Network signatures for C-Chain messages: this chain's own
  *     validators cannot vouch for what happened on the C-Chain. It activates at the genesis
  *     timestamp: Subnet-EVM refuses to start a chain whose Warp predates Durango, and a timestamp
@@ -47,14 +48,8 @@ import type { Predeploy } from "./predeploys.ts";
 
 export const CHAIN_IDS = { mainnet: 49406, fuji: 49407 } as const;
 
-/**
- * The highest gas price seen on the old 49406 chain was 1.875 gwei (sampled from its explorer).
- * The floor leaves about 500 times that on top, and it is also the default minimum base fee: fees
- * are meant to be small (a transfer costs 0.021 CYBER). FeeManager's admin can raise them later
- * (scripts/fee-config.ts), never below the floor.
- */
-export const REPLAY_FLOOR_WEI = 1_000_000_000_000n;
-export const DEFAULT_MIN_BASE_FEE_WEI = REPLAY_FLOOR_WEI;
+/** The lowest base fee there is: the transaction pool takes nothing below 1 wei of gas price. */
+export const DEFAULT_MIN_BASE_FEE_WEI = 1n;
 export const MIN_GAS_LIMIT = 15_000_000;
 /** Durango activation (avalanchego upgrade/upgrade.go): Warp may not activate before it. */
 export const DURANGO = { mainnet: 1_709_740_800, fuji: 1_707_840_000 } as const;
@@ -100,9 +95,6 @@ export function check(genesis: Genesis, remoteDeployer: Address): bigint {
   if (config.allowFeeRecipients !== true) fail("allowFeeRecipients must agree with the RewardManager");
 
   const fees = config.feeConfig ?? {};
-  if (BigInt(fees.minBaseFee ?? 0) < REPLAY_FLOOR_WEI) {
-    fail(`minBaseFee ${fees.minBaseFee} is below the replay floor ${REPLAY_FLOOR_WEI}: old 49406 transactions would be valid`);
-  }
   const gasLimit = Number(fees.gasLimit ?? 0);
   if (gasLimit < MIN_GAS_LIMIT) fail(`feeConfig.gasLimit ${gasLimit} is below ${MIN_GAS_LIMIT}: a full-kit launch would not fit`);
   if (BigInt(String(genesis.gasLimit ?? "0")) !== BigInt(gasLimit)) fail("the header gasLimit differs from feeConfig.gasLimit");
@@ -244,8 +236,8 @@ function main(): void {
     remoteDeployer,
     operator: getAddress(arg("operator")),
     feeAdmin: getAddress(arg("fee-admin")),
-    // Gas only, and owed collateral: at the minimum base fee 1 CYBER buys a million gas, so the
-    // remote's two deployments take a few CYBER and the whole protocol a few hundred.
+    // Gas only, and owed collateral: at a minimal base fee this lasts practically forever, and even at
+    // 10¹² wei the remote's two deployments take a few CYBER and the whole protocol a few hundred.
     remoteGas: parseEther(arg("remote-gas", "100")),
     operatorGas: parseEther(arg("operator-gas", "10000")),
     allocations: allocPath ? JSON.parse(fs.readFileSync(allocPath, "utf8")) : undefined,
@@ -258,7 +250,7 @@ function main(): void {
   console.log(`chain id          ${genesis.config.chainId} (${network})`);
   console.log(`NativeMinter      only ${predictRemote(remoteDeployer)}: ${remoteDeployer}'s nonce-1 contract`);
   console.log(`genesis CYBER     ${cyber(total)} = NativeTokenRemote initialReserveImbalance ${total} wei`);
-  console.log(`min base fee      ${genesis.config.feeConfig.minBaseFee} wei (replay floor ${REPLAY_FLOOR_WEI})`);
+  console.log(`min base fee      ${genesis.config.feeConfig.minBaseFee} wei`);
   console.log(`fee admin         ${genesis.config.feeManagerConfig.adminAddresses[0]}`);
   console.log(`block gas limit   ${genesis.config.feeConfig.gasLimit}`);
   console.log(`wrote ${output}`);

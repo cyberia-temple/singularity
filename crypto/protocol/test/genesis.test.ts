@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getAddress, parseEther } from "viem";
 
-import { build, check, predictRemote, REPLAY_FLOOR_WEI } from "../scripts/genesis.ts";
+import { build, check, predictRemote } from "../scripts/genesis.ts";
 
 const REMOTE_DEPLOYER = getAddress("0x2772608422d4De3C2F4fCEa038e879f4D39877A1");
 const OPERATOR = getAddress("0xae8F9c21b082d09857622824ADA365D71b18B44B");
@@ -40,12 +40,6 @@ describe("genesis", () => {
 
   it("refuses a genesis built for another remote deployer", () => {
     assert.throws(() => check(fuji(), OPERATOR), /exactly the remote/);
-  });
-
-  it("refuses a base fee that would let old 49406 transactions replay", () => {
-    const genesis = fuji();
-    genesis.config.feeConfig.minBaseFee = Number(REPLAY_FLOOR_WEI) - 1;
-    assert.throws(() => check(genesis, REMOTE_DEPLOYER), /replay floor/);
   });
 
   it("refuses fees that do not go to the validators who produce the blocks", () => {

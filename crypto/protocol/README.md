@@ -221,9 +221,9 @@ The DEX factory has a plain owner; the deploy script makes the authority its own
 - **Precompiles:** FeeManager (admin: the governance multisig) and Warp (ICM / ICTT with the
   C-Chain) on; **NativeMinter off** and **fees burning** (no fee recipients, no RewardManager
   redirect) — both are tokenomics, and `scripts/genesis.ts` refuses a genesis that breaks them.
-- **Chain id and keys:** relaunching as chain 49406 with the old deployer key would let anyone
-  replay that key's old transactions on the new chain, because its nonces start from zero again.
-  Use a new chain id, new keys, or both.
+- **Chain id and keys:** mainnet reuses chain id 49406 and fees are minimal, so anyone can replay a
+  key's old transactions on the new chain once it holds coins: its nonces start from zero again.
+  Every project role gets a new key; a key that used the old chain should hold nothing here.
 
 ## Keepers
 

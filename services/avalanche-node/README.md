@@ -41,7 +41,7 @@ ssh root@<host> 'curl -s -X POST -H "content-type:application/json" \
 | Converted | P-Chain tx `buRFjCjjieoJKmVztWFaYm8rNaN67FqLBiUDcsEHkeWiERGLu`, 2026-10-21 |
 | Validator manager | `0xDF5D0Fd21440267A966e8AcD8B579a2d8B0ECCb0` on the Fuji C-Chain, owned by PoAManager `0x63E75b5805D673b514F5F5b37B6BB3aA11D27910`; both it and the ProxyAdmin belong to the Safe `0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393` (2 of 3 test keys). See `crypto/protocol/deployments/43113.json` and `scripts/validator-manager.ts` |
 | ICM relayer | `0xEc2D561301e9A9cfd07DAB3524Aa6be6a5988480`, pays gas on both chains |
-| Fees | minimum base fee 10¹² wei (the replay floor) since block 22, set with `crypto/protocol/scripts/fee-config.ts`; genesis had 2.5·10¹⁵. A transfer costs 0.021 CYBER. Since 2026-10-21 11:06 UTC (`fuji/upgrade.json`) they go to the validator that made the block; before, they burned |
+| Fees | minimum base fee 1 wei since block 25, set with `crypto/protocol/scripts/fee-config.ts` (genesis had 2.5·10¹⁵): a transfer costs about 10⁻¹² CYBER. Since 2026-10-21 11:06 UTC (`fuji/upgrade.json`) they go to the validator that made the block; before, they burned |
 
 The subnet `YFWTudceybPm15VZjF1CBNnfqG9vE9uz555Cp81ErYXyzNqk7` and its chain `EXEuF3BXo12NYY888NQnr5TKTz9LP7bv531aceLhv78627PBF`
 are a first attempt whose genesis Subnet-EVM refused (Warp before Durango). They cost nothing to leave; do not track them.
