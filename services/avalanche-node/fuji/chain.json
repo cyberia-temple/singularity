@@ -3,5 +3,6 @@
   "eth-apis": ["eth", "eth-filter", "net", "web3", "internal-eth", "internal-blockchain", "internal-transaction"],
   "warp-api-enabled": true,
   "rpc-tx-fee-cap": 1000000,
+  "feeRecipient": "0xae8F9c21b082d09857622824ADA365D71b18B44B",
   "log-level": "info"
 }

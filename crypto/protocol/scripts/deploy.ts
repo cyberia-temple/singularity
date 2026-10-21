@@ -59,6 +59,8 @@ type Config = {
   relayer: Address;
   arbiter: Address;
   treasury: Address;
+  /** Where the validators are paid their share of protocol revenue (one validator for now: its operator) */
+  validators: Address;
   wiredSigner: Address;
   /** A genesis-predeployed WCYBER, or null to deploy one */
   wcyber: Address | null;
@@ -77,7 +79,13 @@ type Config = {
   };
   launch: { minLiquidity: string; creditLltv: string; twapWindow: number; twapMinWindow: number; cardinality: number };
   lltvs: string[];
-  router: { furnaceWeight: number; gasStationWeight: number; treasuryWeight: number; votersBps: number };
+  router: {
+    validatorsWeight: number;
+    furnaceWeight: number;
+    gasStationWeight: number;
+    treasuryWeight: number;
+    votersBps: number;
+  };
   domains: { rootPrice: string; reserved: string[] };
   predictions: { createFee: string };
   nft: { feeBps: number };
@@ -141,6 +149,13 @@ function artifact(name: string): { abi: Abi; bytecode: Hex } {
 }
 
 // ------------------------------------------------------------------------------------ actions
+
+/** A RevenueRouter share table without its zero-weight rows; the weights must add up to 10,000. */
+function shares(rows: { recipient: Address; weight: number }[]): { recipient: Address; weight: number }[] {
+  const kept = rows.filter((row) => row.weight > 0);
+  if (kept.reduce((sum, row) => sum + row.weight, 0) !== 10_000) throw new Error("router weights must add up to 10,000");
+  return kept;
+}
 
 async function deploy(key: string, contract: string, args: unknown[] = []): Promise<Address> {
   if (record.contracts[key]) {
@@ -271,14 +286,19 @@ const router = await deploy("RevenueRouter", "RevenueRouter", [
   wcyber,
   lending,
   vaults,
-  // The coin: part burned (it becomes ASH), part to the gas tank, part to the treasury. Tokens only
-  // to the treasury, since neither the furnace nor a gas tank has a use for them.
-  [
+  // The coin: part to the validators, part burned (it becomes ASH), part to the gas tank, part to the
+  // treasury. Tokens go to the validators and the treasury in the same proportion, since neither the
+  // furnace nor a gas tank has a use for them. For now the validators take everything.
+  shares([
+    { recipient: config.validators, weight: config.router.validatorsWeight },
     { recipient: furnace, weight: config.router.furnaceWeight },
     { recipient: gasStation, weight: config.router.gasStationWeight },
     { recipient: config.treasury, weight: config.router.treasuryWeight },
-  ],
-  [{ recipient: config.treasury, weight: 10_000 }],
+  ]),
+  shares([
+    { recipient: config.validators, weight: config.router.validatorsWeight },
+    { recipient: config.treasury, weight: 10_000 - config.router.validatorsWeight },
+  ]),
 ]);
 await step("lending.setFeeRecipient(router)", "Lending", "Lending", "setFeeRecipient", [router]);
 await step("factory.setFeeCollector(router)", "PancakeV3Factory", "PancakeV3Factory", "setFeeCollector", [router]);
@@ -429,4 +449,4 @@ console.log("Not done here, on purpose:");
 console.log("  - minter.start(kindling): lights the fire; an admin call, scheduled through the delay");
 console.log("  - pioneerDrop.setRoot(root, deadline): after the migration window, from the bridge's release events");
 console.log("  - bridge assets (createWrapped / setAsset / setDestination): per corridor, by admin");
-console.log("  - keep transaction fees burning (no RewardManager redirect): burned fees are the fire");
+console.log("  - each validator sets feeRecipient in its node's chain config: the fees of the blocks it makes are its pay");

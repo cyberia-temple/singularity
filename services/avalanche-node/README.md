@@ -10,7 +10,8 @@ The validator of Cyberia's Avalanche L1 (Subnet-EVM). It replaces `services/cybe
 | `avalanchego.service` | systemd unit, runs as the `avalanche` user, data in `/var/lib/avalanchego` |
 | `nftables.conf` | inbound: SSH (22) and Avalanche p2p (9651) only |
 | `fuji/genesis.json` | the Fuji L1's genesis, written by `crypto/protocol/scripts/genesis.ts` (chain id 49407) |
-| `fuji/chain.json` | the L1's Subnet-EVM config. `rpc-tx-fee-cap` (in CYBER) is far above the default 100, so that raising fees through FeeManager later does not make the node refuse transactions |
+| `fuji/upgrade.json` | scheduled precompile upgrades of the Fuji L1 (RewardManager, so that fees pay the validators). Every node carries the same file, and an entry that has activated stays in it forever |
+| `fuji/chain.json` | the L1's Subnet-EVM config. `feeRecipient` is where this validator is paid the fees of the blocks it makes (burned if unset). `rpc-tx-fee-cap` (in CYBER) is far above the default 100, so that raising fees through FeeManager later does not make the node refuse transactions |
 | `genesis-check/` | `check.sh <genesis.json> [fuji\|mainnet]` runs a genesis through Subnet-EVM of the pinned release, as the node will at chain creation. Run it before every `chain create` |
 | `icm/` | `install.sh` adds Ava Labs' signature-aggregator (P-Chain messages for the validator manager, signed by the Primary Network) and ICM relayer (Teleporter between the C-Chain and the L1). The relayer's key lives only in `/etc/icm/relayer.env` |
 
@@ -40,7 +41,7 @@ ssh root@<host> 'curl -s -X POST -H "content-type:application/json" \
 | Converted | P-Chain tx `buRFjCjjieoJKmVztWFaYm8rNaN67FqLBiUDcsEHkeWiERGLu`, 2026-10-21 |
 | Validator manager | `0xDF5D0Fd21440267A966e8AcD8B579a2d8B0ECCb0` on the Fuji C-Chain, owned by PoAManager `0x63E75b5805D673b514F5F5b37B6BB3aA11D27910`; both it and the ProxyAdmin belong to the Safe `0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393` (2 of 3 test keys). See `crypto/protocol/deployments/43113.json` and `scripts/validator-manager.ts` |
 | ICM relayer | `0xEc2D561301e9A9cfd07DAB3524Aa6be6a5988480`, pays gas on both chains |
-| Fees | minimum base fee 10¹² wei (the replay floor) since block 22, set with `crypto/protocol/scripts/fee-config.ts`; genesis had 2.5·10¹⁵. A transfer costs 0.021 CYBER |
+| Fees | minimum base fee 10¹² wei (the replay floor) since block 22, set with `crypto/protocol/scripts/fee-config.ts`; genesis had 2.5·10¹⁵. A transfer costs 0.021 CYBER. Since 2026-10-21 11:06 UTC (`fuji/upgrade.json`) they go to the validator that made the block; before, they burned |
 
 The subnet `YFWTudceybPm15VZjF1CBNnfqG9vE9uz555Cp81ErYXyzNqk7` and its chain `EXEuF3BXo12NYY888NQnr5TKTz9LP7bv531aceLhv78627PBF`
 are a first attempt whose genesis Subnet-EVM refused (Warp before Durango). They cost nothing to leave; do not track them.

@@ -11,6 +11,8 @@ SUBNET_EVM_VM_ID="srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy"
 # The L1's blockchain ID (its subnet is track-subnets in node.json) and its chain config.
 L1_BLOCKCHAIN_ID="Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7"
 L1_CHAIN_CONFIG="fuji/chain.json"
+# Scheduled precompile upgrades. Every node must carry the same file, and an applied entry stays forever.
+L1_UPGRADE="fuji/upgrade.json"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 RELEASES="https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}"
@@ -58,6 +60,8 @@ install -d -o avalanche -g avalanche -m 750 /var/lib/avalanchego/configs /var/li
   "/var/lib/avalanchego/configs/chains/${L1_BLOCKCHAIN_ID}"
 install -o avalanche -g avalanche -m 644 "${HERE}/${L1_CHAIN_CONFIG}" \
   "/var/lib/avalanchego/configs/chains/${L1_BLOCKCHAIN_ID}/config.json"
+install -o avalanche -g avalanche -m 644 "${HERE}/${L1_UPGRADE}" \
+  "/var/lib/avalanchego/configs/chains/${L1_BLOCKCHAIN_ID}/upgrade.json"
 install -m 644 "${HERE}/avalanchego.service" /etc/systemd/system/avalanchego.service
 install -m 755 "${HERE}/nftables.conf" /etc/nftables.conf
 nft -c -f /etc/nftables.conf

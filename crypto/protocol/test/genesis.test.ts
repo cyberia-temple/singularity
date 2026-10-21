@@ -48,14 +48,14 @@ describe("genesis", () => {
     assert.throws(() => check(genesis, REMOTE_DEPLOYER), /replay floor/);
   });
 
-  it("refuses fees that do not burn", () => {
-    const recipients = fuji();
-    recipients.config.allowFeeRecipients = true;
-    assert.throws(() => check(recipients, REMOTE_DEPLOYER), /must burn/);
+  it("refuses fees that do not go to the validators who produce the blocks", () => {
+    const burned = fuji();
+    delete burned.config.rewardManagerConfig;
+    assert.throws(() => check(burned, REMOTE_DEPLOYER), /go to the validators/);
 
-    const reward = fuji();
-    reward.config.rewardManagerConfig = { blockTimestamp: 0 };
-    assert.throws(() => check(reward, REMOTE_DEPLOYER), /must burn/);
+    const fixed = fuji();
+    fixed.config.rewardManagerConfig.initialRewardConfig = { allowFeeRecipients: false, rewardAddress: OPERATOR };
+    assert.throws(() => check(fixed, REMOTE_DEPLOYER), /go to the validators/);
   });
 
   it("refuses Warp that trusts this chain's validators for C-Chain messages", () => {

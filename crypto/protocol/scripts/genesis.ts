@@ -19,9 +19,11 @@
  *     and for the operator, plus any `--alloc`) exist before anything is locked on the C-Chain.
  *     Their sum is NativeTokenRemote's `initialReserveImbalance`; the home refuses to bridge to
  *     this chain until that much is deposited as collateral.
- *   - **Fees burn.** No fee recipients and no RewardManager: burned fees are reported to the home
- *     (`reportBurnedTxFees`) and burned on the C-Chain too, so the CYBER.sol behind them stays
- *     locked on Solana for good. They are also the fire ASH is made from.
+ *   - **Fees pay the validators.** RewardManager starts with fee recipients allowed: each block's
+ *     fees go to the validator that produced it (its node's `feeRecipient`; burned if it sets none),
+ *     and nobody can point them at a fixed address in genesis. They stay small (see
+ *     REPLAY_FLOOR_WEI) and are the validators' income for now; RewardManager's admin, the fee admin
+ *     (a Safe on mainnet), can send them elsewhere later.
  *   - **No replay of the old chain.** Mainnet reuses chain id 49406, so every transaction ever
  *     signed for the old chain carries a valid chain id here, and every account starts again at
  *     nonce 0. The minimum base fee is kept far above any gas price the old chain accepted, which
@@ -91,8 +93,11 @@ export function check(genesis: Genesis, remoteDeployer: Address): bigint {
   }
   if (minter.initialMint && Object.keys(minter.initialMint).length) fail("the NativeMinter mints at genesis");
 
-  if (config.allowFeeRecipients) fail("validators may keep fees; fees must burn (allowFeeRecipients: false)");
-  if (config.rewardManagerConfig) fail("the RewardManager could redirect fees; fees must burn");
+  const rewards = config.rewardManagerConfig;
+  if (!rewards || rewards.initialRewardConfig?.allowFeeRecipients !== true || rewards.initialRewardConfig?.rewardAddress) {
+    fail("fees must go to the validators who produce the blocks (RewardManager with allowFeeRecipients)");
+  }
+  if (config.allowFeeRecipients !== true) fail("allowFeeRecipients must agree with the RewardManager");
 
   const fees = config.feeConfig ?? {};
   if (BigInt(fees.minBaseFee ?? 0) < REPLAY_FLOOR_WEI) {
@@ -187,10 +192,15 @@ export function build(options: GenesisOptions): Genesis {
         targetBlockRate: 2,
         blockGasCostStep: 200_000,
       },
-      allowFeeRecipients: false,
+      allowFeeRecipients: true,
       warpConfig: { blockTimestamp: timestamp, quorumNumerator: 67, requirePrimaryNetworkSigners: true },
       [NATIVE_MINTER]: { blockTimestamp: 0, enabledAddresses: [predictRemote(options.remoteDeployer)] },
       feeManagerConfig: { blockTimestamp: 0, adminAddresses: [options.feeAdmin] },
+      rewardManagerConfig: {
+        blockTimestamp: 0,
+        adminAddresses: [options.feeAdmin],
+        initialRewardConfig: { allowFeeRecipients: true },
+      },
     },
     alloc,
     nonce: "0x0",

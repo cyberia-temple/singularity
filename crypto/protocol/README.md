@@ -84,6 +84,12 @@ vault, and liquidations.
 
 ## Tokenomics: Fire and Ash
 
+> **Being reworked (2026-10-21).** CYBER is CYBER.sol one for one (Wormhole NTT + ICTT, no bridge of
+> our own), fees are small, and for now every fee pays the validators: gas goes to the validator that
+> made the block (RewardManager with fee recipients), and RevenueRouter sends all protocol revenue to
+> `validators` (deploy config: `router.validatorsWeight` 10,000, `votersBps` 0). What follows predates
+> that and is kept until the new design replaces it.
+
 Two coins, one rule: **CYBER is the fuel and only ever burns; ASH is what the fire leaves behind.**
 
 ### CYBER — fixed, backed, burning
@@ -132,13 +138,13 @@ Two coins, one rule: **CYBER is the fuel and only ever burns; ASH is what the fi
 | --- | --- |
 | Launch pool trades (creator fee ≤ 10% + protocol 1%) | creator side to the creator and holders as they chose; the protocol's 1%: half to that launch's voters, half on to the coin split below |
 | Other V3 pools (protocol share of LP fees) | half to that pool's voters, half on to the coin split |
-| Protocol revenue in CYBER/WCYBER (the coin split) | 50% burned in the Furnace · 25% the gas station · 25% treasury |
-| Protocol revenue in other tokens | treasury |
+| Protocol revenue in CYBER/WCYBER (the coin split) | for now 100% to the validators (before: 50% burned in the Furnace · 25% the gas station · 25% treasury) |
+| Protocol revenue in other tokens | for now the validators (before: treasury) |
 | Lending interest | fee set per market (≤ 25%) to the router |
 | `.cyber` names | 100% burned |
 | Token-zone names | the zone's token, burned |
 | Predictions / NFT market | 2% / 2% to the router |
-| Gas | burned |
+| Gas | the validator that made the block |
 
 ### The loop
 

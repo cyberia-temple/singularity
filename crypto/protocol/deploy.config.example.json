@@ -6,6 +6,7 @@
   "relayer": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
   "arbiter": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "treasury": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "validators": "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
   "wiredSigner": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
   "wcyber": null,
   "ash": {
@@ -21,7 +22,7 @@
   },
   "launch": { "minLiquidity": "10", "creditLltv": "0.5", "twapWindow": 1800, "twapMinWindow": 600, "cardinality": 64 },
   "lltvs": ["0.385", "0.5", "0.625", "0.77", "0.86", "0.915", "0.945"],
-  "router": { "furnaceWeight": 5000, "gasStationWeight": 2500, "treasuryWeight": 2500, "votersBps": 5000 },
+  "router": { "validatorsWeight": 10000, "furnaceWeight": 0, "gasStationWeight": 0, "treasuryWeight": 0, "votersBps": 0 },
   "domains": { "rootPrice": "1", "reserved": ["cyberia", "lain", "dns", "www", "wallet", "bridge", "swap"] },
   "predictions": { "createFee": "1" },
   "nft": { "feeBps": 200 },
