@@ -368,7 +368,7 @@ async function pChain(url: string, method: string, params: object): Promise<any>
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
-  const body = await response.json();
+  const body = (await response.json()) as { result?: any; error?: { message: string } };
   if (body.error) throw new Error(`${method}: ${body.error.message}`);
   return body.result;
 }
@@ -424,7 +424,7 @@ async function init(): Promise<void> {
       "quorum-percentage-buffer": 3,
     }),
   });
-  const body = await response.json();
+  const body = (await response.json()) as { "signed-message"?: string; error?: string };
   if (!response.ok) throw new Error(`aggregator: HTTP ${response.status} ${body.error ?? ""}`);
   const signed = `0x${String(body["signed-message"]).replace(/^0x/, "")}` as Hex;
   console.log(`  ✓ signed by Primary Network validators (${size(signed)} bytes)`);

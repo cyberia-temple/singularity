@@ -47,11 +47,12 @@ export const CHAIN_IDS = { mainnet: 49406, fuji: 49407 } as const;
 
 /**
  * The highest gas price seen on the old 49406 chain was 1.875 gwei (sampled from its explorer).
- * The floor leaves three orders of magnitude on top of that; the real minimum base fee is higher
- * still (2,500,000 gwei), because a CYBER is worth about a thousandth of an old one.
+ * The floor leaves about 500 times that on top, and it is also the default minimum base fee: fees
+ * are meant to be small (a transfer costs 0.021 CYBER). FeeManager's admin can raise them later
+ * (scripts/fee-config.ts), never below the floor.
  */
 export const REPLAY_FLOOR_WEI = 1_000_000_000_000n;
-export const DEFAULT_MIN_BASE_FEE_WEI = 2_500_000_000_000_000n;
+export const DEFAULT_MIN_BASE_FEE_WEI = REPLAY_FLOOR_WEI;
 export const MIN_GAS_LIMIT = 15_000_000;
 /** Durango activation (avalanchego upgrade/upgrade.go): Warp may not activate before it. */
 export const DURANGO = { mainnet: 1_709_740_800, fuji: 1_707_840_000 } as const;
