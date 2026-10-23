@@ -20,7 +20,8 @@ import { ethers } from "ethers";
 import { waitForReceipt } from "./lib/wait-receipt";
 import { broadcastWithRecovery } from "./lib/send-tx";
 
-const RELAYER_PK = process.env.BRIDGE_RELAYER_PRIVATE_KEY || process.env.DEPLOYER_PK;
+const RELAYER_PK =
+  process.env.BRIDGE_RELAYER_PRIVATE_KEY || process.env.DEPLOYER_PK;
 
 if (!RELAYER_PK) {
   console.error("BRIDGE_RELAYER_PRIVATE_KEY or DEPLOYER_PK not set");
@@ -49,7 +50,9 @@ async function main() {
     process.exit(1);
   }
 
-  const pk = (RELAYER_PK!.startsWith("0x") ? RELAYER_PK! : `0x${RELAYER_PK}`) as `0x${string}`;
+  const pk = (
+    RELAYER_PK!.startsWith("0x") ? RELAYER_PK! : `0x${RELAYER_PK}`
+  ) as `0x${string}`;
   // staticNetwork avoids an extra eth_chainId roundtrip per call.
   const network = new ethers.Network(CHAIN_NAME, CHAIN_ID);
   const provider = new ethers.JsonRpcProvider(RPC_URL, network, {
@@ -68,11 +71,14 @@ async function main() {
     wallet,
     provider,
     await token.transfer.populateTransaction(recipient, BigInt(amountWei)),
+    {
+      onSigned: (hash) => {
+        console.log(JSON.stringify({ broadcastTxHash: hash }));
+      },
+    },
   );
-  // Emit the hash the instant the tx is in the mempool, before blocking on the
-  // receipt. If a slow RPC pushes tx.wait() past the caller's timeout, the
-  // caller recovers this hash instead of retrying and double-paying.
-  console.log(JSON.stringify({ broadcastTxHash: hash }));
+  // The signed hash is emitted before broadcast so an uncertain RPC response
+  // cannot make the caller pay a second time.
   const receipt = await waitForReceipt(provider, hash);
 
   if (!receipt) {

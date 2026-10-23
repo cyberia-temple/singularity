@@ -824,7 +824,7 @@ class BridgeService
             $burned = $this->burnEvmWrapper(
                 (string) $context['source_token']['address'],
                 $claimedRaw,
-                $request->id,
+                $request,
                 $context['source_chain'],
             );
 
@@ -1864,11 +1864,15 @@ class BridgeService
 
             $receipt = $response->json('result');
 
-            if (! is_array($receipt)) {
+            if (! $response->successful() || ! is_array($receipt)) {
                 return null;
             }
 
-            return ($receipt['status'] ?? null) === '0x1';
+            return match ($receipt['status'] ?? null) {
+                '0x1' => true,
+                '0x0' => false,
+                default => null,
+            };
         } catch (\Throwable $e) {
             Log::warning('Bridge: evmTxSucceeded receipt check failed', [
                 'tx' => $txHash,
@@ -1926,34 +1930,75 @@ class BridgeService
      *
      * @param  array<string, mixed>  $chain
      */
-    private function burnEvmWrapper(string $tokenAddress, string $amountWei, int $requestId, array $chain): bool
+    private function burnEvmWrapper(string $tokenAddress, string $amountWei, BridgeRequest $request, array $chain): bool
     {
+        if ($request->wrapper_burn_tx_hash !== null) {
+            $succeeded = $this->evmTxSucceeded((string) $chain['rpc_url'], $request->wrapper_burn_tx_hash);
+
+            if ($succeeded !== false) {
+                return $succeeded === true;
+            }
+
+            $request->update(['wrapper_burn_tx_hash' => null]);
+        }
+
         $hardhatDir = Environment::isProduction()
             ? '/singularity/crypto/hardhat'
             : base_path('/../../crypto/hardhat');
 
-        $result = Process::path($hardhatDir)
-            ->env([
-                'EVM_RPC_URL' => (string) $chain['rpc_url'],
-                'EVM_CHAIN_ID' => (string) ($chain['evm_chain_id'] ?? ''),
-                'CYBERIA_RPC_URL' => (string) $chain['rpc_url'],
-                'BRIDGE_RELAYER_PRIVATE_KEY' => app(BridgeRelayerService::class)->privateKey() ?? '',
-            ])
-            ->timeout($this->relayScriptTimeout())
-            ->run([
-                'npx', 'tsx', 'scripts/relay-burn.ts',
-                $tokenAddress,
-                $amountWei,
+        $captured = '';
+
+        try {
+            $result = Process::path($hardhatDir)
+                ->env([
+                    'EVM_RPC_URL' => (string) $chain['rpc_url'],
+                    'EVM_CHAIN_ID' => (string) ($chain['evm_chain_id'] ?? ''),
+                    'CYBERIA_RPC_URL' => (string) $chain['rpc_url'],
+                    'BRIDGE_RELAYER_PRIVATE_KEY' => app(BridgeRelayerService::class)->privateKey() ?? '',
+                ])
+                ->timeout($this->relayScriptTimeout())
+                ->run([
+                    'npx', 'tsx', 'scripts/relay-burn.ts',
+                    $tokenAddress,
+                    $amountWei,
+                ], function (string $type, string $buffer) use (&$captured, $request) {
+                    $captured .= $buffer;
+                    $this->recordWrapperBurn($request, $this->extractRelayTxHash($captured));
+                });
+        } catch (ProcessTimedOutException) {
+            $this->recordWrapperBurn($request, $this->extractRelayTxHash($captured));
+
+            Log::warning('Bridge relay wrapper burn timed out', [
+                'id' => $request->id,
+                'burn_tx_hash' => $request->wrapper_burn_tx_hash,
             ]);
 
+            return $request->wrapper_burn_tx_hash !== null
+                && $this->evmTxSucceeded((string) $chain['rpc_url'], $request->wrapper_burn_tx_hash) === true;
+        }
+
+        $this->recordWrapperBurn($request, $this->extractRelayTxHash($result->output()));
+
         Log::info('Bridge relay burn wrapper', [
-            'id' => $requestId,
+            'id' => $request->id,
             'stdout' => $result->output(),
             'stderr' => $result->errorOutput(),
             'exit' => $result->exitCode(),
         ]);
 
-        return $result->exitCode() === 0;
+        if ($request->wrapper_burn_tx_hash === null) {
+            return false;
+        }
+
+        return $result->exitCode() === 0
+            || $this->evmTxSucceeded((string) $chain['rpc_url'], $request->wrapper_burn_tx_hash) === true;
+    }
+
+    private function recordWrapperBurn(BridgeRequest $request, ?string $hash): void
+    {
+        if ($hash !== null && $hash !== '' && $request->wrapper_burn_tx_hash === null) {
+            $request->update(['wrapper_burn_tx_hash' => $hash]);
+        }
     }
 
     /**

@@ -72,12 +72,113 @@ function makeProvider(opts: {
       return opts.receiptFor?.(hash) ?? null;
     },
   };
-  return provider as unknown as ethers.JsonRpcProvider & { broadcasts: string[] };
+  return provider as unknown as ethers.JsonRpcProvider & {
+    broadcasts: string[];
+  };
 }
 
 const FAST = { baseDelayMs: 1 };
 
 describe("broadcastWithRecovery", () => {
+  it("records the signed hash before a lost broadcast response", async () => {
+    const wallet = makeWallet();
+    let recorded: string | undefined;
+    const provider = makeProvider({
+      broadcast: [
+        (signed) => {
+          assert.equal(recorded, ethers.Transaction.from(signed).hash);
+          throw rpcError("read ETIMEDOUT", "TIMEOUT");
+        },
+      ],
+    });
+    await assert.rejects(
+      () =>
+        broadcastWithRecovery(
+          wallet,
+          provider,
+          { to: RECIPIENT, value: 1n },
+          {
+            ...FAST,
+            tries: 2,
+            onSigned: (hash) => {
+              recorded = hash;
+            },
+          },
+        ),
+      /ETIMEDOUT/,
+    );
+    assert.equal(provider.broadcasts.length, 2);
+    assert.equal(provider.broadcasts[0], provider.broadcasts[1]);
+  });
+
+  it("does not broadcast when recording the signed identity fails", async () => {
+    const provider = makeProvider({ broadcast: [() => {}] });
+    await assert.rejects(
+      () =>
+        broadcastWithRecovery(
+          makeWallet(),
+          provider,
+          { to: RECIPIENT, value: 1n },
+          {
+            ...FAST,
+            onSigned: () => {
+              throw new Error("storage unavailable");
+            },
+          },
+        ),
+      /storage unavailable/,
+    );
+    assert.equal(provider.broadcasts.length, 0);
+  });
+
+  it("never replaces an already recorded transaction identity", async () => {
+    const wallet = makeWallet();
+    const provider = makeProvider({
+      broadcast: [
+        () => {
+          wallet.bumpNonce();
+          throw rpcError("nonce too low");
+        },
+      ],
+      receiptFor: () => null,
+    });
+    await assert.rejects(
+      () =>
+        broadcastWithRecovery(
+          wallet,
+          provider,
+          { to: RECIPIENT, value: 1n },
+          { ...FAST, onSigned: () => {} },
+        ),
+      /nonce too low/,
+    );
+    assert.equal(provider.broadcasts.length, 1);
+  });
+
+  it("does not infer a consumed nonce from an unavailable receipt", async () => {
+    const provider = makeProvider({
+      broadcast: [
+        () => {
+          throw rpcError("nonce too low");
+        },
+      ],
+      receiptFor: () => {
+        throw rpcError("receipt unavailable", "TIMEOUT");
+      },
+    });
+    await assert.rejects(
+      () =>
+        broadcastWithRecovery(
+          makeWallet(),
+          provider,
+          { to: RECIPIENT, value: 1n },
+          FAST,
+        ),
+      /receipt unavailable/,
+    );
+    assert.equal(provider.broadcasts.length, 1);
+  });
+
   it("returns the hash on a clean first broadcast", async () => {
     const wallet = makeWallet();
     const provider = makeProvider({ broadcast: [() => {}] });
@@ -205,7 +306,12 @@ describe("broadcastWithRecovery", () => {
 
     await assert.rejects(
       () =>
-        broadcastWithRecovery(wallet, provider, { to: RECIPIENT, value: 1n }, FAST),
+        broadcastWithRecovery(
+          wallet,
+          provider,
+          { to: RECIPIENT, value: 1n },
+          FAST,
+        ),
       /insufficient funds/,
     );
     assert.equal(provider.broadcasts.length, 1);

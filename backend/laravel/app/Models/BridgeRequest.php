@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $deposit_index
  * @property bool $swept
  * @property bool $wrapper_burned
+ * @property string|null $wrapper_burn_tx_hash
  * @property Carbon|null $source_verified_at
  * @property Carbon|null $payout_broadcast_at
  * @property Carbon|null $payout_confirmed_at
@@ -119,6 +120,7 @@ class BridgeRequest extends Model
         'deposit_index',
         'swept',
         'wrapper_burned',
+        'wrapper_burn_tx_hash',
         'source_verified_at',
         'payout_broadcast_at',
         'payout_confirmed_at',
