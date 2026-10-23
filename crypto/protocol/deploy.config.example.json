@@ -20,7 +20,7 @@
     "buildersBps": 1500,
     "treasuryBps": 1000
   },
-  "launch": { "minLiquidity": "10", "creditLltv": "0.5", "twapWindow": 1800, "twapMinWindow": 600, "cardinality": 64 },
+  "launch": { "minLiquidity": "100000", "creditLltv": "0.5", "twapWindow": 1800, "twapMinWindow": 600, "cardinality": 64 },
   "lltvs": ["0.385", "0.5", "0.625", "0.77", "0.86", "0.915", "0.945"],
   "router": { "validatorsWeight": 10000, "furnaceWeight": 0, "gasStationWeight": 0, "treasuryWeight": 0, "votersBps": 0 },
   "domains": { "rootPrice": "1", "reserved": ["cyberia", "lain", "dns", "www", "wallet", "bridge", "swap"] },

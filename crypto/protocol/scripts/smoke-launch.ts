@@ -32,6 +32,14 @@ const launchpadAbi: Abi = JSON.parse(
   fs.readFileSync(path.join(ROOT, "artifacts/contracts/launch/Launchpad.sol/Launchpad.json"), "utf8"),
 ).abi;
 
+const minimum = await publicClient.readContract({
+  address: record.contracts.Launchpad as Address,
+  abi: launchpadAbi,
+  functionName: "minLiquidity",
+}) as bigint;
+const liquidity = process.argv[2] ? parseEther(process.argv[2]) : minimum > 0n ? minimum : parseEther("1");
+if (liquidity < minimum) throw new Error("The supplied liquidity is below the Launchpad's current minimum");
+
 const params = {
   name: ".smoke",
   symbol: "DOTSMOKE",
@@ -48,7 +56,7 @@ const hash = await wallet.writeContract({
   abi: launchpadAbi,
   functionName: "launch",
   args: [params],
-  value: parseEther(process.argv[2] ?? "10"),
+  value: liquidity,
   gas: 16_700_000n,
 });
 const receipt = await publicClient.waitForTransactionReceipt({ hash });

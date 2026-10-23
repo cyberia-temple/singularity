@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IAccessManaged} from "@openzeppelin/contracts/access/manager/IAccessManaged.sol";
+import {IAccessManager} from "@openzeppelin/contracts/access/manager/IAccessManager.sol";
 
 import {ProtocolHarness} from "./utils/ProtocolHarness.sol";
 import {IV3Pool} from "../contracts/interfaces/IV3.sol";
@@ -67,6 +69,56 @@ contract LaunchpadTest is ProtocolHarness {
         vm.prank(creator);
         vm.expectRevert(Launchpad.NotEnoughCyber.selector);
         launchpad.launch{value: 0.5 ether}(_params("X", "X", SUPPLY, 0, 0, 0));
+    }
+
+    function test_governanceChangesTheMinimumForNewLaunchesOnly() public {
+        address oldToken = _launch(0);
+        address oldPool = launchpad.economyOf(oldToken).pool;
+        uint256 oldBacking = wcyber.balanceOf(oldPool);
+        launchpad.setMinLiquidity(100_000 ether);
+        assertEq(launchpad.minLiquidity(), 100_000 ether);
+        vm.deal(creator, 200_000 ether);
+
+        Launchpad.LaunchParams memory params = _params("New", "NEW", SUPPLY, 0, 0, 0);
+        params.salt = bytes32(uint256(1));
+        vm.prank(creator);
+        vm.expectRevert(Launchpad.NotEnoughCyber.selector);
+        launchpad.launch{value: 100_000 ether - 1}(params);
+
+        vm.prank(creator);
+        address newToken = launchpad.launch{value: 100_000 ether}(params);
+        assertTrue(launchpad.isLaunched(newToken), "the exact threshold is accepted");
+        assertEq(launchpad.economyOf(oldToken).pool, oldPool);
+        assertEq(wcyber.balanceOf(oldPool), oldBacking, "existing liquidity is untouched");
+
+        launchpad.setMinLiquidity(50 ether);
+        params.salt = bytes32(uint256(2));
+        vm.prank(creator);
+        assertTrue(launchpad.isLaunched(launchpad.launch{value: 50 ether}(params)), "governance may lower it too");
+    }
+
+    function test_a_holderCannotChangeTheLaunchMinimum() public {
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManaged.AccessManagedUnauthorized.selector, creator));
+        launchpad.setMinLiquidity(0);
+    }
+
+    function test_daoAuthorityChangesTheMinimumOnlyAfterItsExecutionDelay() public {
+        vm.warp(1_800_000_000);
+        address dao = makeAddr("protocolDaoTimelock");
+        authority.grantRole(0, dao, 48 hours);
+        bytes memory data = abi.encodeCall(Launchpad.setMinLiquidity, (100_000 ether));
+        vm.prank(dao);
+        (bytes32 operation,) = authority.schedule(address(launchpad), data, 0);
+
+        vm.prank(dao);
+        vm.expectRevert(abi.encodeWithSelector(IAccessManager.AccessManagerNotReady.selector, operation));
+        authority.execute(address(launchpad), data);
+
+        vm.warp(1_800_172_801);
+        vm.prank(dao);
+        authority.execute(address(launchpad), data);
+        assertEq(launchpad.minLiquidity(), 100_000 ether);
     }
 
     /// The old LaunchpadV3 could be bricked for good by creating the pool of the next token before

@@ -1,0 +1,98 @@
+{
+  "chainId": 49407,
+  "network": "Cyberia Fuji L1",
+  "verifiedAt": "2026-10-23T07:56:59.209Z",
+  "name": ".smoke",
+  "symbol": "DOTSMOKE",
+  "token": "0xFdC2CbeF4Da6794732B6E221608f398590901323",
+  "totalSupply": "1000000000",
+  "decimals": 18,
+  "initialLiquidityCyber": "10",
+  "kit": 15,
+  "creator": "0xae8F9c21b082d09857622824ADA365D71b18B44B",
+  "transactionHash": "0x17680921087cf5b94615a13eed860de7bdcfbc74651877521d09fe10f7bcc183",
+  "blockNumber": "118",
+  "blockTime": "2026-10-23T07:55:41.000Z",
+  "gasUsed": "12999213",
+  "status": "success",
+  "economy": {
+    "creator": "0xae8F9c21b082d09857622824ADA365D71b18B44B",
+    "launchedAt": "1792742141",
+    "pool": "0xcD996BF40D2BA770a4E7F7F103AFE928205B806d",
+    "positionId": "1",
+    "vault": "0xeDb43CA75B11fdff59850f59537aA59c7fB7A0a1",
+    "gauge": "0x0f58099c083262A4FF00798492034351Ef98853b",
+    "tokenOracle": "0x3De82E616f4Cec769f983dc113163Ff41A55579A",
+    "cyberOracle": "0xb21f4Efe2412F9dBD97fF31b799175D3aFb35f71",
+    "borrowCyberMarket": "0x9aed1e033a56b04b11f6bab82a97682399d8c0dbaafb5b6d582badddf0a9e159",
+    "borrowTokenMarket": "0xe4080a32f5984a821a6b72372c75ec6e54e5ade14d665ebb6222c879d19b0e3a",
+    "borrowAgainstLpMarket": "0x72dae2cedbbd68b20355f4b2abc1a39d74fa5ec6ce6a8d0c7c7dda7ce3469555",
+    "governor": "0xCd4cd0e3A72A108FC101332929D1F6f17e4e0f41",
+    "timelock": "0x6090b55444C2808c546bBFF4E3bab08166EE56B9",
+    "zone": true,
+    "metadataURI": ""
+  },
+  "terms": {
+    "token": "0xFdC2CbeF4Da6794732B6E221608f398590901323",
+    "positionId": "1",
+    "poolFee": 40000,
+    "creatorBps": 3750,
+    "holdersBps": 3750,
+    "protocolBps": 2500
+  },
+  "markets": {
+    "borrowCyberMarket": {
+      "id": "0x9aed1e033a56b04b11f6bab82a97682399d8c0dbaafb5b6d582badddf0a9e159",
+      "loanToken": "0x000000000000000000000000000000000000c0Fe",
+      "collateralToken": "0xFdC2CbeF4Da6794732B6E221608f398590901323",
+      "oracle": "0x3De82E616f4Cec769f983dc113163Ff41A55579A",
+      "irm": "0x98e7f801A4D4dD8a0cCf9f7a47a9adeE7B513f69",
+      "lltv": "500000000000000000"
+    },
+    "borrowTokenMarket": {
+      "id": "0xe4080a32f5984a821a6b72372c75ec6e54e5ade14d665ebb6222c879d19b0e3a",
+      "loanToken": "0xFdC2CbeF4Da6794732B6E221608f398590901323",
+      "collateralToken": "0x000000000000000000000000000000000000c0Fe",
+      "oracle": "0xb21f4Efe2412F9dBD97fF31b799175D3aFb35f71",
+      "irm": "0x98e7f801A4D4dD8a0cCf9f7a47a9adeE7B513f69",
+      "lltv": "500000000000000000"
+    },
+    "borrowAgainstLpMarket": {
+      "id": "0x72dae2cedbbd68b20355f4b2abc1a39d74fa5ec6ce6a8d0c7c7dda7ce3469555",
+      "loanToken": "0x000000000000000000000000000000000000c0Fe",
+      "collateralToken": "0xeDb43CA75B11fdff59850f59537aA59c7fB7A0a1",
+      "oracle": "0xF82A30237Fe16eA21DaDf4e850c09f59404Ade10",
+      "irm": "0x98e7f801A4D4dD8a0cCf9f7a47a9adeE7B513f69",
+      "lltv": "500000000000000000"
+    }
+  },
+  "checks": {
+    "allDeploymentAddressesHaveCode": true,
+    "fullKitHasCode": true,
+    "liquidityActive": true,
+    "positionLocked": true,
+    "threeCreditMarketsCreated": true,
+    "timestampGovernance": true,
+    "domainZone": "smoke",
+    "safeAdminDelaySeconds": 172800,
+    "deployerRetainsBootstrapAdmin": true,
+    "protocolRevenueToValidatorsBps": 10000
+  },
+  "limitations": [
+    "Frontend and wallet have not been connected to this deployment.",
+    "Bridge corridors and ASH emissions have not been activated.",
+    "Credit markets need oracle history and supplied liquidity.",
+    "The test deployer retains its bootstrap admin role."
+  ],
+  "safe": {
+    "chainId": 49407,
+    "address": "0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393",
+    "owners": [
+      "0xae8F9c21b082d09857622824ADA365D71b18B44B",
+      "0x59a7B70675dE2566F0518738137e915b42ce8D61",
+      "0x1eACBF0EA21FfE36397a8E4a8bbE1d84cf919bEB"
+    ],
+    "threshold": "2",
+    "creationTx": "0x3a4c1348038c66b827b8abb433f0f010cf9c2c8bcf466d32432a786a7e1f4241"
+  }
+}
