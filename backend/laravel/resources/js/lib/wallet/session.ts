@@ -61,8 +61,15 @@ export const sessionCall = async <T>(
     if (!response.ok) {
         const failure = new Error(data.message ?? fallback) as Error & {
             status: number;
+            reason?: string;
         };
         failure.status = response.status;
+
+        // A machine-readable refusal next to the sentence, where the endpoint
+        // sends one, so a screen can say it in the reader's language.
+        if (typeof data.reason === 'string') {
+            failure.reason = data.reason;
+        }
 
         throw failure;
     }

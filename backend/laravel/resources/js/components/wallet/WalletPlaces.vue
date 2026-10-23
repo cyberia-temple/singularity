@@ -18,6 +18,7 @@ import {
     PieChart,
     Rocket,
     Route,
+    UserPlus,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { useLocale } from '@/composables/useLocale';
@@ -40,6 +41,7 @@ export type WalletPlace =
     | 'browse'
     | 'domains'
     | 'daily'
+    | 'invite'
     | 'analytics'
     | 'tracker'
     | 'ipfs'
@@ -70,6 +72,7 @@ const PLACES: Record<WalletPlace, { icon: Component; label: () => string }> = {
     browse: { icon: Compass, label: () => t('browseTitle') },
     domains: { icon: Globe, label: () => t('domainsTitle') },
     daily: { icon: CalendarCheck, label: () => t('tileDaily') },
+    invite: { icon: UserPlus, label: () => t('tileInvite') },
     analytics: { icon: PieChart, label: () => t('navAnalytics') },
     tracker: { icon: Magnet, label: () => t('trackerTitle') },
     ipfs: { icon: HardDrive, label: () => t('ipfsTitle') },

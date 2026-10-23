@@ -401,6 +401,109 @@ class CrosschainRouter
     }
 
     /**
+     * Finished swaps one sender made since a moment, with the fee *we* took on each.
+     *
+     * What the referral programme pays from, and the reason it reads the
+     * router rather than the browser: the router recorded who sent the swap
+     * and which app fees it actually took, and neither can be typed in by a
+     * person who would like to be paid for somebody else's trade.
+     *
+     * Only `success` counts — a refund collected nothing — and only the
+     * `actual` app fees paid to this host's fee address, in the dollars the
+     * router itself put on them. A fee with no dollar figure is skipped rather
+     * than priced here: an earning nobody can check is not one.
+     *
+     * @return array<int, array{id: string, feeUsd: float, at: int}>
+     */
+    public function finishedSwapsBy(string $sender, int $since): array
+    {
+        $address = $this->feeAddress();
+
+        if (! $this->enabled() || $address === null) {
+            return [];
+        }
+
+        $pageSize = max(1, min(100, (int) config('referrals.sync.page_size', 100)));
+        $maxPages = max(1, (int) config('referrals.sync.max_pages', 5));
+        $continuation = null;
+        $swaps = [];
+
+        for ($page = 0; $page < $maxPages; $page++) {
+            $response = Http::timeout($this->timeout())
+                ->acceptJson()
+                ->get($this->api().'/requests/v3', array_filter([
+                    'user' => $sender,
+                    'startTimestamp' => $since,
+                    'limit' => $pageSize,
+                    'continuation' => $continuation,
+                ], fn ($value) => $value !== null));
+
+            if (! $response->successful()) {
+                throw new RuntimeException($this->reason($response->json(), $response->status()));
+            }
+
+            $body = (array) $response->json();
+
+            foreach ((array) ($body['requests'] ?? []) as $request) {
+                if (! is_array($request) || ($request['status'] ?? null) !== 'success') {
+                    continue;
+                }
+
+                $id = (string) ($request['id'] ?? '');
+                $feeUsd = $this->ourActualFeeUsd($request, $address);
+
+                if ($id === '' || $feeUsd <= 0) {
+                    continue;
+                }
+
+                $at = strtotime((string) ($request['createdAt'] ?? '')) ?: time();
+
+                $swaps[$id] = ['id' => $id, 'feeUsd' => $feeUsd, 'at' => $at];
+            }
+
+            $continuation = $body['continuation'] ?? null;
+
+            if (! is_string($continuation) || $continuation === '') {
+                break;
+            }
+        }
+
+        return array_values($swaps);
+    }
+
+    /**
+     * Dollars of app fee one request paid to `$address`.
+     *
+     * The router has sent this two ways — a flat list, and later `quoted` and
+     * `actual` halves — and only the second says what was really taken. A flat
+     * list is read only when it carries its own dollar figure.
+     *
+     * @param  array<string, mixed>  $request
+     */
+    private function ourActualFeeUsd(array $request, string $address): float
+    {
+        $fees = $request['data']['appFees'] ?? [];
+
+        if (is_array($fees) && array_key_exists('actual', $fees)) {
+            $fees = $fees['actual'];
+        }
+
+        $total = 0.0;
+
+        foreach ((array) $fees as $fee) {
+            if (! is_array($fee)
+                || strcasecmp((string) ($fee['recipient'] ?? ''), $address) !== 0
+                || ! is_numeric($fee['amountUsd'] ?? null)) {
+                continue;
+            }
+
+            $total += max(0.0, (float) $fee['amountUsd']);
+        }
+
+        return $total;
+    }
+
+    /**
      * Where a started swap has got to.
      *
      * The deposit is on chain and the router is delivering; this is the only

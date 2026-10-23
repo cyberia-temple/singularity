@@ -69,6 +69,16 @@ Schedule::command('gas:station --alert')->hourly()->withoutOverlapping();
  * shouts at most weekly on its own.
  */
 Schedule::command('crosschain:fees --alert')->dailyAt('09:20')->withoutOverlapping();
+
+/*
+ * Referrals: invited friends' finished swaps become their inviters' earnings.
+ * Hourly is plenty — the router is the record, nothing is lost by waiting, and
+ * the unique request id makes an overlapping run harmless. Payouts are only
+ * *prepared* on the schedule, on Mondays; approving and sending stay with a
+ * person, because this host holds no key to the money and should not.
+ */
+Schedule::command('referrals:sync')->hourly()->withoutOverlapping();
+Schedule::command('referrals:payouts --prepare --notify')->weeklyOn(1, '10:00')->withoutOverlapping();
 // Funding that the browser never got to report: a wallet funded while closed,
 // a deposit that confirmed after the tab was gone. The activation funnel wants
 // those users most, because a wallet that was funded and never came back is

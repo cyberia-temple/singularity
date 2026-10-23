@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\WalletDailyController;
 use App\Http\Controllers\Api\WalletDaoVoteController;
 use App\Http\Controllers\Api\WalletLainController;
 use App\Http\Controllers\Api\WalletPostController;
+use App\Http\Controllers\Api\WalletReferralController;
 use App\Http\Controllers\Api\WalletSocialController;
 use App\Http\Controllers\Api\WalletSyncController;
 use App\Http\Controllers\ApiController;
@@ -438,6 +439,25 @@ Route::prefix('api/wallet/daily')->name('wallet.daily.')->group(function () {
     Route::post('secret', [WalletDailyController::class, 'secret'])
         ->middleware('throttle:12,1')->name('secret');
 });
+
+/**
+ * The wallet's invite screen (WalletReferralController).
+ *
+ * A web route for the daily board's reason: a referral links two accounts, so
+ * it needs the session `/api` does not carry. The read answers signed out too,
+ * with the rules; accepting an invite needs the account that is accepting.
+ * `/r/{code}` is the link people share — it only forwards to the wallet.
+ */
+Route::prefix('api/wallet/referrals')->name('wallet.referrals.')->group(function () {
+    Route::get('/', [WalletReferralController::class, 'show'])
+        ->middleware('throttle:60,1')->name('show');
+    Route::post('attach', [WalletReferralController::class, 'attach'])
+        ->middleware('throttle:10,1')->name('attach');
+});
+
+Route::get('r/{code}', [WalletReferralController::class, 'landing'])
+    ->where('code', '[A-Za-z0-9]{1,32}')
+    ->middleware('throttle:60,1')->name('referrals.landing');
 
 /**
  * Wallet-to-wallet chat (WalletChatController).

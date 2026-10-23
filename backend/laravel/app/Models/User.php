@@ -43,7 +43,23 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'referred_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Who invited this account, if anybody. Set once and never moved — see
+     * ReferralService::attach() for what may set it.
+     */
+    public function referrer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referred_by');
+    }
+
+    /** The accounts this one invited. */
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(User::class, 'referred_by');
     }
 
     /**
