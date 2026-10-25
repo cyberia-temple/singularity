@@ -22,13 +22,18 @@ use Illuminate\Support\Facades\Notification;
 const REF_API = 'https://router.test';
 const REF_FEE_ADDRESS = '0x2222222222222222222222222222222222222222';
 
-function refRequest(string $id, string $status, float $feeUsd, string $recipient = REF_FEE_ADDRESS, string $at = '2026-10-23T10:00:00Z'): array
+/**
+ * A router request, by default made ten minutes ago — after refPair()'s invite
+ * an hour ago. A fixed date here turns into "before the invite" once the
+ * calendar passes it, and the sync rightly skips swaps from before an invite.
+ */
+function refRequest(string $id, string $status, float $feeUsd, string $recipient = REF_FEE_ADDRESS, ?string $at = null): array
 {
     return [
         'id' => $id,
         'status' => $status,
         'user' => '0xfriend',
-        'createdAt' => $at,
+        'createdAt' => $at ?? now()->subMinutes(10)->toIso8601ZuluString(),
         'data' => [
             'appFees' => [
                 'quoted' => [['recipient' => $recipient, 'bps' => '75', 'amount' => '1']],
