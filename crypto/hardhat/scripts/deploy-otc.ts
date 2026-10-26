@@ -109,10 +109,10 @@ async function main() {
   const hash = await walletClient.deployContract({
     abi: art.abi,
     bytecode: art.bytecode,
-    args: [owner] as never,
+    args: [owner],
     gasPrice,
     chain,
-  });
+  } as never);
   console.log("\nCyberiaOTC deploy tx:", hash);
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
