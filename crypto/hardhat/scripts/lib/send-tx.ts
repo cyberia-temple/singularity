@@ -28,7 +28,11 @@ import { ethers } from "ethers";
 
 // Node already holds this exact signed tx (a prior broadcast landed / the ACK
 // was lost). It is in the mempool — treat the broadcast as done.
-const ALREADY_KNOWN = ["already known", "already in the mempool", "txn already in mempool"];
+const ALREADY_KNOWN = [
+  "already known",
+  "already in the mempool",
+  "txn already in mempool",
+];
 
 // The nonce is already spent. Either OUR tx mined (success, confirmed by a
 // receipt lookup) or a competing tx from the shared EOA took it.
@@ -71,7 +75,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // the same signed bytes rather than fail the payout.
 function isTransient(err: unknown): boolean {
   const code = (err as { code?: string })?.code;
-  if (code === "NETWORK_ERROR" || code === "TIMEOUT" || code === "SERVER_ERROR") {
+  if (
+    code === "NETWORK_ERROR" ||
+    code === "TIMEOUT" ||
+    code === "SERVER_ERROR"
+  ) {
     return true;
   }
   return matches(err, [
@@ -98,11 +106,24 @@ export async function broadcastWithRecovery(
   wallet: ethers.Wallet,
   provider: ethers.JsonRpcProvider,
   request: ethers.TransactionRequest,
-  { tries = 6, baseDelayMs = 1500 }: { tries?: number; baseDelayMs?: number } = {},
+  {
+    tries = 6,
+    baseDelayMs = 1500,
+    onSigned,
+  }: {
+    tries?: number;
+    baseDelayMs?: number;
+    onSigned?: (hash: string) => void | Promise<void>;
+  } = {},
 ): Promise<{ hash: string }> {
   // Sign once so the hash is fixed before the first broadcast.
-  let signed = await wallet.signTransaction(await wallet.populateTransaction(request));
+  let signed = await wallet.signTransaction(
+    await wallet.populateTransaction(request),
+  );
   let hash = ethers.Transaction.from(signed).hash!;
+  // The caller records this identity before the RPC can accept the transfer.
+  // Once recorded, this operation must never acquire another nonce.
+  await onSigned?.(hash);
 
   let lastErr: unknown;
 
@@ -119,11 +140,14 @@ export async function broadcastWithRecovery(
       // Nonce spent: if by our tx, it already mined → success; otherwise a
       // competing tx took it and ours can never land → rebuild a fresh nonce.
       if (matches(err, NONCE_CONSUMED)) {
-        const receipt = await provider.getTransactionReceipt(hash).catch(() => null);
+        const receipt = await provider.getTransactionReceipt(hash);
         if (receipt) return { hash };
+        if (onSigned) throw err;
         if (i === tries - 1) throw err;
         await sleep(baseDelayMs * (i + 1));
-        signed = await wallet.signTransaction(await wallet.populateTransaction(request));
+        signed = await wallet.signTransaction(
+          await wallet.populateTransaction(request),
+        );
         hash = ethers.Transaction.from(signed).hash!;
         continue;
       }
