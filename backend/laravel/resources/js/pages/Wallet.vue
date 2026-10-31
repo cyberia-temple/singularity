@@ -10,6 +10,7 @@ import {
     MessageCircle,
     MoreHorizontal,
     Newspaper,
+    Settings,
     WalletCards,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
@@ -85,7 +86,12 @@ import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { arcadeMessages } from '@/lib/arcadeMessages';
 import { isNativeShell, nativeShell } from '@/lib/native';
-import { hiddenInStore, storeEdition } from '@/lib/storeEdition';
+import {
+    hiddenInStore,
+    homeScreen,
+    socialOnly,
+    storeEdition,
+} from '@/lib/storeEdition';
 import {
     hideMainButton,
     setBackButton,
@@ -260,9 +266,16 @@ const requestedScreen = new URLSearchParams(window.location.search).get(
 const section = ref<Section>(
     requestedScreen === 'arena' && !hiddenInStore('arena')
         ? 'arena'
-        : 'portfolio',
+        : (homeScreen() as Section),
 );
 const overlay = ref<Overlay | null>(null);
+
+// The Google Play build has no send, receive, swap or network screens.
+watch(overlay, (next) => {
+    if (next !== null && socialOnly()) {
+        overlay.value = null;
+    }
+});
 const chain = ref<WalletChainId>('cyberia');
 const prices = ref(props.quotes.prices);
 const tokenPrices = ref(props.quotes.tokens ?? {});
@@ -426,6 +439,13 @@ const TABS: { id: Section; label: () => string; icon: Component }[] = [
     { id: 'lain', label: () => t('navLain'), icon: Bot },
 ];
 
+/** The Google Play build: the feed, messages and settings, no balance. */
+const PLAY_TABS: { id: Section; label: () => string; icon: Component }[] = [
+    { id: 'feed', label: () => t('feed'), icon: Newspaper },
+    { id: 'chat', label: () => t('tabChat'), icon: MessageCircle },
+    { id: 'preferences', label: () => t('navPreferences'), icon: Settings },
+];
+
 /** Which tab a screen lives under, for the bar's active state. */
 const TAB_OF: Record<Section, Section> = {
     portfolio: 'portfolio',
@@ -525,7 +545,7 @@ const rail = computed(() =>
     })),
 );
 const tabs = computed(() =>
-    (simple.value ? SIMPLE_TABS : TABS).filter(
+    (socialOnly() ? PLAY_TABS : simple.value ? SIMPLE_TABS : TABS).filter(
         (entry) => !hiddenInStore(entry.id),
     ),
 );
@@ -537,6 +557,14 @@ const inSimpleTabs = (id: Section): boolean =>
     SIMPLE_TABS.some((entry) => entry.id === id);
 
 const activeTab = computed<Section>(() => {
+    if (socialOnly()) {
+        return ['feed', 'chat'].includes(section.value)
+            ? section.value
+            : section.value === 'profile'
+              ? 'feed'
+              : 'preferences';
+    }
+
     if (!simple.value) {
         return TAB_OF[section.value];
     }
@@ -695,7 +723,7 @@ const showNetworkBar = computed(
 );
 
 const openSection = (next: Section): void => {
-    section.value = hiddenInStore(next) ? 'portfolio' : next;
+    section.value = hiddenInStore(next) ? (homeScreen() as Section) : next;
     overlay.value = null;
 };
 

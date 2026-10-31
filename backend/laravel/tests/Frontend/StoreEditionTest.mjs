@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     isDappHiddenIn,
+    homeScreenIn,
     isHiddenIn,
+    socialOnlyIn,
     storeEditionOf,
 } from '@/lib/storeEdition';
 
@@ -46,8 +48,9 @@ test('both stores leave out the launchpad and tokenised stocks', () => {
         assert.equal(isHiddenIn(edition, 'launchpad'), true);
         assert.equal(isHiddenIn(edition, 'stocks'), true);
 
-        // The wallet itself stays whole.
-        for (const section of ['portfolio', 'bridge', 'earn', 'nft', 'dao', 'chat', 'feed']) {
+        // The App Store wallet stays whole; the Play build is social only.
+        const kept = edition === 'play' ? ['chat', 'feed'] : ['portfolio', 'bridge', 'earn', 'nft', 'dao', 'chat', 'feed'];
+        for (const section of kept) {
             assert.equal(isHiddenIn(edition, section), false, `${edition}:${section}`);
         }
     }
@@ -59,8 +62,24 @@ test('staked games are left out of both store builds', () => {
     assert.equal(isHiddenIn('appstore', 'arena'), true);
 });
 
+test('the Play build shows the social screens and nothing that holds crypto', () => {
+    for (const section of ['feed', 'profile', 'chat', 'preferences', 'security']) {
+        assert.equal(isHiddenIn('play', section), false, section);
+    }
+
+    for (const section of ['portfolio', 'tokens', 'swap', 'bridge', 'earn', 'nft', 'domains', 'dao', 'lain', 'accounts', 'networks', 'markets', 'buy', 'browse']) {
+        assert.equal(isHiddenIn('play', section), true, section);
+    }
+
+    assert.equal(homeScreenIn('play'), 'feed');
+    assert.equal(homeScreenIn('appstore'), 'portfolio');
+    assert.equal(homeScreenIn(null), 'portfolio');
+    assert.equal(socialOnlyIn('play'), true);
+    assert.equal(socialOnlyIn('appstore'), false);
+});
+
 test('torrents are left out of the App Store build only', () => {
-    assert.equal(isHiddenIn('play', 'torrent'), false);
+    assert.equal(isHiddenIn('play', 'torrent'), true);
     assert.equal(isHiddenIn('appstore', 'torrent'), true);
     assert.equal(isHiddenIn('appstore', 'tracker'), true);
     assert.equal(isHiddenIn('appstore', 'trackerPublish'), true);

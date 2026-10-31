@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useWalletBlocklist } from '@/composables/useWalletBlocklist';
-import { storeEdition } from '@/lib/storeEdition';
+import { socialOnly, storeEdition } from '@/lib/storeEdition';
 import { growComposer } from '@/lib/wallet/composer';
 import { relativeTime, shortAddress } from '@/lib/wallet/format';
 import { signInWithWallet } from '@/lib/wallet/session';
@@ -70,7 +70,9 @@ const SIGNING_CHAIN = 'cyberia';
 
 type Tab = FeedTab;
 
-const TABS: Tab[] = ['all', 'posts', 'dao', 'onchain'];
+const TABS: Tab[] = socialOnly()
+    ? ['posts']
+    : ['all', 'posts', 'dao', 'onchain'];
 
 const TAB_LABEL: Record<Tab, string> = {
     all: 'feedTabAll',
@@ -126,7 +128,7 @@ const usd = (value: number | null): string | null =>
               maximumFractionDigits: value >= 100 ? 0 : 2,
           });
 
-const tab = ref<Tab>('all');
+const tab = ref<Tab>(socialOnly() ? 'posts' : 'all');
 const items = ref<FeedItem[]>([]);
 const loading = ref(true);
 const failure = ref(false);
@@ -257,7 +259,8 @@ const shown = computed(() =>
     items.value.filter(
         (item) =>
             !blocklist.isBlocked(item.who?.address) &&
-            !(storeBuild && item.kind === 'launch'),
+            !(storeBuild && item.kind === 'launch') &&
+            !(socialOnly() && item.kind !== 'post'),
     ),
 );
 

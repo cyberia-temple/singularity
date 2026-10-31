@@ -31,8 +31,33 @@ export type StoreEdition = 'play' | 'appstore';
 
 const STORE_TOKEN = /\bCyberiaStore\/(play|appstore)\b/;
 
+/**
+ * The Google Play build is the social half of the wallet and nothing else: no
+ * balances, sending, swaps, NFTs, domains, DAO or token screens. Play asks an
+ * organisation account for anything that holds or moves crypto, so this build
+ * lists what it shows rather than what it hides — a screen added later stays
+ * out of it until somebody puts it here.
+ */
+const PLAY_SCREENS: readonly string[] = [
+    'feed',
+    'profile',
+    'chat',
+    'preferences',
+    'security',
+];
+
+/** Where a store build lands when it has no portfolio to show. */
+export function homeScreenIn(edition: StoreEdition | null): string {
+    return edition === 'play' ? 'feed' : 'portfolio';
+}
+
+/** Whether this build has no balances, sending or swapping at all. */
+export function socialOnlyIn(edition: StoreEdition | null): boolean {
+    return edition === 'play';
+}
+
 const HIDDEN: Record<StoreEdition, readonly string[]> = {
-    play: ['launchpad', 'stocks', 'arena', 'shop'],
+    play: [],
     appstore: [
         'launchpad',
         'stocks',
@@ -77,6 +102,10 @@ export function isHiddenIn(
     edition: StoreEdition | null,
     section: string,
 ): boolean {
+    if (edition === 'play') {
+        return !PLAY_SCREENS.includes(section);
+    }
+
     return edition !== null && HIDDEN[edition].includes(section);
 }
 
@@ -88,6 +117,15 @@ export function hiddenInStore(section: string): boolean {
 /** A list of screens without the ones this build leaves out. */
 export function visibleInStore<T extends string>(sections: readonly T[]): T[] {
     return sections.filter((section) => !hiddenInStore(section));
+}
+
+/** A list of screens without the ones this build leaves out. */
+export function homeScreen(): string {
+    return homeScreenIn(storeEdition());
+}
+
+export function socialOnly(): boolean {
+    return socialOnlyIn(storeEdition());
 }
 
 export function isDappHiddenIn(
