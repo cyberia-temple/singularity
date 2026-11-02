@@ -2,15 +2,34 @@
 
 namespace App\Services\Arena;
 
+use App\Services\SolanaRpcProxy;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\Http;
 
 class ArenaMarketFeed
 {
+    private const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+    private const TOKEN_PROGRAMS = ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PeBkAWNCKZ3FV1'];
+
+    public function __construct(private SolanaRpcProxy $solana) {}
+
     /** @return array<string, mixed> */
     public function specification(): array
     {
+        if (config('arena.market') === 'solana-hatcher-sol') {
+            return [
+                'kind' => 'solana-pumpswap', 'cluster' => 'mainnet',
+                'program' => 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA',
+                'pool' => 'CGH49JQDQSh7U8nQrDhutEV4QB3h1NxsJoe7ho7UtSH3',
+                'base_mint' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump',
+                'quote_mint' => 'So11111111111111111111111111111111111111112',
+                'base_decimals' => 6, 'quote_decimals' => 9, 'lot' => 1000000,
+                'label' => 'Solana PumpSwap HATCHER/SOL spot per 1M HATCHER; modeled paper execution',
+            ];
+        }
+
         return [
             'chain_id' => 8453,
             'factory' => '0x33128a8fc17869897dce68ed026d694621f6fdfd',
@@ -32,6 +51,9 @@ class ArenaMarketFeed
         ksort($expected);
         if ($spec !== $expected) {
             throw new DomainException('market_specification_changed');
+        }
+        if (($spec['kind'] ?? null) === 'solana-pumpswap') {
+            return $this->solanaQuote($spec, $maxAge);
         }
         $head = $this->batch([['eth_chainId', []], ['eth_getBlockByNumber', ['latest', false]]]);
         $block = $head[1];
@@ -84,6 +106,118 @@ class ArenaMarketFeed
             'source' => ['chain_id' => 8453, 'block_number' => $number, 'block_hash' => $block['hash'], 'label' => $spec['label']],
             'sqrt_price_x96' => $sqrtPrice, 'liquidity' => $this->decimal($values[5]),
         ];
+    }
+
+    /**
+     * Spot price of a PumpSwap pool from its two vaults at one finalized slot.
+     *
+     * The vaults are read out of the pool account and then checked from the
+     * other side — each must be a token account of the expected mint whose
+     * authority is the pool — so a wrong layout assumption fails closed
+     * instead of pricing some other pair.
+     *
+     * @param  array<string, mixed>  $spec
+     * @return array<string, mixed>
+     */
+    private function solanaQuote(array $spec, int $maxAge): array
+    {
+        $pool = $this->solanaCall('getAccountInfo', [$spec['pool'], ['encoding' => 'base64', 'commitment' => 'finalized']]);
+        $data = base64_decode((string) ($pool['value']['data'][0] ?? ''), true);
+        if (($pool['value']['owner'] ?? null) !== $spec['program'] || ! is_string($data) || strlen($data) < 203
+            || substr($data, 43, 32) !== $this->base58Decode($spec['base_mint'])
+            || substr($data, 75, 32) !== $this->base58Decode($spec['quote_mint'])) {
+            throw new DomainException('wrong_market_contract');
+        }
+        $vaults = [$this->base58Encode(substr($data, 139, 32)), $this->base58Encode(substr($data, 171, 32))];
+        $read = $this->solanaCall('getMultipleAccounts', [$vaults, ['encoding' => 'jsonParsed', 'commitment' => 'finalized',
+            'minContextSlot' => (int) ($pool['context']['slot'] ?? 0)]]);
+        $slot = (int) ($read['context']['slot'] ?? 0);
+        $amounts = [];
+        foreach ([[$spec['base_mint'], $spec['base_decimals']], [$spec['quote_mint'], $spec['quote_decimals']]] as $index => [$mint, $decimals]) {
+            $account = $read['value'][$index] ?? null;
+            $info = $account['data']['parsed']['info'] ?? null;
+            if (! is_array($account) || ! in_array($account['owner'] ?? null, self::TOKEN_PROGRAMS, true) || ! is_array($info)
+                || ($info['mint'] ?? null) !== $mint || ($info['owner'] ?? null) !== $spec['pool']
+                || ($info['tokenAmount']['decimals'] ?? null) !== $decimals
+                || ! preg_match('/^[1-9][0-9]{0,24}$/D', (string) ($info['tokenAmount']['amount'] ?? ''))) {
+                throw new DomainException('wrong_market_contract');
+            }
+            $amounts[] = (string) $info['tokenAmount']['amount'];
+        }
+        $timestamp = $this->solanaCall('getBlockTime', [$slot]);
+        if ($slot < 1 || ! is_int($timestamp)) {
+            throw new DomainException('invalid_market_head');
+        }
+        $blockAt = CarbonImmutable::createFromTimestampUTC($timestamp);
+        $now = CarbonImmutable::now('UTC');
+        if ($blockAt->lessThan($now->subSeconds($maxAge)) || $blockAt->greaterThan($now->addSeconds(5))) {
+            throw new DomainException('stale_market_head');
+        }
+        $hash = $this->solanaCall('getLatestBlockhash', [['commitment' => 'finalized']])['value']['blockhash'] ?? null;
+        if (! is_string($hash) || ! preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/D', $hash)) {
+            throw new DomainException('invalid_market_head');
+        }
+        // Cash micros per lot: quote/10^qd * 10^6 per (base/10^bd / lot).
+        $price = bcdiv(bcmul(bcmul($amounts[1], (string) $spec['lot'], 0), bcpow('10', (string) (6 + $spec['base_decimals']), 0), 0),
+            bcmul($amounts[0], bcpow('10', (string) $spec['quote_decimals'], 0), 0), 0);
+        if (bccomp($price, '1', 0) < 0 || bccomp($price, '100000000000000', 0) > 0) {
+            throw new DomainException('invalid_market_price');
+        }
+
+        return [
+            'price_micros' => $price, 'observed_at' => $now->toIso8601String(), 'block_at' => $blockAt->toIso8601String(),
+            'source' => ['chain_id' => 101, 'block_number' => (string) $slot, 'block_hash' => $hash, 'label' => $spec['label']],
+            'reserves' => ['base' => $amounts[0], 'quote' => $amounts[1]],
+        ];
+    }
+
+    /** @param array<mixed> $params */
+    private function solanaCall(string $method, array $params): mixed
+    {
+        try {
+            $response = $this->solana->forward(['jsonrpc' => '2.0', 'id' => 1, 'method' => $method, 'params' => $params]);
+        } catch (\RuntimeException) {
+            throw new DomainException('market_rpc_failed');
+        }
+        if (isset($response['error']) || ! array_key_exists('result', $response)) {
+            throw new DomainException('invalid_market_rpc_response');
+        }
+
+        return $response['result'];
+    }
+
+    private function base58Decode(string $input): string
+    {
+        $number = '0';
+        foreach (str_split($input) as $char) {
+            $digit = strpos(self::BASE58, $char);
+            if ($digit === false) {
+                throw new DomainException('invalid_market_address');
+            }
+            $number = bcadd(bcmul($number, '58', 0), (string) $digit, 0);
+        }
+        $bytes = '';
+        while (bccomp($number, '0', 0) > 0) {
+            $bytes = chr((int) bcmod($number, '256')).$bytes;
+            $number = bcdiv($number, '256', 0);
+        }
+
+        return str_repeat("\0", strspn($input, '1')).$bytes;
+    }
+
+    private function base58Encode(string $bytes): string
+    {
+        $number = '0';
+        foreach (str_split($bytes) as $byte) {
+            $number = bcadd(bcmul($number, '256', 0), (string) ord($byte), 0);
+        }
+        $output = '';
+        while (bccomp($number, '0', 0) > 0) {
+            $output = self::BASE58[(int) bcmod($number, '58')].$output;
+            $number = bcdiv($number, '58', 0);
+        }
+
+        return str_repeat('1', strlen($bytes) - strlen(ltrim($bytes, "\0"))).$output;
     }
 
     /** @param array<int, array{0: string, 1: array<mixed>}> $calls
