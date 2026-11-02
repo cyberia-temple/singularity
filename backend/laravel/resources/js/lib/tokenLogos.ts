@@ -31,7 +31,7 @@ export const TOKEN_LOGOS: Record<string, string> = {
     TMOS: '/token-icons/tmos.png',
     TOFZ: '/token-icons/tofz.png',
     HATCHER: '/token-icons/hatcher.jpg',
-    CYBERGUARD: '/token-icons/cyberguard.png',
+    CYBERGUARD: '/token-icons/cyberguard.jpg',
     KRSQ: '/token-icons/karasique.webp',
     YTN: '/token-icons/yenten.png',
     BNB: '/token-icons/bnb.svg',

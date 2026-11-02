@@ -286,7 +286,7 @@ return [
             'symbol' => 'CYBERGUARD',
             'name' => 'Cyberguard',
             'decimals' => 6,
-            'logo' => '/cyberguard.png',
+            'logo' => '/cyberguard.jpg',
             'category' => 'partner',
             'tagline' => 'Partner project — CyberGuard, bridged to Cyberia from Solana.',
             'what' => 'CyberGuard is a cybersecurity project whose token lives on Solana (mint VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump, traded on PumpSwap). On Cyberia it is a bridged mint/burn representation with 6 decimals, backed 1:1 by tokens held on the Solana side of the bridge.',
