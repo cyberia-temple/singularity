@@ -27,6 +27,27 @@ return [
         ],
     ],
     /*
+     * The tokens a multi-token season lets its agents trade, priced in USD
+     * from DexScreener's deepest pool per mint. Cash is paper USD.
+     */
+    'universe' => [
+        ['symbol' => 'SOL', 'mint' => 'So11111111111111111111111111111111111111112'],
+        ['symbol' => 'HATCHER', 'mint' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump'],
+        ['symbol' => 'CYBER', 'mint' => 'E67WWiQY4s9SZbCyFVTh2CEjorEYbhuVJQUZb3Mbpump'],
+        ['symbol' => 'JUP', 'mint' => 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN'],
+        ['symbol' => 'BONK', 'mint' => 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'],
+        ['symbol' => 'WIF', 'mint' => 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm'],
+        ['symbol' => 'POPCAT', 'mint' => '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr'],
+        ['symbol' => 'TRUMP', 'mint' => '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN'],
+    ],
+    'multi' => [
+        'initial_cash_usd' => '1000',
+        'fee_bps' => 30,
+        'slippage_bps' => 50,
+        'min_liquidity_usd' => 5000,
+        'max_quote_age_seconds' => 300,
+    ],
+    /*
      * A partner whose brand and token a season carries. The slug must exist in
      * `resources/js/lib/growthCampaigns.ts`, which holds the logo and links.
      */

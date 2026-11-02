@@ -20,6 +20,9 @@ class ArenaAutomation
             return 'disabled';
         }
         $season = ArenaSeason::query()->where('slug', config('arena.slug'))->first();
+        if ($season && $season->starts_at && $season->rules['mode'] === 'automatic-multi') {
+            return Cache::lock('arena-tick-'.$season->id, 180)->get(fn (): string => app(ArenaMultiAutomation::class)->tick($season)) ?? 'busy';
+        }
         if (! $season || $season->rules['mode'] !== 'automatic-paper' || ! $season->starts_at) {
             return 'not_scheduled';
         }

@@ -46,6 +46,29 @@ class ArenaModelClient
         if (strlen($system) + strlen($user) > $settings['max_prompt_bytes']) {
             throw new DomainException('model_context_too_large');
         }
+        [$data, $served] = $this->complete($model, $system, $user, $settings);
+        $decision = Validator::make(['decision' => $data], [
+            'decision' => ['required', 'array:action,bps,reason'],
+            'decision.action' => ['required', Rule::in(['hold', 'buy', 'sell'])],
+            'decision.bps' => ['required', 'integer', Rule::in([0, 2500, 5000, 10000])],
+            'decision.reason' => ['required', 'string', 'max:600'],
+        ])->validated()['decision'];
+        if (! is_int($data['bps']) || ($decision['action'] === 'hold') !== ($decision['bps'] === 0)) {
+            throw new DomainException('invalid_model_action');
+        }
+
+        return ['decision' => [...$decision, 'model' => $model], 'served_model' => $served];
+    }
+
+    /**
+     * One zero-price completion, refused unless the served model, the finish
+     * and the size are what was asked for.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array{0: array<mixed>, 1: mixed}
+     */
+    private function complete(string $model, string $system, string $user, array $settings): array
+    {
         $response = Http::withToken((string) config('arena.automation.api_key'))->acceptJson()
             ->connectTimeout(3)->timeout($settings['timeout_seconds'])->withOptions(['allow_redirects' => false])
             ->post('https://openrouter.ai/api/v1/chat/completions', [
@@ -67,17 +90,46 @@ class ArenaModelClient
             throw new DomainException('model_response_rejected');
         }
         $data = json_decode($content, true, 8, JSON_THROW_ON_ERROR);
+
+        if (! is_array($data)) {
+            throw new DomainException('model_response_rejected');
+        }
+
+        return [$data, $served];
+    }
+
+    public const MULTI_PROMPT = 'You are a bounded paper-trading contestant on a basket of Solana tokens. You have no tools, wallet, web access or private memory. Use only the supplied board (USD per whole token from a public DEX index, with pool liquidity and the 24h change), your own portfolio and your recent trades. Cash is paper USD. Do not invent news, indicators or history. Compare costs and uncertainty: every order pays the modeled fee and slippage, and thin pools move. Output only JSON with exactly action (hold/buy/sell), token (a symbol from the board, or null for hold), bps (0 for hold; 2500/5000/10000 otherwise) and reason (at most 600 characters). No markdown. Buying spends that fraction of cash on the token; selling sells that fraction of your position in it. Never buy with no cash or sell a token you do not hold. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object. Example: {"action":"buy","token":"SOL","bps":2500,"reason":"Deepest pool, small allocation while the board is mixed."}';
+
+    /**
+     * @param  array<string, mixed>  $rules
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    public function decideMulti(string $actor, array $rules, array $context): array
+    {
+        $settings = $rules['automation'];
+        self::assertFreeOnly($settings);
+        $model = $settings['models'][$actor];
+        $system = $settings['prompt']."\nMethod: ".$rules['agents'][$actor]['method'];
+        $user = json_encode($context, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        if (strlen($system) + strlen($user) > $settings['max_prompt_bytes']) {
+            throw new DomainException('model_context_too_large');
+        }
+        [$data, $served] = $this->complete($model, $system, $user, $settings);
+        $tokens = array_column($rules['universe'], 'symbol');
         $decision = Validator::make(['decision' => $data], [
-            'decision' => ['required', 'array:action,bps,reason'],
+            'decision' => ['required', 'array:action,token,bps,reason'],
             'decision.action' => ['required', Rule::in(['hold', 'buy', 'sell'])],
+            'decision.token' => ['nullable', 'string', Rule::in($tokens)],
             'decision.bps' => ['required', 'integer', Rule::in([0, 2500, 5000, 10000])],
             'decision.reason' => ['required', 'string', 'max:600'],
         ])->validated()['decision'];
-        if (! is_int($data['bps']) || ($decision['action'] === 'hold') !== ($decision['bps'] === 0)) {
+        $hold = $decision['action'] === 'hold';
+        if (! is_int($data['bps']) || $hold !== ($decision['bps'] === 0) || (! $hold && empty($decision['token']))) {
             throw new DomainException('invalid_model_action');
         }
 
-        return ['decision' => [...$decision, 'model' => $model], 'served_model' => $response->json('model')];
+        return ['decision' => [...$decision, 'token' => $hold ? null : $decision['token'], 'model' => $model], 'served_model' => $served];
     }
 
     /** @param array<string, mixed> $settings */
