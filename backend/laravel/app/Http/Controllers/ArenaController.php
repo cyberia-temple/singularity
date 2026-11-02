@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Middleware\EnsureCrmAdmin;
 use App\Http\Requests\StoreArenaCommentRequest;
+use App\Models\ArenaAgent;
 use App\Models\ArenaComment;
 use App\Models\ArenaSeason;
+use App\Services\Arena\ArenaLeague;
 use App\Services\Arena\ArenaSeasonManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -76,13 +78,22 @@ class ArenaController extends Controller
         ]);
     }
 
-    public function agent(string $agent): Response
+    public function agent(string $agent, ArenaLeague $league): Response
     {
         abort_unless(config('arena.enabled'), 404);
-        $season = ArenaSeason::query()->where('slug', config('arena.slug'))->firstOrFail();
-        abort_unless($season->rules['mode'] === 'automatic-multi' && isset($season->rules['agents'][$agent]), 404);
+        $season = ArenaSeason::query()->where('slug', config('arena.slug'))->first();
+        if ($season && $season->rules['mode'] === 'automatic-multi' && isset($season->rules['agents'][$agent])) {
+            return $this->multi($season, $agent);
+        }
+        $registered = ArenaAgent::query()->where('slug', $agent)->whereNull('hidden_at')->firstOrFail();
 
-        return $this->multi($season, $agent);
+        return Inertia::render('ArenaLeagueAgent', [
+            'agent' => ['slug' => $registered->slug, 'name' => $registered->name, 'framework' => $registered->framework,
+                'description' => $registered->description, 'website' => $registered->website, 'owner' => $registered->owner_address,
+                'registeredAt' => $registered->created_at->toIso8601String(), 'lastTradeAt' => $registered->last_trade_at?->toIso8601String()],
+            'book' => $league->book($registered),
+            'season' => $season ? ['title' => $season->title] : null,
+        ]);
     }
 
     /**
@@ -107,11 +118,12 @@ class ArenaController extends Controller
                 'decisions' => $pending->status === 'awaiting_fill' ? ($pending->record['decisions'] ?? null) : null] : null,
             'skipped' => $season->cycles()->where('status', 'skipped')->orderByDesc('slot')->limit(5)->get(['slot', 'error_code'])
                 ->map(fn ($cycle) => ['slot' => $cycle->slot, 'error' => $cycle->error_code]),
+            'league' => $agent === null ? app(ArenaLeague::class)->standings() : [],
             'rounds' => $season->rounds()->orderBy('sequence')->get()->map(fn ($round) => [
                 'sequence' => $round->sequence, 'decisionAt' => $round->decision_at->toIso8601String(),
                 'filledAt' => $round->filled_at->toIso8601String(), 'recordHash' => $round->record_hash,
                 'decisions' => $round->evidence['decisions'],
-                'board' => collect($round->evidence['board']['prices'] ?? [])->map(fn ($row) => [
+                'board' => collect($round->evidence['board']['prices'] ?? [])->map(fn ($row) => ['symbol' => $row['symbol'] ?? null,
                     'usd' => $row['usd'], 'change' => $row['change_h24'], 'liquidity' => $row['liquidity_usd'], 'pair' => $row['pair']]),
                 'result' => $round->result,
             ]),
@@ -179,7 +191,7 @@ class ArenaController extends Controller
     {
         return response()->json([
             'format' => match ($season->rules['mode']) {
-                'automatic-multi' => 'cyberia-arena-automatic-multi-v3',
+                'automatic-multi' => 'cyberia-arena-automatic-multi-v'.($season->rules['version'] ?? 3),
                 'automatic-paper' => 'cyberia-arena-automatic-paper-v2',
                 default => 'cyberia-arena-imported-paper-v1',
             },

@@ -30,16 +30,14 @@ return [
      * The tokens a multi-token season lets its agents trade, priced in USD
      * from DexScreener's deepest pool per mint. Cash is paper USD.
      */
-    'universe' => [
+    // No fixed list: an agent may trade any Solana mint with a pool above the
+    // liquidity floor. These are always on the board (the benchmark and the
+    // partner's token); DexScreener's most promoted mints fill the rest.
+    'anchors' => [
         ['symbol' => 'SOL', 'mint' => 'So11111111111111111111111111111111111111112'],
         ['symbol' => 'HATCHER', 'mint' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump'],
-        ['symbol' => 'CYBER', 'mint' => 'E67WWiQY4s9SZbCyFVTh2CEjorEYbhuVJQUZb3Mbpump'],
-        ['symbol' => 'JUP', 'mint' => 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN'],
-        ['symbol' => 'BONK', 'mint' => 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'],
-        ['symbol' => 'WIF', 'mint' => 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm'],
-        ['symbol' => 'POPCAT', 'mint' => '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr'],
-        ['symbol' => 'TRUMP', 'mint' => '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN'],
     ],
+    'candidates' => 12,
     'multi' => [
         'initial_cash_usd' => '1000',
         'fee_bps' => 30,

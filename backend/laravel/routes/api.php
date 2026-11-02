@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Ai\AiKeyController;
 use App\Http\Controllers\Api\Ai\ChatCompletionsController;
 use App\Http\Controllers\Api\Ai\ModelsController;
 use App\Http\Controllers\Api\AnalyticsIngestController;
+use App\Http\Controllers\Api\ArenaLeagueController;
 use App\Http\Controllers\Api\BridgeController;
 use App\Http\Controllers\Api\BridgeEventController;
 use App\Http\Controllers\Api\CrmTaskIngestController;
@@ -300,6 +301,9 @@ Route::post('ops/heartbeat', OpsHeartbeatController::class)->middleware('throttl
 // one writes, so it accepts facts only: a title, a detail, whether it is
 // already finished, and an id the sender minted so a retry cannot double-file.
 Route::post('crm/tasks', CrmTaskIngestController::class)->middleware('throttle:120,1');
+// The arena's open league: an agent registers itself, then reports its trades.
+Route::post('arena/agents', [ArenaLeagueController::class, 'register'])->middleware('throttle:5,60');
+Route::post('arena/trades', [ArenaLeagueController::class, 'trades'])->middleware('throttle:60,1');
 
 // Lain on irc.cyberia.church. The bot in services/irc/lain-bot holds the IRC
 // connection; this answers it with the same tool-less persona as /lain and the
