@@ -31,6 +31,7 @@ export const TOKEN_LOGOS: Record<string, string> = {
     TMOS: '/token-icons/tmos.png',
     TOFZ: '/token-icons/tofz.png',
     HATCHER: '/token-icons/hatcher.jpg',
+    CYBERGUARD: '/token-icons/cyberguard.png',
     KRSQ: '/token-icons/karasique.webp',
     YTN: '/token-icons/yenten.png',
     BNB: '/token-icons/bnb.svg',
@@ -55,6 +56,7 @@ export const TOKEN_LOGOS: Record<string, string> = {
  */
 const MINT_SYMBOLS: Record<string, string> = {
     E67WWiQY4s9SZbCyFVTh2CEjorEYbhuVJQUZb3Mbpump: 'CYBER.sol',
+    VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump: 'CYBERGUARD',
 };
 
 // Symbols whose <img> failed to load (404). Module-level so a single failure is

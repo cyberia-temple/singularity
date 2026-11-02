@@ -348,6 +348,7 @@ const hiddenTokens = computed(() => held.value.hidden);
 const TAG_LABEL = {
     bridged: 'provBridged',
     wrapped: 'provWrapped',
+    partner: 'provPartner',
     unverified: 'provUnverified',
 } as const;
 

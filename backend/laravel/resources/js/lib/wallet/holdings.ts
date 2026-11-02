@@ -6,7 +6,7 @@ import type {
     WalletTokenBalance,
 } from '@/lib/wallet';
 import { usdValue } from '@/lib/wallet/format';
-import { provenanceOf } from '@/lib/wallet/provenance';
+import { partnerMint, provenanceOf } from '@/lib/wallet/provenance';
 
 /**
  * What a person holds, one asset a row, across every network — the list the
@@ -17,7 +17,7 @@ import { provenanceOf } from '@/lib/wallet/provenance';
  * sometimes bait named after a real coin), so they are left out unless asked
  * for, and counted, so a list that hides them can say how many it hid.
  */
-export type HoldingTag = 'bridged' | 'wrapped' | 'unverified';
+export type HoldingTag = 'bridged' | 'wrapped' | 'partner' | 'unverified';
 
 export type Holding = {
     key: string;
@@ -118,9 +118,13 @@ export const holdings = (
                 usd: usdValue(token.balance, token.decimals, price),
                 logo: logoForToken(chainId, token.address, token.symbol),
                 tag:
-                    known?.kind === 'bridged' || known?.kind === 'wrapped'
+                    known?.kind === 'bridged' ||
+                    known?.kind === 'wrapped' ||
+                    known?.kind === 'partner'
                         ? known.kind
-                        : unverified
+                        : chainId === undefined && partnerMint(token.address)
+                          ? 'partner'
+                          : unverified
                           ? 'unverified'
                           : null,
             });

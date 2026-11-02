@@ -172,6 +172,13 @@
       "burnable": true
     },
     {
+      "symbol": "CYBERGUARD",
+      "contract": "CyberGuard",
+      "artifact": "contracts/CyberGuard.sol/CyberGuard.json",
+      "address": "",
+      "burnable": true
+    },
+    {
       "symbol": "ETH",
       "contract": "ETH",
       "artifact": "contracts/ETH.sol/ETH.json",

@@ -282,6 +282,24 @@ return [
             ],
         ],
 
+        '__cyberguard_evm__' => [
+            'symbol' => 'CYBERGUARD',
+            'name' => 'Cyberguard',
+            'decimals' => 6,
+            'logo' => '/cyberguard.png',
+            'category' => 'partner',
+            'tagline' => 'Partner project — CyberGuard, bridged to Cyberia from Solana.',
+            'what' => 'CyberGuard is a cybersecurity project whose token lives on Solana (mint VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump, traded on PumpSwap). On Cyberia it is a bridged mint/burn representation with 6 decimals, backed 1:1 by tokens held on the Solana side of the bridge.',
+            'why' => 'CyberGuard is a Cyberia partner since November 2026 and is reviewing the security of the Cyberia wallet. Bridge it in, trade it on the Cyberia DEX and pool it with CYBER. Partner status is not an audit of the token itself — check the contract and the liquidity before you trade.',
+            'links' => [
+                ['label' => 'Website', 'url' => 'https://cyberguardai.org/'],
+                ['label' => 'X', 'url' => 'https://x.com/CyberGuardAISec'],
+                ['label' => 'Telegram', 'url' => 'https://t.me/cyberguardai'],
+                ['label' => 'DexScreener', 'url' => 'https://dexscreener.com/solana/6RxgxA8x8Nkbpejp3quX4tBwbKuUPrL7XnEGE6zLV1Cm'],
+                ['label' => 'Bridge', 'url' => '/bridge'],
+            ],
+        ],
+
         // ---- Cyberia launchpad --------------------------------------------
 
         '0x05cd1afd5b2df3cca6ceab80cbc21168ec981e8b' => [

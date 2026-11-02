@@ -821,6 +821,17 @@ return [
                 'solana' => ['mint' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump', 'decimals' => 6, 'token_program' => 'token-2022'],
             ],
         ],
+        // CyberGuard — partner token (pump.fun mint on Solana), bridged the
+        // HATCHER way: the relayer EOA owns the 6-dec EVM wrapper and mints on
+        // bridge-IN / burns on bridge-OUT.
+        'CYBERGUARD' => [
+            'symbol' => 'CYBERGUARD',
+            'model' => 'mint',
+            'chains' => [
+                'cyberia' => ['address' => '__CYBERGUARD_EVM__', 'decimals' => 6],
+                'solana' => ['mint' => 'VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump', 'decimals' => 6, 'token_program' => '__CYBERGUARD_PROGRAM__'],
+            ],
+        ],
         // Native SOL bridged into the Cyberia SOL wrapper (9-dec, matching
         // lamports; relayer-owned Ownable mint/burn). Deposits are plain
         // system transfers to the Solana hot wallet; payouts are native SOL

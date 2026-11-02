@@ -64,6 +64,7 @@ export const KNOWN_TOKENS: KnownToken[] = [
         address: '0x621021F18b6404123f98b1395c418868418ACF36',
         symbol: 'HATCHER',
     },
+    { address: '__CYBERGUARD_EVM__', symbol: 'CYBERGUARD' },
     {
         address: '0x03EB2fb8473C0370c8F6463efEE5f5Cf4EC011c7',
         symbol: 'JupUSD',

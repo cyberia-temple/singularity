@@ -7,7 +7,7 @@ import { logoForToken } from '@/lib/tokenLogos';
 import { describeReadError, formatUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
 import { formatUsd, shortAddress, usdValue } from '@/lib/wallet/format';
-import { provenanceOf } from '@/lib/wallet/provenance';
+import { partnerMint, provenanceOf } from '@/lib/wallet/provenance';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -104,7 +104,7 @@ const provenanceTag = (
     // Solana and the Bitcoin family have no contract registry here: no claim
     // either way rather than calling every SPL token unverified.
     if (chain.value.chainId === undefined) {
-        return null;
+        return partnerMint(token.address) ? { label: t('provPartner') } : null;
     }
 
     const known = provenanceOf(chain.value.chainId, token.address);
@@ -115,6 +115,10 @@ const provenanceTag = (
 
     if (known?.kind === 'wrapped') {
         return { label: t('provWrapped') };
+    }
+
+    if (known?.kind === 'partner') {
+        return { label: t('provPartner') };
     }
 
     if (known) {

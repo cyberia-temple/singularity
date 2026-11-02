@@ -570,6 +570,7 @@ export const walletMessages: Messages = {
         tokenByHand: 'Added by hand',
         provBridged: 'Bridged via Cyberia',
         provWrapped: 'Wrapped',
+        provPartner: 'Partner · not audited',
         provUnverified: 'Unverified',
         tokensScreenBody:
             'Every token this vault holds, network by network. They share the address and the gas of the network they sit on — a token is not a chain of its own.',
@@ -3158,6 +3159,7 @@ export const walletMessages: Messages = {
         tokenByHand: 'Добавлен вручную',
         provBridged: 'Через мост Cyberia',
         provWrapped: 'Обёрнутый',
+        provPartner: 'Партнёр · без аудита',
         provUnverified: 'Не проверен',
         tokensScreenBody:
             'Все токены этого хранилища, по сетям. Они живут на адресе своей сети и оплачиваются её газом — токен не отдельная сеть.',
@@ -5658,6 +5660,7 @@ export const walletMessages: Messages = {
         tokenByHand: '手动添加',
         provBridged: '经 Cyberia 跨链桥',
         provWrapped: '封装',
+        provPartner: '合作伙伴 · 未审计',
         provUnverified: '未验证',
         tokensScreenBody:
             '这个保险库持有的所有代币，按网络分开。它们和所在网络共用同一个地址、同一份 gas — 代币不是一条自己的链。',
