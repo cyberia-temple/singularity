@@ -125,7 +125,7 @@ export const BRIDGE_TOKENS: Record<string, BridgeTokenInfo> = {
         evmDecimals: 6,
         solanaDecimals: 6,
         model: 'mint',
-        solanaTokenProgram: '__CYBERGUARD_PROGRAM__',
+        solanaTokenProgram: 'token-2022',
     },
     YTN: {
         symbol: 'YTN',

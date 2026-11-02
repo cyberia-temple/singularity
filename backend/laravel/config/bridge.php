@@ -829,7 +829,7 @@ return [
             'model' => 'mint',
             'chains' => [
                 'cyberia' => ['address' => '__CYBERGUARD_EVM__', 'decimals' => 6],
-                'solana' => ['mint' => 'VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump', 'decimals' => 6, 'token_program' => '__CYBERGUARD_PROGRAM__'],
+                'solana' => ['mint' => 'VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump', 'decimals' => 6, 'token_program' => 'token-2022'],
             ],
         ],
         // Native SOL bridged into the Cyberia SOL wrapper (9-dec, matching
