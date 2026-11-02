@@ -6,7 +6,6 @@ export type BridgeTokenSymbol =
     | 'USDG'
     | 'JupUSD'
     | 'HATCHER'
-    | 'CYBERGUARD'
     | 'YTN'
     | 'BTC'
     | 'LTC'
@@ -112,17 +111,6 @@ export const BRIDGE_TOKENS: Record<string, BridgeTokenInfo> = {
         evmAddress: '0x621021F18b6404123f98b1395c418868418ACF36',
         solanaMint: 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump',
         evmDecimals: 9,
-        solanaDecimals: 6,
-        model: 'mint',
-        solanaTokenProgram: 'token-2022',
-    },
-    // CyberGuard — partner token from Solana (pump.fun mint), same mint model
-    // as HATCHER; the EVM wrapper keeps the SPL mint's 6 decimals.
-    CYBERGUARD: {
-        symbol: 'CYBERGUARD',
-        evmAddress: '__CYBERGUARD_EVM__',
-        solanaMint: 'VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump',
-        evmDecimals: 6,
         solanaDecimals: 6,
         model: 'mint',
         solanaTokenProgram: 'token-2022',
@@ -236,7 +224,6 @@ export const SUPPORTED_TOKEN_SYMBOLS: BridgeTokenSymbol[] = [
     'USDG',
     'JupUSD',
     'HATCHER',
-    'CYBERGUARD',
     'YTN',
     'BTC',
     'LTC',

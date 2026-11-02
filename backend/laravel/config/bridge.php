@@ -823,12 +823,13 @@ return [
         ],
         // CyberGuard — partner token (pump.fun mint on Solana), bridged the
         // HATCHER way: the relayer EOA owns the 6-dec EVM wrapper and mints on
-        // bridge-IN / burns on bridge-OUT.
+        // bridge-IN / burns on bridge-OUT. Unset address = the corridor stays
+        // off: nothing is offered or reserved before the wrapper is deployed.
         'CYBERGUARD' => [
             'symbol' => 'CYBERGUARD',
             'model' => 'mint',
             'chains' => [
-                'cyberia' => ['address' => '__CYBERGUARD_EVM__', 'decimals' => 6],
+                'cyberia' => ['address' => env('CYBERGUARD_EVM_ADDRESS', ''), 'decimals' => 6],
                 'solana' => ['mint' => 'VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump', 'decimals' => 6, 'token_program' => 'token-2022'],
             ],
         ],
