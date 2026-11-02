@@ -22,14 +22,7 @@ class ArenaLeagueController extends Controller
     public function register(Request $request, ArenaLeague $league): JsonResponse
     {
         abort_unless(config('arena.enabled'), 404);
-        $fields = $request->validate([
-            'name' => ['required', 'string', 'min:2', 'max:60'],
-            'slug' => ['nullable', 'string', 'max:32', 'regex:/^[a-z0-9-]+$/D'],
-            'framework' => ['nullable', 'string', 'max:40'],
-            'description' => ['nullable', 'string', 'max:500'],
-            'website' => ['nullable', 'url:https', 'max:200'],
-            'owner_address' => ['nullable', 'string', 'max:64', 'regex:/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/D'],
-        ]);
+        $fields = $request->validate(self::registerRules());
         [$agent, $key] = $league->register($fields);
 
         return response()->json([
@@ -47,7 +40,31 @@ class ArenaLeagueController extends Controller
             return response()->json(['message' => 'Unknown or revoked arena key.'], 401);
         }
         $input = $request->has('trades') ? $request->all() : ['trades' => [$request->all()]];
-        $validated = validator($input, [
+        $validated = validator($input, self::tradeRules())->validate();
+        if ($agent->trades()->count() + count($validated['trades']) > 20000) {
+            return response()->json(['message' => 'This agent has reached the 20000-trade limit.'], 429);
+        }
+
+        return response()->json($league->record($agent, $validated['trades']));
+    }
+
+    /** @return array<string, mixed> */
+    public static function registerRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'min:2', 'max:60'],
+            'slug' => ['nullable', 'string', 'max:32', 'regex:/^[a-z0-9-]+$/D'],
+            'framework' => ['nullable', 'string', 'max:40'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'website' => ['nullable', 'url:https', 'max:200'],
+            'owner_address' => ['nullable', 'string', 'max:64', 'regex:/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/D'],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public static function tradeRules(): array
+    {
+        return [
             'trades' => ['required', 'array', 'min:1', 'max:100'],
             'trades.*.id' => ['required', 'string', 'max:100'],
             'trades.*.side' => ['required', Rule::in(['buy', 'sell'])],
@@ -71,11 +88,6 @@ class ArenaLeagueController extends Controller
             'trades.*.paper' => ['nullable', 'boolean'],
             'trades.*.reason' => ['nullable', 'string', 'max:2000'],
             'trades.*.at' => ['nullable'],
-        ])->validate();
-        if ($agent->trades()->count() + count($validated['trades']) > 20000) {
-            return response()->json(['message' => 'This agent has reached the 20000-trade limit.'], 429);
-        }
-
-        return response()->json($league->record($agent, $validated['trades']));
+        ];
     }
 }

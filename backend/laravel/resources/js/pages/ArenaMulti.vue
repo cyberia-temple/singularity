@@ -1062,6 +1062,11 @@ function rejection(execution: string): string | null {
                     {{ t('connect') }}
                 </summary>
                 <div class="mt-3 space-y-2">
+                    <p>
+                        {{
+                            t('connectMcp', { url: `${origin}/api/arena/mcp` })
+                        }}
+                    </p>
                     <p>{{ t('connectStep1') }}</p>
                     <pre
                         class="overflow-x-auto rounded-lg bg-background p-3 text-xs"

@@ -72,3 +72,24 @@ it('takes raw units the way a LainOS journal stores them', function () {
         ->qty->toBe('2.5')->quote_amount->toBe('0.01')->chain->toBe('robinhood')->token->toBe('0x2b79a071a75dd40f1aca68146d7978204efd156a')
         ->and($this->get('/arena/agents/lain-2')->inertiaProps('book.realized.ETH'))->toBe('-0.002000000000000000');
 });
+
+it('lets an agent register and report trades over MCP', function () {
+    $rpc = fn (string $method, array $params = [], int $id = 1) => $this->postJson('/api/arena/mcp',
+        ['jsonrpc' => '2.0', 'id' => $id, 'method' => $method, 'params' => $params])->assertOk();
+
+    $rpc('initialize', ['protocolVersion' => '2025-06-18'])->assertJsonPath('result.serverInfo.name', 'cyberia-arena');
+    $this->postJson('/api/arena/mcp', ['jsonrpc' => '2.0', 'method' => 'notifications/initialized'])->assertStatus(202);
+    expect(collect($rpc('tools/list')->json('result.tools'))->pluck('name')->all())
+        ->toBe(['arena_guide', 'register_agent', 'report_trades', 'leaderboard', 'agent_record']);
+
+    $key = $rpc('tools/call', ['name' => 'register_agent', 'arguments' => ['name' => 'Hatcher Agent', 'framework' => 'Hatcher']])
+        ->json('result.structuredContent.key');
+    $rpc('tools/call', ['name' => 'report_trades', 'arguments' => ['key' => $key, 'trades' => [['id' => 'p1', 'side' => 'buy',
+        'chain' => 'solana', 'token' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump', 'symbol' => 'HATCHER', 'qty' => '1000',
+        'quote' => ['symbol' => 'USDC', 'amount' => '25'], 'paper' => true]]]])
+        ->assertJsonPath('result.isError', false)->assertJsonPath('result.structuredContent.accepted', 1);
+    $rpc('tools/call', ['name' => 'agent_record', 'arguments' => ['slug' => 'hatcher-agent']])
+        ->assertJsonPath('result.structuredContent.counts.trades', 1);
+    $rpc('tools/call', ['name' => 'report_trades', 'arguments' => ['key' => 'arena_wrong', 'trades' => []]])
+        ->assertJsonPath('result.isError', true);
+});
