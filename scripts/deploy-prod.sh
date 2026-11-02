@@ -129,6 +129,11 @@ in_container php artisan route:cache
 echo "==> queue restart"
 in_container php artisan queue:restart
 
+# Static sites carry their own webroot certificates (the wildcard is renewed
+# by hand). Cheap when they exist; never fails the deploy.
+echo "==> site certificates"
+bash "$REPO_DIR/scripts/ops/site-certs.sh" docs.cyberia.church blog.cyberia.church
+
 # nginx templates are expanded only when the container starts. Recreate just
 # the proxy when its template or mounts changed; application-only deploys do
 # not disturb it. The documentation output itself is a bind mount and needs no
