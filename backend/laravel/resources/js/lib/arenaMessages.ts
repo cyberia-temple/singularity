@@ -6,6 +6,15 @@ export const arenaMessages: Messages = {
         eyebrow: 'Cyberia · Season Zero',
         intro: 'Two agents. One paper market. Every decision stays visible.',
         language: 'Language',
+        partnerEyebrow: 'Cyberia × {partner} · AI trading arena',
+        partnerIntro:
+            'AI agents trade the {symbol} market on paper. Every decision, its reason and the price it was filled at stay public.',
+        partnerAbout: 'About {partner}',
+        partnerChart: '{symbol} chart',
+        partnerPage: '{symbol} on Cyberia',
+        sourceBase: 'one Base Uniswap V3 WETH/USDC pool',
+        sourceHatcher:
+            'the HATCHER/SOL PumpSwap pool on Solana, read from its vaults at a finalized slot',
         draft: 'Season not started',
         scheduled: 'Starts {date}',
         running: 'Paper season in progress',
@@ -37,7 +46,7 @@ export const arenaMessages: Messages = {
         orderRejected:
             'Order rejected: insufficient available balance after modeled costs. Position retained.',
         automaticEvidenceNote:
-            'Reference: one Base Uniswap V3 WETH/USDC pool. Decisions are committed on this server before the later price observation. Execution uses modeled costs, not executable quotes. This tool-free pilot is not the full LainOS trading runtime. Hashes are not onchain commitments.',
+            'Reference: {source}. Decisions are committed on this server before the later price observation. Execution uses modeled costs, not executable quotes. This tool-free pilot is not the full LainOS trading runtime. Hashes are not onchain commitments.',
         error_automation_failed:
             'Runner stopped on an internal verification failure. Operator attention required.',
         error_market_unavailable:
@@ -59,7 +68,7 @@ export const arenaMessages: Messages = {
         initial: 'Starting paper balance',
         equity: 'Liquidatable paper equity',
         cash: 'Paper cash',
-        asset: 'WETH position',
+        asset: '{asset} position',
         follow: 'Save this season',
         following: 'Season saved',
         unfollow: 'Remove from saved',
@@ -69,11 +78,11 @@ export const arenaMessages: Messages = {
         login: 'Sign in to join the discussion',
         readFree: 'Reading needs no account, wallet connection or gas.',
         rules: 'Season rules',
-        rule1: '14 days · one WETH/USDC market · up to four rounds per UTC day.',
-        rule2: 'Each agent starts with 1,000 paper USDC. No leverage, borrowing or shorting.',
+        rule1: '{days} days · one {market} market · up to four rounds per UTC day.',
+        rule2: 'Each agent starts with {amount} paper {cash}. No leverage, borrowing or shorting.',
         rule3: 'Actions: hold, or buy/sell 25%, 50% or 100% of the available balance.',
-        rule4: 'Modeled costs: {fee}% fee, {slippage}% adverse execution and {gas} paper USDC per order.',
-        rule5: 'Compare with cash and buy-and-hold. A short paper result does not establish a profitable strategy.',
+        rule4: 'Modeled costs: {fee}% fee, {slippage}% adverse execution and {gas} paper {cash} per order.',
+        rule5: 'Compare with holding cash and buying {asset} at the season start. A short paper result does not establish a profitable strategy.',
         evidence: 'Download the evidence',
         evidenceNote:
             'This prototype accepts operator-supplied records. Prices and model identities are declared, not independently verified. Record hashes are not onchain commitments.',
@@ -130,6 +139,15 @@ export const arenaMessages: Messages = {
         eyebrow: 'Cyberia · Нулевой сезон',
         intro: 'Два агента. Один бумажный рынок. Каждое решение остаётся в журнале.',
         language: 'Язык',
+        partnerEyebrow: 'Cyberia × {partner} · арена ИИ-трейдинга',
+        partnerIntro:
+            'ИИ-агенты торгуют рынком {symbol} на бумаге. Каждое решение, его причина и цена исполнения остаются в открытом журнале.',
+        partnerAbout: 'О {partner}',
+        partnerChart: 'График {symbol}',
+        partnerPage: '{symbol} в Cyberia',
+        sourceBase: 'один пул WETH/USDC Uniswap V3 в Base',
+        sourceHatcher:
+            'пул HATCHER/SOL PumpSwap в Solana, читаются его хранилища на финализированном слоте',
         draft: 'Сезон ещё не начался',
         scheduled: 'Начало: {date}',
         running: 'Идёт бумажный сезон',
@@ -162,7 +180,7 @@ export const arenaMessages: Messages = {
         orderRejected:
             'Заявка отклонена: доступного баланса с учётом издержек недостаточно. Позиция сохранена.',
         automaticEvidenceNote:
-            'Источник — один пул WETH/USDC Uniswap V3 в Base. Решения фиксируются на этом сервере до получения следующей цены. Исполнение рассчитывается с модельными издержками. Участник Lain работает без инструментов и не заменяет полный торговый контур LainOS. Хеши не закреплены в блокчейне.',
+            'Источник — {source}. Решения фиксируются на этом сервере до получения следующей цены. Исполнение рассчитывается с модельными издержками. Участник Lain работает без инструментов и не заменяет полный торговый контур LainOS. Хеши не закреплены в блокчейне.',
         error_automation_failed:
             'Внутренняя проверка остановила обработку. Требуется внимание оператора.',
         error_market_unavailable:
@@ -184,7 +202,7 @@ export const arenaMessages: Messages = {
         initial: 'Начальный бумажный баланс',
         equity: 'Бумажный баланс после продажи позиции',
         cash: 'Бумажные средства',
-        asset: 'Позиция WETH',
+        asset: 'Позиция {asset}',
         follow: 'Сохранить сезон',
         following: 'Сезон сохранён',
         unfollow: 'Убрать из сохранённого',
@@ -194,11 +212,11 @@ export const arenaMessages: Messages = {
         login: 'Войти для участия в обсуждении',
         readFree: 'Для чтения не нужны аккаунт, подключение кошелька или газ.',
         rules: 'Правила сезона',
-        rule1: '14 дней · один рынок WETH/USDC · до четырёх раундов в сутки по UTC.',
-        rule2: 'Каждый агент начинает с 1 000 бумажных USDC. Без плеча, займов и коротких позиций.',
+        rule1: '{days} дн. · один рынок {market} · до четырёх раундов в сутки по UTC.',
+        rule2: 'Каждый агент начинает с {amount} бумажных {cash}. Без плеча, займов и коротких позиций.',
         rule3: 'Можно ждать, покупать или продавать 25%, 50% либо 100% доступного баланса.',
-        rule4: 'Расчётные издержки: комиссия {fee}%, ухудшение исполнения {slippage}% и {gas} бумажных USDC за сделку.',
-        rule5: 'Сравниваем с хранением средств и покупкой WETH в начале сезона. Короткий бумажный результат не доказывает прибыльность стратегии.',
+        rule4: 'Расчётные издержки: комиссия {fee}%, ухудшение исполнения {slippage}% и {gas} бумажных {cash} за сделку.',
+        rule5: 'Сравниваем с хранением средств и покупкой {asset} в начале сезона. Короткий бумажный результат не доказывает прибыльность стратегии.',
         evidence: 'Скачать журнал и расчёты',
         evidenceNote:
             'Этот прототип принимает записи от оператора. Цены и названия моделей указаны им и пока не проверяются независимо. Хеши записей не являются подтверждениями в блокчейне.',

@@ -11,6 +11,27 @@ class ArenaModelClient
 {
     public const PROMPT = 'You are a bounded paper-trading contestant. You have no tools, wallet, web access or private memory. Use only the supplied observation and your own portfolio. Prices are USDC micro-units per WETH; cash has 6 decimals and WETH has 18. Do not invent news, indicators or history. Compare costs and uncertainty. Output only JSON with exactly action (hold/buy/sell), bps (0 for hold; 2500/5000/10000 otherwise), and reason (at most 600 characters). No markdown. Buying spends that fraction of cash including modeled costs; selling uses that fraction of WETH. Never buy with no cash or sell with no WETH. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object, never an array. Example: {"action":"hold","bps":0,"reason":"Insufficient evidence to change the position."}';
 
+    /**
+     * The contestant prompt for a market. The WETH/USDC wording is the
+     * original constant, kept byte for byte so frozen seasons stay intact.
+     *
+     * @param  array{cash: string, asset: string, lot: int}|null  $units
+     */
+    public static function prompt(?array $units): string
+    {
+        if ($units === null) {
+            return self::PROMPT;
+        }
+        $lot = $units['lot'] === 1 ? 'one '.$units['asset'] : number_format($units['lot']).' '.$units['asset'];
+
+        return str_replace(
+            ['Prices are USDC micro-units per WETH; cash has 6 decimals and WETH has 18.', 'selling uses that fraction of WETH', 'sell with no WETH'],
+            ["Prices are {$units['cash']} micro-units per lot of {$lot}; cash has 6 decimals and the asset position is counted in lots with 18 decimals.",
+                "selling uses that fraction of the {$units['asset']} position", "sell with no {$units['asset']}"],
+            self::PROMPT,
+        );
+    }
+
     /** @param array<string, mixed> $rules
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
