@@ -11,6 +11,7 @@ type State = { cash: string; positions: Record<string, Position> };
 type Trade = {
     action: 'buy' | 'sell';
     token: string;
+    symbol?: string | null;
     bps: number;
     qty: string;
     price: string;
@@ -32,7 +33,13 @@ type Round = {
     decisions: Record<string, Decision>;
     board: Record<
         string,
-        { usd: string; change: number; liquidity: number; pair: string }
+        {
+            symbol: string | null;
+            usd: string;
+            change: number;
+            liquidity: number;
+            pair: string;
+        }
     >;
     result: {
         actors: Record<
@@ -45,6 +52,7 @@ type Round = {
             }
         >;
         prices: Record<string, string>;
+        symbols?: Record<string, string>;
         benchmark: { state: State; equity: string };
     };
 };
@@ -66,7 +74,8 @@ const props = defineProps<{
         slippage_bps: number;
         min_liquidity_usd: number;
         benchmark: string;
-        universe: { symbol: string; mint: string }[];
+        universe: 'any';
+        anchors: { symbol: string; mint: string }[];
         agents: Record<string, { name: string; method: string }>;
         models: Record<string, string>;
         partner?: {
@@ -90,16 +99,53 @@ const props = defineProps<{
         decisions: Record<string, Decision> | null;
     } | null;
     skipped: { slot: number; error: string }[];
+    league: {
+        slug: string;
+        name: string;
+        framework: string | null;
+        lastTradeAt: string | null;
+        trades: number;
+        chains: string[];
+        realized: Record<string, string>;
+        realizedUsd: string;
+        unrealizedUsd: string;
+        volumeUsd: string;
+        positions: number;
+    }[];
     rounds: Round[];
 }>();
 
 const { t, tag, nextTag, toggleLocale } = useLocale(arenaMultiMessages);
-usePoll(30000, { only: ['rounds', 'pending', 'automation', 'skipped'] });
+usePoll(30000, {
+    only: ['rounds', 'pending', 'automation', 'skipped', 'league'],
+});
 
 const actors = computed(() => Object.keys(props.rules.agents));
 const initial = computed(() => Number(props.rules.initial_cash_usd));
 const latest = computed(() => props.rounds.at(-1));
 const partner = computed(() => props.rules.partner ?? null);
+const origin = typeof window === 'undefined' ? '' : window.location.origin;
+/** A mint's ticker, from the rounds; the mint itself when nobody priced it. */
+function sym(mint: string | null | undefined): string {
+    if (!mint) {
+        return '';
+    }
+
+    return (
+        latest.value?.result.symbols?.[mint] ??
+        latest.value?.board[mint]?.symbol ??
+        props.rules.anchors.find((anchor) => anchor.mint === mint)?.symbol ??
+        `${mint.slice(0, 4)}…${mint.slice(-4)}`
+    );
+}
+function realizedText(realized: Record<string, string>): string {
+    const parts = Object.entries(realized).map(
+        ([symbol, value]) =>
+            `${Number(value) >= 0 ? '+' : ''}${amount(value)} ${symbol}`,
+    );
+
+    return parts.length ? parts.join(' · ') : '—';
+}
 const partnerLogo = computed(() =>
     partner.value
         ? (PARTNER_CAMPAIGNS as Record<string, { logo: string }>)[
@@ -613,7 +659,7 @@ function rejection(execution: string): string | null {
                         class="line-clamp-2 text-sm text-muted-foreground"
                     >
                         {{ t(latest.decisions[actor].action) }}
-                        {{ latest.decisions[actor].token ?? '' }} ·
+                        {{ sym(latest.decisions[actor].token) }} ·
                         {{ latest.decisions[actor].reason }}
                     </p>
                     <p class="text-sm text-primary">{{ t('openAgent') }} →</p>
@@ -640,7 +686,7 @@ function rejection(execution: string): string | null {
                     class="text-muted-foreground"
                 >
                     {{ name(actor) }}: {{ t(pending.decisions[actor].action) }}
-                    {{ pending.decisions[actor].token ?? '' }}
+                    {{ sym(pending.decisions[actor].token) }}
                     <span v-if="pending.decisions[actor].bps"
                         >{{ pending.decisions[actor].bps / 100 }}%</span
                     >
@@ -751,7 +797,7 @@ function rejection(execution: string): string | null {
                                 class="border-t border-border"
                             >
                                 <td class="p-3 font-sans font-medium">
-                                    {{ row.token }}
+                                    {{ sym(row.token) }}
                                 </td>
                                 <td class="p-3 text-right">
                                     {{ amount(row.qty) }}
@@ -849,7 +895,9 @@ function rejection(execution: string): string | null {
                                     {{ t(row.trade.action) }}
                                 </td>
                                 <td class="p-3 font-medium">
-                                    {{ row.trade.token }}
+                                    {{
+                                        row.trade.symbol ?? sym(row.trade.token)
+                                    }}
                                 </td>
                                 <td class="p-3 text-right font-mono">
                                     {{ row.trade.bps / 100 }}%
@@ -900,7 +948,7 @@ function rejection(execution: string): string | null {
                         <span class="font-medium"
                             >{{ t('round', { number: round.sequence }) }} ·
                             {{ t(round.decisions[agent].action) }}
-                            {{ round.decisions[agent].token ?? '' }}
+                            {{ sym(round.decisions[agent].token) }}
                             <span v-if="round.decisions[agent].bps"
                                 >{{ round.decisions[agent].bps / 100 }}%</span
                             ></span
@@ -930,6 +978,116 @@ function rejection(execution: string): string | null {
             </section>
         </template>
 
+        <!-- Open league -->
+        <section v-if="!agent" class="space-y-3">
+            <h2 class="text-xl font-semibold">{{ t('league') }}</h2>
+            <p class="max-w-3xl text-sm text-muted-foreground">
+                {{ t('leagueLead') }}
+            </p>
+            <div class="overflow-x-auto rounded-xl border border-border">
+                <table class="w-full text-sm">
+                    <thead
+                        class="bg-muted/30 text-left text-xs text-muted-foreground"
+                    >
+                        <tr>
+                            <th class="p-3">{{ t('agentCol') }}</th>
+                            <th class="p-3 text-right">{{ t('tradesCol') }}</th>
+                            <th class="p-3 text-right">
+                                {{ t('realizedCol') }}
+                            </th>
+                            <th class="p-3 text-right">
+                                {{ t('unrealizedCol') }}
+                            </th>
+                            <th class="p-3 text-right">{{ t('volumeCol') }}</th>
+                            <th class="p-3 text-right">{{ t('lastCol') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="row in league"
+                            :key="row.slug"
+                            class="border-t border-border"
+                        >
+                            <td class="p-3">
+                                <Link
+                                    :href="`/arena/agents/${row.slug}`"
+                                    class="font-medium text-primary underline-offset-4 hover:underline"
+                                    >{{ row.name }}</Link
+                                >
+                                <span
+                                    v-if="row.framework"
+                                    class="ml-2 text-xs text-muted-foreground"
+                                    >{{ row.framework }}</span
+                                >
+                                <span
+                                    class="ml-2 text-xs text-muted-foreground"
+                                    >{{ row.chains.join(', ') }}</span
+                                >
+                            </td>
+                            <td class="p-3 text-right font-mono">
+                                {{ row.trades }}
+                            </td>
+                            <td class="p-3 text-right font-mono">
+                                {{ realizedText(row.realized) }}
+                            </td>
+                            <td
+                                :class="[
+                                    'p-3 text-right font-mono',
+                                    tone(Number(row.unrealizedUsd)),
+                                ]"
+                            >
+                                {{ usd(row.unrealizedUsd) }}
+                            </td>
+                            <td class="p-3 text-right font-mono">
+                                {{ usd(row.volumeUsd, 0) }}
+                            </td>
+                            <td class="p-3 text-right text-xs">
+                                {{
+                                    row.lastTradeAt ? date(row.lastTradeAt) : ''
+                                }}
+                            </td>
+                        </tr>
+                        <tr v-if="!league.length">
+                            <td colspan="6" class="p-3 text-muted-foreground">
+                                {{ t('leagueEmpty') }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <details
+                class="rounded-xl border border-border bg-muted/20 p-4 text-sm"
+            >
+                <summary class="cursor-pointer font-medium">
+                    {{ t('connect') }}
+                </summary>
+                <div class="mt-3 space-y-2">
+                    <p>{{ t('connectStep1') }}</p>
+                    <pre
+                        class="overflow-x-auto rounded-lg bg-background p-3 text-xs"
+                        >{{
+                            `curl -X POST ${origin}/api/arena/agents \\
+  -H 'Content-Type: application/json' \\
+  -d '{"name":"My Agent","framework":"ElizaOS","website":"https://example.com"}'`
+                        }}</pre
+                    >
+                    <p>{{ t('connectStep2') }}</p>
+                    <pre
+                        class="overflow-x-auto rounded-lg bg-background p-3 text-xs"
+                        >{{
+                            `curl -X POST ${origin}/api/arena/trades \\
+  -H 'Authorization: Bearer arena_…' -H 'Content-Type: application/json' \\
+  -d '{"id":"tx-1","side":"buy","chain":"solana",
+       "token":"Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump","symbol":"HATCHER",
+       "qty":"125000","quote":{"symbol":"SOL","amount":"0.5"},
+       "tx":"5Kx…","paper":false,"reason":"why","at":"2026-11-03T12:00:00Z"}'`
+                        }}</pre
+                    >
+                    <p class="text-muted-foreground">{{ t('connectNote') }}</p>
+                </div>
+            </details>
+        </section>
+
         <section class="space-y-3">
             <h2 class="text-xl font-semibold">{{ t('board') }}</h2>
             <div class="overflow-x-auto rounded-xl border border-border">
@@ -952,7 +1110,7 @@ function rejection(execution: string): string | null {
                             class="border-t border-border"
                         >
                             <td class="p-3 font-sans font-medium">
-                                {{ token }}
+                                {{ row.symbol ?? sym(token) }}
                             </td>
                             <td class="p-3 text-right">{{ price(row.usd) }}</td>
                             <td :class="['p-3 text-right', tone(row.change)]">
@@ -977,7 +1135,7 @@ function rejection(execution: string): string | null {
                                 class="p-3 font-sans text-muted-foreground"
                             >
                                 {{
-                                    rules.universe
+                                    rules.anchors
                                         .map((token) => token.symbol)
                                         .join(', ')
                                 }}
@@ -1007,7 +1165,7 @@ function rejection(execution: string): string | null {
                 <li>
                     {{
                         t('rule4', {
-                            tokens: rules.universe
+                            tokens: rules.anchors
                                 .map((token) => token.symbol)
                                 .join(', '),
                             liquidity: rules.min_liquidity_usd,

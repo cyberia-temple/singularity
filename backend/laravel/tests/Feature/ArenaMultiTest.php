@@ -21,6 +21,7 @@ beforeEach(function () {
     config()->set('arena.automation.models', ['lain' => 'fixture/lain:free', 'challenger' => 'fixture/challenger:free']);
     Http::preventStrayRequests();
     $GLOBALS['arenaFaked'] = false;
+    unset($GLOBALS['arenaLainDecision']);
 });
 
 afterEach(function () {
@@ -45,9 +46,12 @@ function fakeMultiMarket(string $hatcher = '0.00002'): void
     $GLOBALS['arenaFaked'] = true;
     Http::fake(function (Request $request) {
         $hatcher = $GLOBALS['arenaHatcherPrice'];
+        if ($request->url() === 'https://api.dexscreener.com/token-boosts/top/v1') {
+            return Http::response([['chainId' => 'base', 'tokenAddress' => '0xabc'], ['chainId' => 'solana', 'tokenAddress' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump']]);
+        }
         if (str_starts_with($request->url(), 'https://api.dexscreener.com/')) {
             $pair = fn (string $mint, string $price, int $liquidity) => ['chainId' => 'solana', 'dexId' => 'pumpswap',
-                'pairAddress' => 'pair'.substr($mint, 0, 4), 'baseToken' => ['address' => $mint], 'priceUsd' => $price,
+                'pairAddress' => 'pair'.substr($mint, 0, 4), 'baseToken' => ['address' => $mint, 'symbol' => $mint === 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump' ? 'HATCHER' : 'SOL'], 'priceUsd' => $price,
                 'liquidity' => ['usd' => $liquidity], 'priceChange' => ['h24' => 1.5]];
 
             return Http::response([
@@ -57,8 +61,8 @@ function fakeMultiMarket(string $hatcher = '0.00002'): void
             ]);
         }
         $lain = $request['model'] === 'fixture/lain:free';
-        $decision = $lain ? ['action' => 'buy', 'token' => 'HATCHER', 'bps' => 5000, 'reason' => 'Partner token, half size.']
-            : ['action' => 'hold', 'token' => null, 'bps' => 0, 'reason' => 'Waiting.'];
+        $decision = $lain && isset($GLOBALS['arenaLainDecision']) ? $GLOBALS['arenaLainDecision'] : ($lain ? ['action' => 'buy', 'token' => '$hatcher', 'bps' => 5000, 'reason' => 'Partner token, half size.']
+            : ['action' => 'hold', 'token' => null, 'bps' => 0, 'reason' => 'Waiting.']);
 
         return Http::response(['model' => $request['model'], 'choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode($decision)]]]]);
     });
@@ -75,11 +79,11 @@ it('commits decisions, fills them later and records the trade', function () {
 
     $round = $season->rounds()->sole();
     $lain = $round->result['actors']['lain'];
-    expect($lain['trade'])->toMatchArray(['action' => 'buy', 'token' => 'HATCHER', 'price' => '0.000025'])
+    expect($lain['trade'])->toMatchArray(['action' => 'buy', 'token' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump', 'symbol' => 'HATCHER', 'price' => '0.000025'])
         ->and(bccomp($lain['state']['cash'], '500', 6))->toBe(0)
         ->and($round->result['actors']['challenger']['trade'])->toBeNull()
-        ->and($round->result['prices']['HATCHER'])->toBe('0.000025')
-        ->and($round->result['benchmark']['state']['positions'])->toHaveKey('SOL');
+        ->and($round->result['prices']['Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump'])->toBe('0.000025')
+        ->and($round->result['benchmark']['state']['positions'])->toHaveKey('So11111111111111111111111111111111111111112');
 });
 
 it('sells against the cost basis and reports realized profit', function () {
@@ -98,7 +102,17 @@ it('sells against the cost basis and reports realized profit', function () {
 it('renders the leaderboard and an agent page', function () {
     multiArena();
     $this->get('/arena')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaMulti')
-        ->where('agent', null)->where('rules.partner.slug', 'hatcher')->has('rules.universe', 8));
+        ->where('agent', null)->where('rules.partner.slug', 'hatcher')->where('rules.universe', 'any')->has('rules.anchors', 2));
     $this->get('/arena/agents/lain')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaMulti')->where('agent', 'lain'));
     $this->get('/arena/agents/nobody')->assertNotFound();
+});
+
+it('takes any mint, but refuses a ticker that is not on the board', function () {
+    $season = multiArena();
+    fakeMultiMarket();
+    $GLOBALS['arenaLainDecision'] = ['action' => 'buy', 'token' => 'NOTONBOARD', 'bps' => 2500, 'reason' => 'Unknown ticker.'];
+    app(ArenaAutomation::class)->tick();
+
+    expect($season->cycles()->sole()->record['attempts']['lain']['status'])->toBe('failed')
+        ->and($season->cycles()->sole()->record['attempts']['challenger']['status'])->toBe('ok');
 });

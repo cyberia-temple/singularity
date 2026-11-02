@@ -98,7 +98,7 @@ class ArenaModelClient
         return [$data, $served];
     }
 
-    public const MULTI_PROMPT = 'You are a bounded paper-trading contestant on a basket of Solana tokens. You have no tools, wallet, web access or private memory. Use only the supplied board (USD per whole token from a public DEX index, with pool liquidity and the 24h change), your own portfolio and your recent trades. Cash is paper USD. Do not invent news, indicators or history. Compare costs and uncertainty: every order pays the modeled fee and slippage, and thin pools move. Output only JSON with exactly action (hold/buy/sell), token (a symbol from the board, or null for hold), bps (0 for hold; 2500/5000/10000 otherwise) and reason (at most 600 characters). No markdown. Buying spends that fraction of cash on the token; selling sells that fraction of your position in it. Never buy with no cash or sell a token you do not hold. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object. Example: {"action":"buy","token":"SOL","bps":2500,"reason":"Deepest pool, small allocation while the board is mixed."}';
+    public const MULTI_PROMPT = 'You are a bounded paper-trading contestant on Solana tokens. You have no tools, wallet, web access or private memory. There is no fixed list: you may buy any Solana token by its mint address, and it fills only if a public DEX index prices it from a pool above the liquidity floor. The board lists what is in view this round (USD per whole token, pool liquidity, the 24h change; the promoted rows are paid promotion, not a recommendation) and every token you hold. Cash is paper USD. Do not invent news, indicators or history. Compare costs and uncertainty: every order pays the modeled fee and slippage, and thin pools move. Output only JSON with exactly action (hold/buy/sell), token (a mint address, or null for hold), bps (0 for hold; 2500/5000/10000 otherwise) and reason (at most 600 characters). No markdown. Buying spends that fraction of cash on the token; selling sells that fraction of your position in it. Never buy with no cash or sell a token you do not hold. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object. Example: {"action":"buy","token":"So11111111111111111111111111111111111111112","bps":2500,"reason":"Deepest pool, small allocation while the board is mixed."}';
 
     /**
      * @param  array<string, mixed>  $rules
@@ -116,11 +116,10 @@ class ArenaModelClient
             throw new DomainException('model_context_too_large');
         }
         [$data, $served] = $this->complete($model, $system, $user, $settings);
-        $tokens = array_column($rules['universe'], 'symbol');
         $decision = Validator::make(['decision' => $data], [
             'decision' => ['required', 'array:action,token,bps,reason'],
             'decision.action' => ['required', Rule::in(['hold', 'buy', 'sell'])],
-            'decision.token' => ['nullable', 'string', Rule::in($tokens)],
+            'decision.token' => ['nullable', 'string', 'max:64'],
             'decision.bps' => ['required', 'integer', Rule::in([0, 2500, 5000, 10000])],
             'decision.reason' => ['required', 'string', 'max:600'],
         ])->validated()['decision'];
@@ -129,7 +128,30 @@ class ArenaModelClient
             throw new DomainException('invalid_model_action');
         }
 
-        return ['decision' => [...$decision, 'token' => $hold ? null : $decision['token'], 'model' => $model], 'served_model' => $served];
+        $token = $hold ? null : self::mint((string) $decision['token'], $context);
+        if (! $hold && $token === null) {
+            throw new DomainException('invalid_model_action');
+        }
+
+        return ['decision' => [...$decision, 'token' => $token, 'model' => $model], 'served_model' => $served];
+    }
+
+    /**
+     * What a model named, as a mint: a mint as given, or a symbol that is on
+     * the board (or held) exactly once. Models often answer with a ticker.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private static function mint(string $token, array $context): ?string
+    {
+        if (preg_match(ArenaQuoteBoard::MINT, $token)) {
+            return $token;
+        }
+        $matches = collect([...$context['board'] ?? [], ...$context['portfolio']['positions'] ?? []])
+            ->filter(fn ($row) => is_string($row['symbol'] ?? null) && strcasecmp(ltrim($row['symbol'], '$'), ltrim($token, '$')) === 0)
+            ->pluck('mint')->unique()->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     /** @param array<string, mixed> $settings */

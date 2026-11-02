@@ -3,6 +3,7 @@
 namespace App\Services\Arena;
 
 use App\Models\ArenaCycle;
+use App\Models\ArenaRound;
 use App\Models\ArenaSeason;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -27,16 +28,19 @@ class ArenaMultiAutomation
         ArenaModelClient::assertFreeOnly($settings);
         $multi = config('arena.multi');
         $rules = [
-            'version' => 3, 'mode' => 'automatic-multi', 'market' => 'Solana tokens / USD',
+            'version' => 4, 'mode' => 'automatic-multi', 'market' => 'Any Solana token / USD',
             'days' => (int) config('arena.days'), 'rounds_per_day' => (int) config('arena.rounds_per_day'),
             'initial_cash_usd' => (string) $multi['initial_cash_usd'],
             'fee_bps' => (int) $multi['fee_bps'], 'slippage_bps' => (int) $multi['slippage_bps'],
             'min_liquidity_usd' => (int) $multi['min_liquidity_usd'],
-            'universe' => array_values(config('arena.universe')), 'benchmark' => 'SOL',
+            'universe' => 'any', 'anchors' => array_values(config('arena.anchors')),
+            'candidates' => ['source' => 'DexScreener top boosted Solana tokens (paid promotion, not a recommendation)',
+                'limit' => (int) config('arena.candidates')],
+            'benchmark' => 'SOL', 'benchmark_mint' => 'So11111111111111111111111111111111111111112',
             'agents' => config('arena.agents'),
             'automation' => [
                 'pricing_policy' => 'free-only', 'budget_cents' => 0, 'reservation_cents_per_call' => 0,
-                'max_price_per_million' => 0, 'max_calls' => 112, 'max_prompt_bytes' => 12000, 'max_output_tokens' => 400,
+                'max_price_per_million' => 0, 'max_calls' => 112, 'max_prompt_bytes' => 16000, 'max_output_tokens' => 400,
                 'timeout_seconds' => 20, 'opening_window_seconds' => 90, 'decision_window_seconds' => 180,
                 'fill_delay_seconds' => 60, 'fill_window_seconds' => 180,
                 'max_quote_age_seconds' => (int) $multi['max_quote_age_seconds'],
@@ -133,8 +137,10 @@ class ArenaMultiAutomation
     {
         $rules = $season->rules;
         $settings = $rules['automation'];
+        $previous = $season->rounds()->orderByDesc('sequence')->first();
         try {
-            $board = $this->board->read($rules['universe'], $rules['min_liquidity_usd']);
+            $mints = [...$this->held($rules, $previous), ...$this->board->candidates($rules['candidates']['limit'])];
+            $board = $this->board->read(array_slice(array_values(array_unique($mints)), 0, 30), $rules['min_liquidity_usd']);
         } catch (Throwable) {
             $season->update(['automation_error' => 'market_unavailable']);
 
@@ -146,13 +152,16 @@ class ArenaMultiAutomation
             return $this->skip($cycle, 'budget_exhausted');
         }
         $cycle->update(['reserved_calls' => 2, 'reserved_cents' => 0]);
-        $previous = $season->rounds()->orderByDesc('sequence')->first();
         $recent = $season->rounds()->orderByDesc('sequence')->limit(6)->get();
         $record = ['rules_hash' => $season->rules_hash, 'slot' => $cycle->slot, 'decision_at' => $cycle->decision_at->toIso8601String(),
             'board' => $board, 'attempts' => [], 'decisions' => []];
         foreach (array_keys($rules['agents']) as $actor) {
             $state = $previous?->result['actors'][$actor]['state'] ?? $this->ledger->initial($rules['initial_cash_usd']);
-            $context = ['board' => $board['prices'], 'portfolio' => $state,
+            $symbols = $previous?->result['symbols'] ?? [];
+            $context = ['board' => collect($board['prices'])->map(fn ($row, $mint) => ['mint' => $mint, 'symbol' => $row['symbol'],
+                'usd' => $row['usd'], 'liquidity_usd' => $row['liquidity_usd'], 'change_h24' => $row['change_h24']])->values()->all(),
+                'portfolio' => ['cash' => $state['cash'], 'positions' => collect($state['positions'])->map(fn ($position, $mint) => [
+                    'mint' => $mint, 'symbol' => $symbols[$mint] ?? $board['prices'][$mint]['symbol'] ?? null, ...$position])->values()->all()],
                 'equity_usd' => $previous?->result['actors'][$actor]['equity'] ?? $rules['initial_cash_usd'],
                 'recent_trades' => $recent->map(fn ($round) => $round->result['actors'][$actor]['trade'] ?? null)->filter()->values()->all(),
                 'costs' => ['fee_bps' => $rules['fee_bps'], 'slippage_bps' => $rules['slippage_bps']]];
@@ -191,7 +200,9 @@ class ArenaMultiAutomation
     {
         $rules = $season->rules;
         try {
-            $board = $this->board->read($rules['universe'], $rules['min_liquidity_usd']);
+            $decided = collect($cycle->record['decisions'] ?? [])->pluck('token')->filter()->all();
+            $held = $this->held($rules, $season->rounds()->orderByDesc('sequence')->first());
+            $board = $this->board->read([...$held, ...$decided], $rules['min_liquidity_usd']);
         } catch (Throwable) {
             $season->update(['automation_error' => 'fill_unavailable']);
 
@@ -208,6 +219,7 @@ class ArenaMultiAutomation
             // valuation; it cannot be traded at a price nobody read.
             $last = $previous?->result['prices'] ?? [];
             $fresh = array_map(fn ($row) => $row['usd'], $board['prices']);
+            $symbols = [...($previous?->result['symbols'] ?? []), ...array_map(fn ($row) => $row['symbol'], $board['prices'])];
             $prices = [...$last, ...$fresh];
             $costs = ['fee_bps' => $rules['fee_bps'], 'slippage_bps' => $rules['slippage_bps']];
             $actors = [];
@@ -217,18 +229,21 @@ class ArenaMultiAutomation
                 $trade = null;
                 try {
                     [$state, $trade] = $this->ledger->apply($state, $lockedCycle->record['decisions'][$actor], $fresh, $costs);
+                    if ($trade) {
+                        $trade['symbol'] = $symbols[$trade['token']] ?? null;
+                    }
                 } catch (DomainException $exception) {
                     $execution = 'rejected:'.$exception->getMessage();
                 }
                 $actors[$actor] = ['state' => $state, 'equity' => $this->ledger->equity($state, $prices, $costs), 'trade' => $trade, 'execution' => $execution];
             }
             $benchmark = $previous?->result['benchmark']['state'] ?? null;
-            if ($benchmark === null && isset($fresh[$rules['benchmark']])) {
+            if ($benchmark === null && isset($fresh[$rules['benchmark_mint']])) {
                 [$benchmark] = $this->ledger->apply($this->ledger->initial($rules['initial_cash_usd']),
-                    ['action' => 'buy', 'token' => $rules['benchmark'], 'bps' => 10000], $fresh, $costs);
+                    ['action' => 'buy', 'token' => $rules['benchmark_mint'], 'bps' => 10000], $fresh, $costs);
             }
             $benchmark ??= $this->ledger->initial($rules['initial_cash_usd']);
-            $result = ['actors' => $actors, 'prices' => $prices,
+            $result = ['actors' => $actors, 'prices' => $prices, 'symbols' => $symbols,
                 'benchmark' => ['state' => $benchmark, 'equity' => $this->ledger->equity($benchmark, $prices, $costs)]];
             $now = CarbonImmutable::now('UTC');
             $evidence = ['sequence' => (int) ($previous?->sequence ?? 0) + 1, 'decision_at' => $lockedCycle->decision_at->toIso8601String(),
@@ -245,6 +260,23 @@ class ArenaMultiAutomation
         });
 
         return 'complete';
+    }
+
+    /**
+     * The anchors plus every mint any agent (or the benchmark) still holds:
+     * a position has to be priced every round, whatever is in view.
+     *
+     * @param  array<string, mixed>  $rules
+     * @return list<string>
+     */
+    private function held(array $rules, ?ArenaRound $previous): array
+    {
+        $mints = array_column($rules['anchors'], 'mint');
+        foreach ([...array_values($previous?->result['actors'] ?? []), $previous?->result['benchmark'] ?? []] as $actor) {
+            array_push($mints, ...array_keys($actor['state']['positions'] ?? []));
+        }
+
+        return array_values(array_unique($mints));
     }
 
     private function skip(ArenaCycle $cycle, string $code): string
