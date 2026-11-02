@@ -829,7 +829,7 @@ return [
             'symbol' => 'CYBERGUARD',
             'model' => 'mint',
             'chains' => [
-                'cyberia' => ['address' => env('CYBERGUARD_EVM_ADDRESS', ''), 'decimals' => 6],
+                'cyberia' => ['address' => env('CYBERGUARD_EVM_ADDRESS', '0xf10D68fD358D5F5Eb5FBF23376183D17a0684E43'), 'decimals' => 6],
                 'solana' => ['mint' => 'VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump', 'decimals' => 6, 'token_program' => 'token-2022'],
             ],
         ],

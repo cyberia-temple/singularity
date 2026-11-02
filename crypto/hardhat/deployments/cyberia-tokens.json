@@ -175,7 +175,7 @@
       "symbol": "CYBERGUARD",
       "contract": "CyberGuard",
       "artifact": "contracts/CyberGuard.sol/CyberGuard.json",
-      "address": "",
+      "address": "0xf10D68fD358D5F5Eb5FBF23376183D17a0684E43",
       "burnable": true
     },
     {

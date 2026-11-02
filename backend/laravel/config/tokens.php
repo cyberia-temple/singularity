@@ -282,7 +282,7 @@ return [
             ],
         ],
 
-        '__cyberguard_evm__' => [
+        '0xf10d68fd358d5f5eb5fbf23376183d17a0684e43' => [
             'symbol' => 'CYBERGUARD',
             'name' => 'Cyberguard',
             'decimals' => 6,

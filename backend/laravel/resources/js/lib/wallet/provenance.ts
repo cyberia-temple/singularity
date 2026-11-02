@@ -109,7 +109,7 @@ const registry: Record<number, Record<string, Provenance>> = {
         },
         // CyberGuard: partner since 2026-11-02, bridged in from Solana. Known,
         // not audited, so it carries the partner tag rather than none.
-        '__cyberguard_evm__': {
+        '0xf10d68fd358d5f5eb5fbf23376183d17a0684e43': {
             kind: 'partner',
             symbol: 'CYBERGUARD',
         },
