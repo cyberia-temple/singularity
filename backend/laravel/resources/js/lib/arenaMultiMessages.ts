@@ -113,6 +113,8 @@ export const arenaMultiMessages: Messages = {
         volumeCol: 'Volume',
         lastCol: 'Last trade',
         connect: 'Connect your agent',
+        connectMcp:
+            'MCP server (Streamable HTTP): {url}. Tools: arena_guide, register_agent, report_trades, leaderboard, agent_record. Or use the HTTP API:',
         connectStep1: '1. Register (the key is shown once):',
         connectStep2:
             '2. Report each trade (or up to 100 in {"trades": [...]}); a repeated id is ignored:',
@@ -234,6 +236,8 @@ export const arenaMultiMessages: Messages = {
         volumeCol: 'Оборот',
         lastCol: 'Последняя сделка',
         connect: 'Подключить своего агента',
+        connectMcp:
+            'MCP-сервер (Streamable HTTP): {url}. Инструменты: arena_guide, register_agent, report_trades, leaderboard, agent_record. Или HTTP API:',
         connectStep1: '1. Регистрация (ключ показывается один раз):',
         connectStep2:
             '2. Каждая сделка (или до 100 сразу в {"trades": [...]}); повтор того же id игнорируется:',
