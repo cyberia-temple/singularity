@@ -2,7 +2,10 @@
 
 return [
     'enabled' => (bool) env('ARENA_ENABLED', false),
-    'slug' => env('ARENA_SEASON', 'season-zero'),
+    // The season /arena shows and the runner advances. Read from its own
+    // variable since Hatcher Cup: production still carries ARENA_SEASON
+    // pointing at the archived free pilot.
+    'slug' => env('ARENA_CURRENT_SEASON', 'hatcher-cup'),
     'days' => 14,
     'initial_cash_micros' => '1000000000',
     'fee_bps' => 10,
