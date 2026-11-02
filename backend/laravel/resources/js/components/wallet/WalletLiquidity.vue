@@ -1428,13 +1428,27 @@ const back = (): void => {
                 <span>{{ error }}</span>
             </p>
 
-            <div v-if="sent" class="cw-note" style="margin-top: 16px">
+            <!--
+                Pinned to the bottom of the viewport and kept until it is
+                dismissed or the screen is left: as a note under the form it
+                sat below the fold, and somebody who had just held to sign saw
+                nothing change.
+            -->
+            <div v-if="sent" class="cw-pool-toast" role="status">
                 <span>
                     {{ settling ? t('poolSettling') : t('poolSent') }}
                     <a :href="sent.url" target="_blank" rel="noopener">{{
                         t('viewInExplorer')
                     }}</a>
                 </span>
+                <button
+                    type="button"
+                    class="cw-pool-toast-close"
+                    :aria-label="t('hideToken')"
+                    @click="sent = null"
+                >
+                    ×
+                </button>
             </div>
         </template>
 

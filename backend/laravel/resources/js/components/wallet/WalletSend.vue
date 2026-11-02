@@ -54,6 +54,8 @@ const props = defineProps<{
     tokenPrices: Record<string, Record<string, number>>;
     /** Asset to open on: a token held on this chain, or the native coin. */
     token?: WalletTokenBalance | null;
+    /** An address the person already chose, e.g. from somebody's profile. */
+    recipient?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -78,7 +80,7 @@ const phase = ref<Phase>('compose');
 const outcome = ref<Outcome>('signing');
 /** null is the network's own coin; anything else is an ERC20 on it. */
 const asset = ref<WalletTokenBalance | null>(props.token ?? null);
-const to = ref('');
+const to = ref(props.recipient ?? '');
 const amount = ref('');
 const tier = ref<WalletFeeTier>('normal');
 const txHash = ref<string | null>(null);
