@@ -20,10 +20,11 @@ server {
     http2 on;
     server_name docs.cyberia.church;
 
-    # docs.cyberia.church resolves through the wildcard DNS record, and the
-    # launchpad wildcard certificate covers this exact hostname too.
-    ssl_certificate /etc/letsencrypt/live/cyberia-wildcard/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/cyberia-wildcard/privkey.pem;
+    # Its own webroot certificate (scripts/ops/site-certs.sh, renewed by the
+    # `certbot renew` cron), not the hand-renewed wildcard. Read per handshake,
+    # so a certificate not issued yet costs only this hostname its TLS.
+    ssl_certificate /etc/letsencrypt/live/$ssl_server_name/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$ssl_server_name/privkey.pem;
 
     root /usr/share/nginx/docs;
     index index.html;
