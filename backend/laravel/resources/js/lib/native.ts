@@ -174,3 +174,68 @@ export async function setNativeStartup(
 
     return startup.set(enabled);
 }
+
+type CapacitorListener = { remove: () => Promise<void> | void };
+
+type CapacitorAppPlugin = {
+    addListener: (
+        event: 'backButton',
+        handler: () => void,
+    ) => Promise<CapacitorListener> | CapacitorListener;
+    minimizeApp?: () => Promise<void>;
+    exitApp?: () => Promise<void>;
+};
+
+function capacitorApp(): CapacitorAppPlugin | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const plugins = (
+        window.Capacitor as { Plugins?: Record<string, unknown> } | undefined
+    )?.Plugins;
+    const app = plugins?.App as CapacitorAppPlugin | undefined;
+
+    return app && typeof app.addListener === 'function' ? app : null;
+}
+
+/**
+ * The phone's own back button (or back gesture) in the mobile shell.
+ *
+ * Capacitor's App plugin, with nobody listening, only steps the web view's
+ * history — and the wallet moves between screens with `replaceState`, so there
+ * was no history to step and the button did nothing at all, not even put the
+ * app away. `handler` answers whether it moved somewhere; when it did not, the
+ * app is minimised, which is what Android's back does on a top-level screen.
+ */
+export function onHardwareBack(handler: () => boolean): () => void {
+    const app = capacitorApp();
+
+    if (app === null) {
+        return () => {};
+    }
+
+    let listener: CapacitorListener | null = null;
+    let released = false;
+
+    void Promise.resolve(
+        app.addListener('backButton', () => {
+            if (handler()) {
+                return;
+            }
+
+            void (app.minimizeApp ?? app.exitApp)?.call(app);
+        }),
+    ).then((handle) => {
+        listener = handle;
+
+        if (released) {
+            void handle.remove();
+        }
+    });
+
+    return () => {
+        released = true;
+        void listener?.remove();
+    };
+}

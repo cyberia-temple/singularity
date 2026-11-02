@@ -85,7 +85,7 @@ import { useWalletMode } from '@/composables/useWalletMode';
 import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { arcadeMessages } from '@/lib/arcadeMessages';
-import { isNativeShell, nativeShell } from '@/lib/native';
+import { isNativeShell, nativeShell, onHardwareBack } from '@/lib/native';
 import {
     hiddenInStore,
     homeScreen,
@@ -812,7 +812,13 @@ const current = computed<Section | null>(() => {
     const page = PARENTS[section.value] ?? section.value;
 
     if (!simple.value) {
-        return page;
+        // A screen the rail lists is its own item. PARENTS is where back
+        // goes, not what is lit: following it lit Портфель for stocks, the
+        // bridge, earn and settings, and nothing at all for the gas station
+        // and buy, whose parent (More) the full rail does not list.
+        return SECTIONS.some((entry) => entry.id === section.value)
+            ? section.value
+            : page;
     }
 
     const listed = (id: Section): boolean =>
@@ -846,8 +852,27 @@ const openChart = (market: Market): void => {
     section.value = 'chart';
 };
 
+/** The recipient the send screen opens with, when one was already chosen. */
+const sendRecipient = ref<string | null>(null);
+
 const openSend = (token?: WalletTokenBalance): void => {
     sendToken.value = token ?? null;
+    sendRecipient.value = null;
+    overlay.value = 'send';
+};
+
+/**
+ * Paying somebody whose profile is on screen. A profile is an EVM address, so
+ * a network that is not EVM is swapped for Cyberia's rather than handing a
+ * Solana form a 0x recipient.
+ */
+const openSendTo = (address: string): void => {
+    if (walletChain(chain.value).family !== 'evm') {
+        chain.value = 'cyberia';
+    }
+
+    sendToken.value = null;
+    sendRecipient.value = address;
     overlay.value = 'send';
 };
 
@@ -1358,6 +1383,72 @@ if (telegram) {
         releaseMain();
         releaseBack();
     });
+}
+
+/**
+ * The screens this visit passed through, for the phone's own back button.
+ *
+ * `goBack` knows only the map (a screen and the one it hangs off), so a
+ * person who tapped an author in the feed and landed in their chat had no way
+ * back to the feed: chat is a top-level tab. The hardware button retraces
+ * what the person actually did, then falls back to the map, then puts the app
+ * away.
+ */
+const visited: Section[] = [];
+let retracing = false;
+
+watch(section, (next, previous) => {
+    if (retracing) {
+        retracing = false;
+
+        return;
+    }
+
+    if (previous !== undefined && previous !== next) {
+        visited.push(previous);
+
+        if (visited.length > 40) {
+            visited.shift();
+        }
+    }
+});
+
+if (nativeShell() === 'mobile') {
+    const release = onHardwareBack(() => {
+        if (overlay.value !== null) {
+            overlay.value = null;
+
+            return true;
+        }
+
+        while (visited.length > 0) {
+            const previous = visited.pop() as Section;
+
+            if (previous !== section.value) {
+                const before = section.value;
+
+                retracing = true;
+                openSection(previous);
+                // A screen the store build leaves out lands on home instead;
+                // if that is where we already were, nothing will be watched.
+                retracing = section.value !== before;
+
+                return true;
+            }
+        }
+
+        const back = goBack.value;
+
+        if (back !== null) {
+            back();
+
+            return true;
+        }
+
+        return false;
+    });
+
+    onBeforeUnmount(release);
 }
 
 /**
@@ -2222,6 +2313,7 @@ watch(
                         :prices="prices"
                         :token-prices="tokenPrices"
                         :token="sendToken"
+                        :recipient="sendRecipient"
                         @back="overlay = null"
                         @pick="chain = $event"
                         @sent="load()"
@@ -2592,7 +2684,9 @@ watch(
                         v-else-if="section === 'profile'"
                         :wallet="wallet"
                         :address="profileAddress"
+                        :can-send="!socialOnly()"
                         @back="openSection('feed')"
+                        @send="openSendTo"
                     />
 
                     <WalletLaunchpad
@@ -2865,6 +2959,7 @@ watch(
                     :prices="prices"
                     :token-prices="tokenPrices"
                     :token="sendToken"
+                    :recipient="sendRecipient"
                     @back="overlay = null"
                     @pick="chain = $event"
                     @sent="load()"
