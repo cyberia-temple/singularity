@@ -106,3 +106,12 @@ it('keeps the original WETH/USDC rules byte for byte', function () {
         ->and($rules['market'])->toBe('WETH / USDC')
         ->and(ArenaModelClient::prompt(null))->toBe(ArenaModelClient::PROMPT);
 });
+
+it('quotes a frozen Hatcher season even when new seasons default to another market', function () {
+    fakeHatcherPool();
+    $feed = app(ArenaMarketFeed::class);
+    $spec = $feed->specification();
+    config()->set('arena.market', 'base-weth-usdc');
+
+    expect($feed->quote($spec, 90)['price_micros'])->toBe('216426');
+});

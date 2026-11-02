@@ -16,9 +16,9 @@ class ArenaMarketFeed
     public function __construct(private SolanaRpcProxy $solana) {}
 
     /** @return array<string, mixed> */
-    public function specification(): array
+    public function specification(?string $market = null): array
     {
-        if (config('arena.market') === 'solana-hatcher-sol') {
+        if (($market ?? config('arena.market')) === 'solana-hatcher-sol') {
             return [
                 'kind' => 'solana-pumpswap', 'cluster' => 'mainnet',
                 'program' => 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA',
@@ -46,7 +46,9 @@ class ArenaMarketFeed
      */
     public function quote(array $spec, int $maxAge): array
     {
-        $expected = $this->specification();
+        // A frozen season is checked against its own market, whatever market
+        // a new season would be created on today.
+        $expected = $this->specification(($spec['kind'] ?? null) === 'solana-pumpswap' ? 'solana-hatcher-sol' : 'base-weth-usdc');
         ksort($spec);
         ksort($expected);
         if ($spec !== $expected) {
