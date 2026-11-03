@@ -9,6 +9,9 @@ use Illuminate\Validation\Rule;
 
 class ArenaModelClient
 {
+    /** Wait before a retry after a per-minute 429, multiplied by the attempt. */
+    public const RETRY_MICROSECONDS = 5_000_000;
+
     public const PROMPT = 'You are a bounded paper-trading contestant. You have no tools, wallet, web access or private memory. Use only the supplied observation and your own portfolio. Prices are USDC micro-units per WETH; cash has 6 decimals and WETH has 18. Do not invent news, indicators or history. Compare costs and uncertainty. Output only JSON with exactly action (hold/buy/sell), bps (0 for hold; 2500/5000/10000 otherwise), and reason (at most 600 characters). No markdown. Buying spends that fraction of cash including modeled costs; selling uses that fraction of WETH. Never buy with no cash or sell with no WETH. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object, never an array. Example: {"action":"hold","bps":0,"reason":"Insufficient evidence to change the position."}';
 
     /**
@@ -67,18 +70,33 @@ class ArenaModelClient
      * @param  array<string, mixed>  $settings
      * @return array{0: array<mixed>, 1: mixed}
      */
-    private function complete(string $model, string $system, string $user, array $settings): array
+    private function complete(string $model, string $system, string $user, array $settings, int $tries = 1): array
     {
-        $response = Http::withToken((string) config('arena.automation.api_key'))->acceptJson()
-            ->connectTimeout(3)->timeout($settings['timeout_seconds'])->withOptions(['allow_redirects' => false])
-            ->post('https://openrouter.ai/api/v1/chat/completions', [
-                'model' => $model, 'stream' => false, 'max_tokens' => $settings['max_output_tokens'], 'temperature' => 0.2,
-                'reasoning' => ['enabled' => false],
-                'provider' => ['allow_fallbacks' => false, 'require_parameters' => true,
-                    'max_price' => ['prompt' => 0, 'completion' => 0, 'request' => 0]],
-                'response_format' => ['type' => 'json_object'],
-                'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
-            ]);
+        // A free model is rate limited per account: a per-minute or upstream
+        // 429 is worth short retries inside the decision window (multi-token
+        // seasons ask for them; older frozen seasons keep one request); the
+        // daily allowance is not, and is named so the record says which.
+        for ($attempt = 1; ; $attempt++) {
+            $response = Http::withToken((string) config('arena.automation.api_key'))->acceptJson()
+                ->connectTimeout(3)->timeout($settings['timeout_seconds'])->withOptions(['allow_redirects' => false])
+                ->post('https://openrouter.ai/api/v1/chat/completions', [
+                    'model' => $model, 'stream' => false, 'max_tokens' => $settings['max_output_tokens'], 'temperature' => 0.2,
+                    'reasoning' => ['enabled' => false],
+                    'provider' => ['allow_fallbacks' => false, 'require_parameters' => true,
+                        'max_price' => ['prompt' => 0, 'completion' => 0, 'request' => 0]],
+                    'response_format' => ['type' => 'json_object'],
+                    'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
+                ]);
+            if ($response->status() !== 429) {
+                break;
+            }
+            $why = strtolower((string) $response->json('error.message'));
+            if (str_contains($why, 'per-day') || $attempt >= $tries) {
+                throw new DomainException(str_contains($why, 'per-day') ? 'model_http_429_daily'
+                    : (str_contains($why, 'upstream') ? 'model_http_429_upstream' : 'model_http_429'));
+            }
+            usleep($attempt * (int) config('arena.automation.retry_microseconds', self::RETRY_MICROSECONDS));
+        }
         $served = $response->json('model');
         $expected = preg_replace('/:free$/D', '', $model);
         if (! $response->successful()) {
@@ -123,7 +141,7 @@ class ArenaModelClient
         if (strlen($system) + strlen($user) > $settings['max_prompt_bytes']) {
             throw new DomainException('model_context_too_large');
         }
-        [$data, $served] = $this->complete($model, $system, $user, $settings);
+        [$data, $served] = $this->complete($model, $system, $user, $settings, 3);
         $decision = Validator::make(['decision' => $data], [
             'decision' => ['required', 'array:action,token,bps,reason'],
             'decision.action' => ['required', Rule::in(['hold', 'buy', 'sell'])],
