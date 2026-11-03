@@ -57,6 +57,8 @@ it('records trades once, computes the basis and renders the agent page', functio
         ->where('detail.moves.0.txUrl', 'https://solscan.io/tx/sig2')
         ->where('board.agents.0.slug', 'lain-2'));
     $this->getJson('/api/arena/agents/lain-2')->assertOk()->assertJsonPath('summary.trades', 2);
+    $this->getJson('/api/arena')->assertOk()->assertJsonPath('feed.0.agent', 'lain-2')->assertJsonPath('feed.0.side', 'sell')
+        ->assertJsonPath('agents.0.holdings.0.symbol', 'HATCHER');
 });
 
 it('refuses an unknown key and an unsupported chain', function () {

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useLocale } from '@/composables/useLocale';
+import { useWalletTheme } from '@/composables/useWalletTheme';
 import { tradingArenaMessages } from '@/lib/tradingArenaMessages';
+import { dexScreenerChartUrl } from '@/lib/wallet/dexscreener';
 import { formatUsd, formatUsdPrice, relativeTime } from '@/lib/wallet/format';
 
 /**
@@ -20,7 +22,10 @@ export type ArenaRow = {
     returnPct: number | null;
     trades: number;
     lastTradeAt: string | null;
+    holdings: { symbol: string; sharePct: number | null }[];
+    cashPct: number | null;
 };
+type Point = { at: string; value: number };
 export type ArenaOverview = {
     season: {
         title: string;
@@ -41,6 +46,22 @@ export type ArenaOverview = {
         } | null;
     } | null;
     agents: ArenaRow[];
+    chart: {
+        lines: { slug: string; name: string; points: Point[] }[];
+        benchmark: Point[];
+    };
+    feed: (Move & { agent: string; name: string })[];
+    tokens: {
+        key: string;
+        symbol: string;
+        chain: string;
+        address: string;
+        usd: number;
+        changePct: number;
+        liquidityUsd: number;
+        pair: string;
+        anchor: boolean;
+    }[];
     benchmark: { symbol: string; returnPct: number } | null;
     connect: { mcp: string; register: string; trades: string };
 };
@@ -114,6 +135,9 @@ const detail = ref<ArenaDetail | null>(props.initialDetail);
 const loading = ref(false);
 const failed = ref(false);
 const copied = ref('');
+const view = ref<'ranking' | 'trades' | 'tokens'>('ranking');
+const openToken = ref<string | null>(null);
+const { scheme } = useWalletTheme();
 
 const read = async (): Promise<void> => {
     loading.value = board.value === null;
@@ -254,10 +278,6 @@ const status = computed(() => {
 /** A house agent is ranked on its portfolio; an open one on its profit. */
 const headline = (row: ArenaRow): string =>
     row.valueUsd !== null ? usd(row.valueUsd) : signedUsd(row.pnlUsd);
-const subline = (row: ArenaRow): string =>
-    row.kind === 'house'
-        ? t('house', { usd: usd(season.value?.startUsd ?? 1000) })
-        : t('open');
 
 /** The record's chart: a line over its points, scaled to the box. */
 const chart = computed(() => {
@@ -285,6 +305,98 @@ const chart = computed(() => {
 
     return { path, width, height, rising };
 });
+
+/** One colour per season agent, in the order the chart draws them. */
+const COLORS = ['var(--cw-accent)', '#c084fc', '#f59e0b', '#60a5fa'];
+const colorOf = (slug: string): string => {
+    const index =
+        board.value?.chart.lines.findIndex((line) => line.slug === slug) ?? -1;
+
+    return index >= 0 ? COLORS[index % COLORS.length] : 'var(--cw-text)';
+};
+
+/** Every season agent's portfolio and the hold benchmark on one time axis. */
+const race = computed(() => {
+    const chartData = board.value?.chart;
+    const series = [
+        ...(chartData?.lines ?? []).map((line) => line.points),
+        chartData?.benchmark ?? [],
+    ];
+    const all = series.flat();
+
+    if (!chartData || chartData.lines.every((line) => line.points.length < 2)) {
+        return null;
+    }
+
+    const times = all.map((point) => Date.parse(point.at));
+    const values = all.map((point) => point.value);
+    const [t0, t1] = [Math.min(...times), Math.max(...times)];
+    const [v0, v1] = [Math.min(...values), Math.max(...values)];
+    const width = 320;
+    const height = 150;
+    const draw = (points: Point[]): string =>
+        points
+            .map((point, index) => {
+                const x =
+                    ((Date.parse(point.at) - t0) / (t1 - t0 || 1)) * width;
+                const y =
+                    height -
+                    8 -
+                    ((point.value - v0) / (v1 - v0 || 1)) * (height - 16);
+
+                return `${index ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
+            })
+            .join(' ');
+
+    return {
+        width,
+        height,
+        lines: chartData.lines.map((line, index) => ({
+            slug: line.slug,
+            color: COLORS[index % COLORS.length],
+            path: draw(line.points),
+        })),
+        benchmark:
+            chartData.benchmark.length > 1 ? draw(chartData.benchmark) : null,
+    };
+});
+const legend = computed(() =>
+    (board.value?.chart.lines ?? []).map((line, index) => ({
+        slug: line.slug,
+        name: line.name,
+        color: COLORS[index % COLORS.length],
+        returnPct:
+            board.value?.agents.find((row) => row.slug === line.slug)
+                ?.returnPct ?? null,
+    })),
+);
+
+/** "HATCHER 27% · cash 73%", or what an open agent holds. */
+const holdingsLine = (row: ArenaRow): string => {
+    if (!row.trades) {
+        return row.kind === 'house'
+            ? t('house', { usd: usd(season.value?.startUsd ?? 1000) })
+            : t('open');
+    }
+
+    const parts = row.holdings.map((held) =>
+        held.sharePct !== null
+            ? `${held.symbol} ${held.sharePct}%`
+            : held.symbol,
+    );
+
+    if (row.cashPct !== null) {
+        parts.push(t('cash', { pct: row.cashPct }));
+    }
+
+    return parts.length ? parts.join(' · ') : t('trades', { n: row.trades });
+};
+
+const chartUrl = (token: { chain: string; pair: string }): string | null =>
+    dexScreenerChartUrl(
+        { chain: token.chain, pairAddress: token.pair },
+        { theme: scheme.value === 'light' ? 'light' : 'dark' },
+    );
 
 const moveTitle = (move: Move): string => {
     const symbol = move.symbol ?? short(move.token);
@@ -598,76 +710,331 @@ const curl = computed(() =>
                 <span>{{ t('skipped') }}</span>
             </p>
 
-            <p
-                v-if="!board.agents.length"
-                class="cw-hint"
-                style="margin-top: 16px"
-            >
-                {{ t('empty') }}
-            </p>
-            <div class="cw-stack" style="gap: 0; margin-top: 12px">
-                <button
-                    v-for="(row, index) in board.agents"
-                    :key="row.slug"
-                    type="button"
-                    class="cw-line-row"
-                    style="min-height: 68px"
-                    @click="open(row.slug)"
+            <!-- every portfolio on one chart -->
+            <div class="cw-card" style="margin-top: 16px; padding: 16px">
+                <span class="cw-label">{{ t('chartAll') }}</span>
+                <svg
+                    v-if="race"
+                    :viewBox="`0 0 ${race.width} ${race.height}`"
+                    preserveAspectRatio="none"
+                    style="
+                        width: 100%;
+                        height: 150px;
+                        margin-top: 12px;
+                        display: block;
+                    "
+                    role="img"
+                    :aria-label="t('chartAll')"
+                >
+                    <path
+                        v-if="race.benchmark"
+                        :d="race.benchmark"
+                        fill="none"
+                        stroke="var(--cw-muted)"
+                        stroke-width="1.5"
+                        stroke-dasharray="4 4"
+                        vector-effect="non-scaling-stroke"
+                    />
+                    <path
+                        v-for="line in race.lines"
+                        :key="line.slug"
+                        :d="line.path"
+                        fill="none"
+                        :stroke="line.color"
+                        stroke-width="2"
+                        vector-effect="non-scaling-stroke"
+                    />
+                </svg>
+                <p v-else class="cw-hint" style="margin: 10px 0 0">
+                    {{ t('chartEmpty') }}
+                </p>
+                <div
+                    style="
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 6px 14px;
+                        margin-top: 12px;
+                    "
                 >
                     <span
-                        class="cw-num"
-                        style="width: 22px; color: var(--cw-muted); flex: none"
-                        >{{ index + 1 }}</span
+                        v-for="line in legend"
+                        :key="line.slug"
+                        class="cw-hint"
+                        style="
+                            font-size: 13px;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                        "
                     >
-                    <span style="flex: 1; min-width: 0">
+                        <span
+                            :style="{
+                                width: '10px',
+                                height: '3px',
+                                borderRadius: '2px',
+                                background: line.color,
+                            }"
+                        />
+                        {{ line.name }}
+                        <span :style="{ color: tone(line.returnPct) }">{{
+                            pct(line.returnPct)
+                        }}</span>
+                    </span>
+                    <span
+                        v-if="board.benchmark"
+                        class="cw-hint"
+                        style="
+                            font-size: 13px;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                        "
+                    >
                         <span
                             style="
-                                display: block;
-                                font: 500 16px/1.25 var(--cw-sans);
+                                width: 10px;
+                                border-top: 2px dashed var(--cw-muted);
                             "
-                            >{{ row.name }}</span
-                        >
-                        <span class="cw-hint" style="font-size: 13px">
-                            {{ subline(row) }} ·
-                            {{
-                                row.trades
-                                    ? t('trades', { n: row.trades })
-                                    : t('noTrades')
-                            }}
-                        </span>
-                    </span>
-                    <span style="text-align: right; flex: none">
-                        <span class="cw-num" style="display: block">{{
-                            headline(row)
-                        }}</span>
+                        />
+                        {{
+                            t('legendHold', { symbol: board.benchmark.symbol })
+                        }}
                         <span
-                            class="cw-hint"
-                            style="font-size: 13px"
-                            :style="{
-                                color: tone(row.returnPct ?? row.pnlUsd),
-                            }"
-                            >{{
-                                row.returnPct !== null
-                                    ? pct(row.returnPct)
-                                    : t('pnl')
-                            }}</span
+                            :style="{ color: tone(board.benchmark.returnPct) }"
+                            >{{ pct(board.benchmark.returnPct) }}</span
                         >
                     </span>
+                </div>
+            </div>
+
+            <div class="cw-seg" style="margin-top: 16px">
+                <button
+                    v-for="entry in ['ranking', 'trades', 'tokens'] as const"
+                    :key="entry"
+                    type="button"
+                    class="cw-seg-item"
+                    :aria-pressed="view === entry"
+                    @click="view = entry"
+                >
+                    {{ t(`tab_${entry}`) }}
                 </button>
             </div>
 
-            <p
-                v-if="board.benchmark"
-                class="cw-hint"
-                style="margin: 12px 0 0; font-size: 13px"
-            >
-                {{
-                    t('benchmark', {
-                        symbol: board.benchmark.symbol,
-                        pct: pct(board.benchmark.returnPct),
-                    })
-                }}
-            </p>
+            <!-- ranking -->
+            <template v-if="view === 'ranking'">
+                <p
+                    v-if="!board.agents.length"
+                    class="cw-hint"
+                    style="margin-top: 16px"
+                >
+                    {{ t('empty') }}
+                </p>
+                <div class="cw-stack" style="gap: 0; margin-top: 4px">
+                    <button
+                        v-for="(row, index) in board.agents"
+                        :key="row.slug"
+                        type="button"
+                        class="cw-line-row"
+                        style="min-height: 72px"
+                        @click="open(row.slug)"
+                    >
+                        <span
+                            class="cw-num"
+                            style="
+                                width: 22px;
+                                color: var(--cw-muted);
+                                flex: none;
+                            "
+                            >{{ index + 1 }}</span
+                        >
+                        <span style="flex: 1; min-width: 0">
+                            <span
+                                style="
+                                    display: block;
+                                    font: 500 16px/1.25 var(--cw-sans);
+                                "
+                                >{{ row.name }}</span
+                            >
+                            <span class="cw-hint" style="font-size: 13px">{{
+                                holdingsLine(row)
+                            }}</span>
+                        </span>
+                        <span style="text-align: right; flex: none">
+                            <span class="cw-num" style="display: block">{{
+                                headline(row)
+                            }}</span>
+                            <span
+                                class="cw-hint"
+                                style="font-size: 13px"
+                                :style="{
+                                    color: tone(row.returnPct ?? row.pnlUsd),
+                                }"
+                                >{{
+                                    row.returnPct !== null
+                                        ? pct(row.returnPct)
+                                        : t('pnl')
+                                }}</span
+                            >
+                        </span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- every trade, with its thesis -->
+            <template v-else-if="view === 'trades'">
+                <p
+                    v-if="!board.feed.length"
+                    class="cw-hint"
+                    style="margin-top: 16px"
+                >
+                    {{
+                        t('feedEmpty', {
+                            when: when(season?.nextRoundAt ?? null),
+                        })
+                    }}
+                </p>
+                <button
+                    v-for="(move, index) in board.feed"
+                    :key="`${move.agent}-${move.at}-${index}`"
+                    type="button"
+                    style="
+                        display: block;
+                        width: 100%;
+                        text-align: left;
+                        background: none;
+                        border: none;
+                        border-bottom: 1px solid var(--cw-line);
+                        padding: 12px 0;
+                        color: var(--cw-text);
+                        cursor: pointer;
+                    "
+                    @click="open(move.agent)"
+                >
+                    <span
+                        style="display: flex; gap: 10px; align-items: baseline"
+                    >
+                        <span
+                            style="flex: 1; font: 500 15px/1.3 var(--cw-sans)"
+                        >
+                            <span :style="{ color: colorOf(move.agent) }">{{
+                                move.name
+                            }}</span>
+                            ·
+                            <span
+                                :style="{
+                                    color:
+                                        move.side === 'buy'
+                                            ? 'var(--cw-ok)'
+                                            : 'var(--cw-bad)',
+                                }"
+                                >{{ moveTitle(move) }}</span
+                            >
+                            <span
+                                v-if="move.valueUsd !== null"
+                                class="cw-hint"
+                                style="display: inline"
+                            >
+                                {{
+                                    ` ${t('forAmount', { usd: usd(move.valueUsd) })}`
+                                }}</span
+                            >
+                        </span>
+                        <span
+                            class="cw-hint"
+                            style="font-size: 12px; flex: none"
+                            >{{ when(move.at) }}</span
+                        >
+                    </span>
+                    <span
+                        v-if="move.reason"
+                        class="cw-hint"
+                        style="
+                            display: block;
+                            margin-top: 4px;
+                            font-size: 14px;
+                            text-wrap: pretty;
+                        "
+                        >«{{ move.reason }}»</span
+                    >
+                    <span
+                        v-if="move.pnlUsd !== null"
+                        class="cw-hint"
+                        style="display: block; margin-top: 4px; font-size: 12px"
+                        :style="{ color: tone(move.pnlUsd) }"
+                        >{{
+                            t('result', { usd: signedUsd(move.pnlUsd) })
+                        }}</span
+                    >
+                </button>
+            </template>
+
+            <!-- what can be traded -->
+            <template v-else>
+                <p class="cw-hint" style="margin: 10px 0 0; font-size: 13px">
+                    {{ t('tokensNote') }}
+                </p>
+                <p
+                    v-if="!board.tokens.length"
+                    class="cw-hint"
+                    style="margin-top: 12px"
+                >
+                    {{ t('tokensEmpty') }}
+                </p>
+                <div v-for="token in board.tokens" :key="token.key">
+                    <button
+                        type="button"
+                        class="cw-line-row"
+                        :aria-expanded="openToken === token.key"
+                        @click="
+                            openToken =
+                                openToken === token.key ? null : token.key
+                        "
+                    >
+                        <span style="flex: 1; min-width: 0">
+                            <span
+                                style="
+                                    display: block;
+                                    font: 500 16px/1.25 var(--cw-sans);
+                                "
+                                >{{ token.symbol }}</span
+                            >
+                            <span class="cw-hint" style="font-size: 12px"
+                                >{{ token.chain }} ·
+                                {{
+                                    t('liquidity', {
+                                        usd: usd(token.liquidityUsd),
+                                    })
+                                }}</span
+                            >
+                        </span>
+                        <span style="text-align: right; flex: none">
+                            <span class="cw-num" style="display: block">{{
+                                formatUsdPrice(token.usd, tag)
+                            }}</span>
+                            <span
+                                class="cw-hint"
+                                style="font-size: 13px"
+                                :style="{ color: tone(token.changePct) }"
+                                >{{ pct(token.changePct) }}</span
+                            >
+                        </span>
+                    </button>
+                    <iframe
+                        v-if="openToken === token.key && chartUrl(token)"
+                        :src="chartUrl(token)!"
+                        :title="`${token.symbol} chart`"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        style="
+                            width: 100%;
+                            height: 360px;
+                            border: 0;
+                            border-radius: 12px;
+                            margin: 8px 0 12px;
+                        "
+                    />
+                </div>
+            </template>
 
             <div
                 v-if="season?.partner?.name"

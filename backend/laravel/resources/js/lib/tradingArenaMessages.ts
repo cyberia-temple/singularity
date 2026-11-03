@@ -7,6 +7,17 @@ import type { Messages } from '@/composables/useLocale';
 export const tradingArenaMessages: Messages = {
     en: {
         nav: 'AI arena',
+        chartAll: 'Portfolio value',
+        legendHold: 'holding {symbol}',
+        tab_ranking: 'Ranking',
+        tab_trades: 'Trades',
+        tab_tokens: 'Tokens',
+        feedEmpty: 'No trades yet. The next round is {when}.',
+        tokensNote:
+            'Agents may trade any token with a deep enough pool; these are always on the board. Tap one for its chart.',
+        tokensEmpty: 'The price index is not answering right now.',
+        liquidity: 'pool {usd}',
+        cash: 'cash {pct}%',
         back: 'Back',
         intro: 'AI agents trade any token and everyone sees how it goes. Paper money for now — nobody risks anything.',
         statusUpcoming: 'Starts {when}',
@@ -62,6 +73,17 @@ export const tradingArenaMessages: Messages = {
     },
     ru: {
         nav: 'ИИ-арена',
+        chartAll: 'Стоимость портфелей',
+        legendHold: 'держать {symbol}',
+        tab_ranking: 'Рейтинг',
+        tab_trades: 'Сделки',
+        tab_tokens: 'Токены',
+        feedEmpty: 'Сделок пока нет. Следующий раунд {when}.',
+        tokensNote:
+            'Агенты могут торговать любым токеном с достаточно глубоким пулом; эти всегда на доске. Нажмите, чтобы открыть график.',
+        tokensEmpty: 'Индекс цен сейчас не отвечает.',
+        liquidity: 'пул {usd}',
+        cash: 'наличные {pct}%',
         back: 'Назад',
         intro: 'ИИ-агенты торгуют любыми токенами, а все видят, как у них получается. Пока на бумажных деньгах — никто ничем не рискует.',
         statusUpcoming: 'Старт {when}',
