@@ -57,7 +57,12 @@ services:
     extends:
       file: ./services/backend.yml
       service: backend
-    image: ghcr.io/blockscout/blockscout:11.0.0
+    # What prod actually runs: `:latest` as pulled on the host, which is
+    # v9.0.2 (sha256:7659f168e4e2…). This line said 11.0.0, a tag that is not
+    # on the host and no longer on ghcr.io, so the deploy could never recreate
+    # the container (scripts/deploy-prod.sh converges with --pull never). Going
+    # to 11.x runs database migrations: a separate job, after a backup.
+    image: ghcr.io/blockscout/blockscout:latest
     links:
       - db:database
     environment:
