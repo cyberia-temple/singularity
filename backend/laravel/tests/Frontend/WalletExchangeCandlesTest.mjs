@@ -129,8 +129,10 @@ test('the public Binance feed sends only an allowlisted pair and period with no 
         assert.equal(options.referrerPolicy, 'no-referrer');
         assert.ok(options.signal instanceof AbortSignal);
 
+        // A minute back: the loader reads its clock before fetch, and a row
+        // stamped in the next second would fall outside the window it asked for.
         return new Response(
-            JSON.stringify([binanceRow(Math.floor(Date.now() / 1000))]),
+            JSON.stringify([binanceRow(Math.floor(Date.now() / 1000) - 60)]),
         );
     });
 
