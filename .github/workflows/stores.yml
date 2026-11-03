@@ -90,6 +90,10 @@ jobs:
           java-version: '21'
 
       - uses: android-actions/setup-android@v3
+        # The default package list asks for 'tools', which cmdline-tools 16 no
+        # longer has: sdkmanager exits 1, and no APK was built. Gradle fetches the rest.
+        with:
+          packages: platform-tools
         if: steps.gate.outputs.ready == 'true'
 
       - uses: ruby/setup-ruby@v1

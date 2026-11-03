@@ -66,7 +66,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
-          extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite
+          # gmp: simplito/elliptic-php needs it, and Windows' PHP ships without it.
+          extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite, gmp, bcmath
           coverage: none
 
       - name: Install wallet frontend dependencies
@@ -133,6 +134,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        # The default package list asks for 'tools', which cmdline-tools 16 no
+        # longer has: sdkmanager exits 1, and no APK was built. Gradle fetches the rest.
+        with:
+          packages: platform-tools
 
       - name: Install dependencies
         run: npm ci
