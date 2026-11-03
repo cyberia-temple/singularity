@@ -94,7 +94,7 @@ it('opens the wallet when the landing page is the installed app launching', func
 it('keeps the wallet link out of the app pointing at the landing page', function () {
     expect(file_get_contents(
         resource_path('js/components/wallet/WalletPreferences.vue'),
-    ))->toContain('href="/?site"');
+    ))->toContain('href="/"');
 });
 
 it('keeps authenticated pages out of the service worker cache', function () {
