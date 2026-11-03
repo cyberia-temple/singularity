@@ -79,7 +79,7 @@ beforeEach(function () {
     Cache::flush();
     config()->set('heatmap.cyberia.rpc_url', 'https://rpc.test');
     config()->set('heatmap.cyberia.launchpads', ['v3' => HEAT_V3]);
-    Cache::put('wallet.prices.v3', ['prices' => ['cyberia' => 0.5], 'tokens' => [], 'fetchedAt' => now()->toIso8601String()], 300);
+    Cache::put('wallet.prices.v4', ['prices' => ['cyberia' => 0.5], 'tokens' => [], 'changes' => ['prices' => [], 'tokens' => []], 'fetchedAt' => now()->toIso8601String()], 300);
 });
 
 test('a launch is priced from its pool and its change is read against yesterday', function () {

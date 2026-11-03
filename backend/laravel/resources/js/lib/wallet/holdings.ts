@@ -6,6 +6,8 @@ import type {
     WalletTokenBalance,
 } from '@/lib/wallet';
 import { usdValue } from '@/lib/wallet/format';
+import { changeOf } from '@/lib/wallet/priceChange';
+import type { PriceChanges } from '@/lib/wallet/priceChange';
 import { partnerMint, provenanceOf } from '@/lib/wallet/provenance';
 
 /**
@@ -29,6 +31,8 @@ export type Holding = {
     /** The balance at four decimals; `<0.0001` rather than a false zero. */
     amount: string;
     usd: number | null;
+    /** The price's 24h change in percent; null when nobody measured it. */
+    change: number | null;
     logo?: string;
     tag: HoldingTag | null;
 };
@@ -42,6 +46,8 @@ export type HoldingsInput = {
     prices: Partial<Record<WalletChainId, number | null>>;
     /** Chain → lowercased contract → USD price. */
     tokenPrices: Partial<Record<WalletChainId, Record<string, number>>>;
+    /** The 24h price changes, where known. */
+    changes?: PriceChanges | null;
 };
 
 export type HoldingsOptions = {
@@ -84,6 +90,7 @@ export const holdings = (
                     account.decimals,
                     input.prices[account.chain] ?? null,
                 ),
+                change: changeOf(input.changes, account.chain),
                 logo: logoForToken(chainId, null, account.symbol),
                 tag: null,
             });
@@ -116,6 +123,10 @@ export const holdings = (
                 symbol: token.symbol,
                 amount: shown(token.balance, token.decimals),
                 usd: usdValue(token.balance, token.decimals, price),
+                change:
+                    price === null
+                        ? null
+                        : changeOf(input.changes, account.chain, token.address),
                 logo: logoForToken(chainId, token.address, token.symbol),
                 tag:
                     known?.kind === 'bridged' ||
@@ -125,8 +136,8 @@ export const holdings = (
                         : chainId === undefined && partnerMint(token.address)
                           ? 'partner'
                           : unverified
-                          ? 'unverified'
-                          : null,
+                            ? 'unverified'
+                            : null,
             });
         }
     }

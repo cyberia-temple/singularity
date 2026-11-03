@@ -4736,3 +4736,18 @@ button.cw-ug-lot img {
     line-height: 1;
     cursor: pointer;
 }
+
+/* 24h price change: green up, red down, the muted colour when flat. */
+.cw-change {
+    font: 500 13px/1.4 var(--cw-mono);
+    color: var(--cw-dim);
+    white-space: nowrap;
+}
+
+.cw-change-up {
+    color: var(--cw-ok);
+}
+
+.cw-change-down {
+    color: var(--cw-bad);
+}

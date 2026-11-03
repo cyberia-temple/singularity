@@ -27,7 +27,13 @@ class WalletPriceService
     // Bumped with the payload shape: a cached v1 entry has no `tokens` key,
     // and would serve a wallet that silently shows every token as unpriced
     // for the first five minutes after a deploy.
-    private const CACHE_KEY = 'wallet.prices.v3';
+    private const CACHE_KEY = 'wallet.prices.v4';
+
+    /** How long the snapshot from a day ago is reused before it is read again. */
+    private const DAY_AGO_TTL_SECONDS = 600;
+
+    /** Snapshots older than this are of no use to a 24h change and are dropped. */
+    private const KEEP_HOURS = 50;
 
     private const COINGECKO_URL = 'https://api.coingecko.com/api/v3/simple/price';
 
@@ -56,22 +62,32 @@ class WalletPriceService
     /**
      * USD price per wallet chain and per token, plus when the quote was taken.
      *
-     * @return array{prices: array<string, float|null>, tokens: array<string, array<string, float>>, fetchedAt: string}
+     * `changes` is the move over the last 24 hours in percent, in USD, for
+     * the same keys. A change nobody measured is absent rather than 0%: the
+     * wallet draws nothing for it, because "0%" is a claim that it held still.
+     *
+     * @return array{prices: array<string, float|null>, tokens: array<string, array<string, float>>, changes: array{prices: array<string, float>, tokens: array<string, array<string, float>>}, fetchedAt: string}
      */
     public function quotes(): array
     {
-        /** @var array{prices: array<string, float|null>, tokens: array<string, array<string, float>>, fetchedAt: string} */
+        /** @var array{prices: array<string, float|null>, tokens: array<string, array<string, float>>, changes: array{prices: array<string, float>, tokens: array<string, array<string, float>>}, fetchedAt: string} */
         $quotes = Cache::remember(
             self::CACHE_KEY,
             self::TTL_SECONDS,
-            fn (): array => [
-                'prices' => [
-                    'cyberia' => $this->cyberiaUsd(),
-                    ...$this->coingeckoUsd(),
-                ],
-                'tokens' => $this->tokenUsd(),
-                'fetchedAt' => now()->toIso8601String(),
-            ],
+            function (): array {
+                $coingecko = $this->coingecko();
+                [$tokens, $tokenChanges] = $this->tokenUsd();
+
+                return [
+                    'prices' => [
+                        'cyberia' => $this->cyberiaUsd(),
+                        ...$coingecko['prices'],
+                    ],
+                    'tokens' => $tokens,
+                    'changes' => ['prices' => $coingecko['changes'], 'tokens' => $tokenChanges],
+                    'fetchedAt' => now()->toIso8601String(),
+                ];
+            },
         );
 
         /*
@@ -90,7 +106,126 @@ class WalletPriceService
             $quotes['tokens']['robinhood'] = $stocks;
         }
 
+        $quotes['changes'] = $this->withMeasuredChanges($quotes);
+
         return $quotes;
+    }
+
+    /**
+     * Write the current prices down, so that tomorrow there is a yesterday to
+     * compare them with. Nothing on Cyberia's chain remembers a past price,
+     * and neither does the issuer's stock feed, so the 24h change of anything
+     * no outside source reports a change for is read from these rows.
+     *
+     * @return int how many prices were written
+     */
+    public function snapshot(): int
+    {
+        if (! Schema::hasTable('wallet_price_snapshots')) {
+            return 0;
+        }
+
+        $quotes = $this->quotes();
+        $now = now();
+        $rows = [];
+
+        foreach ($quotes['prices'] as $chain => $usd) {
+            if (is_numeric($usd) && $usd > 0) {
+                $rows[] = ['chain' => $chain, 'asset' => '', 'usd' => (float) $usd, 'captured_at' => $now];
+            }
+        }
+
+        foreach ($quotes['tokens'] as $chain => $prices) {
+            foreach ($prices as $asset => $usd) {
+                if (is_numeric($usd) && $usd > 0) {
+                    $rows[] = ['chain' => $chain, 'asset' => strtolower((string) $asset), 'usd' => (float) $usd, 'captured_at' => $now];
+                }
+            }
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('wallet_price_snapshots')->insert($chunk);
+        }
+
+        DB::table('wallet_price_snapshots')
+            ->where('captured_at', '<', $now->copy()->subHours(self::KEEP_HOURS))
+            ->delete();
+
+        Cache::forget(self::CACHE_KEY.'.day-ago');
+
+        return count($rows);
+    }
+
+    /**
+     * The outside sources' own changes, plus one measured against the snapshot
+     * from a day ago for every price they say nothing about.
+     *
+     * @param  array{prices: array<string, float|null>, tokens: array<string, array<string, float>>, changes?: array{prices: array<string, float>, tokens: array<string, array<string, float>>}}  $quotes
+     * @return array{prices: array<string, float>, tokens: array<string, array<string, float>>}
+     */
+    private function withMeasuredChanges(array $quotes): array
+    {
+        $changes = $quotes['changes'] ?? ['prices' => [], 'tokens' => []];
+        $dayAgo = $this->dayAgo();
+
+        if ($dayAgo === []) {
+            return $changes;
+        }
+
+        foreach ($quotes['prices'] as $chain => $usd) {
+            $before = $dayAgo[$chain][''] ?? null;
+
+            if (! isset($changes['prices'][$chain]) && $before !== null && is_numeric($usd) && $usd > 0) {
+                $changes['prices'][$chain] = ((float) $usd / $before - 1) * 100;
+            }
+        }
+
+        foreach ($quotes['tokens'] as $chain => $prices) {
+            foreach ($prices as $asset => $usd) {
+                $before = $dayAgo[$chain][$asset] ?? null;
+
+                if (! isset($changes['tokens'][$chain][$asset]) && $before !== null && $usd > 0) {
+                    $changes['tokens'][$chain][$asset] = ((float) $usd / $before - 1) * 100;
+                }
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * The snapshot taken closest to a day ago, keyed chain → asset ('' for the
+     * chain's coin) → USD. A day ago means 23 to 26 hours: an hourly snapshot
+     * that ran a few minutes late is still yesterday, a two-day-old one is not.
+     *
+     * @return array<string, array<string, float>>
+     */
+    private function dayAgo(): array
+    {
+        if (! Schema::hasTable('wallet_price_snapshots')) {
+            return [];
+        }
+
+        return Cache::remember(self::CACHE_KEY.'.day-ago', self::DAY_AGO_TTL_SECONDS, function (): array {
+            $at = DB::table('wallet_price_snapshots')
+                ->where('captured_at', '<=', now()->subHours(23))
+                ->where('captured_at', '>=', now()->subHours(26))
+                ->max('captured_at');
+
+            if ($at === null) {
+                return [];
+            }
+
+            $map = [];
+
+            foreach (DB::table('wallet_price_snapshots')->where('captured_at', $at)->get() as $row) {
+                if ((float) $row->usd > 0) {
+                    $map[$row->chain][$row->asset] = (float) $row->usd;
+                }
+            }
+
+            return $map;
+        });
     }
 
     /**
@@ -105,11 +240,14 @@ class WalletPriceService
      * wallet renders it as unpriced rather than inventing a number for a
      * balance someone is about to spend.
      *
-     * @return array<string, array<string, float>>
+     * The second half is CYBER.sol's own 24h change from that same pool.
+     *
+     * @return array{0: array<string, array<string, float>>, 1: array<string, array<string, float>>}
      */
     private function tokenUsd(): array
     {
         $tokens = [];
+        $changes = [];
 
         if (Schema::hasTable('dex_pools')) {
             $tokens['cyberia'] = $this->tokenPrices->priceFromPools(
@@ -117,14 +255,19 @@ class WalletPriceService
             );
         }
 
-        $cyberSol = $this->cyberSol->get()['priceUsd'] ?? null;
+        $market = $this->cyberSol->get();
+        $cyberSol = $market['priceUsd'] ?? null;
 
         if (is_numeric($cyberSol) && (float) $cyberSol > 0) {
             $mint = strtolower((string) config('cyber.contracts.cyber_sol_mint'));
             $tokens['solana'] = [$mint => (float) $cyberSol];
+
+            if (is_numeric($market['change24h'] ?? null)) {
+                $changes['solana'] = [$mint => (float) $market['change24h']];
+            }
         }
 
-        return $tokens;
+        return [$tokens, $changes];
     }
 
     /**
@@ -147,16 +290,19 @@ class WalletPriceService
     }
 
     /**
-     * @return array<string, float|null>
+     * Each chain's coin in USD, and how it moved over 24 hours.
+     *
+     * @return array{prices: array<string, float|null>, changes: array<string, float>}
      */
-    private function coingeckoUsd(): array
+    private function coingecko(): array
     {
-        $missing = array_fill_keys(array_keys(self::COINGECKO_IDS), null);
+        $missing = ['prices' => array_fill_keys(array_keys(self::COINGECKO_IDS), null), 'changes' => []];
 
         try {
             $response = Http::timeout(8)->get(self::COINGECKO_URL, [
                 'ids' => implode(',', array_unique(array_values(self::COINGECKO_IDS))),
                 'vs_currencies' => 'usd',
+                'include_24hr_change' => 'true',
             ]);
 
             if ($response->failed()) {
@@ -169,12 +315,18 @@ class WalletPriceService
         }
 
         $prices = [];
+        $changes = [];
 
         foreach (self::COINGECKO_IDS as $chain => $id) {
             $price = $body[$id]['usd'] ?? null;
             $prices[$chain] = is_numeric($price) ? (float) $price : null;
+            $change = $body[$id]['usd_24h_change'] ?? null;
+
+            if ($prices[$chain] !== null && is_numeric($change)) {
+                $changes[$chain] = (float) $change;
+            }
         }
 
-        return $prices;
+        return ['prices' => $prices, 'changes' => $changes];
     }
 }
