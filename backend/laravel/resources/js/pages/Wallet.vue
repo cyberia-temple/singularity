@@ -73,6 +73,7 @@ import WalletTokens from '@/components/wallet/WalletTokens.vue';
 import WalletTorrent from '@/components/wallet/WalletTorrent.vue';
 import WalletTracker from '@/components/wallet/WalletTracker.vue';
 import WalletTrackerPublish from '@/components/wallet/WalletTrackerPublish.vue';
+import WalletTradingArena from '@/components/wallet/WalletTradingArena.vue';
 import WalletUnderground from '@/components/wallet/WalletUnderground.vue';
 import WalletWorkshop from '@/components/wallet/WalletWorkshop.vue';
 import { useLocale } from '@/composables/useLocale';
@@ -98,6 +99,7 @@ import {
     setMainButton,
     telegramHaptic,
 } from '@/lib/telegram';
+import { tradingArenaMessages } from '@/lib/tradingArenaMessages';
 import {
     createMnemonic,
     formatUnits,
@@ -169,6 +171,7 @@ const props = defineProps<{
 
 const { t } = useLocale(walletMessages);
 const { t: arenaT } = useLocale(arcadeMessages);
+const { t: agentsT } = useLocale(tradingArenaMessages);
 
 // Only Solana takes an override: the server picks that endpoint, while every
 // other chain carries its own public default in the registry.
@@ -246,6 +249,7 @@ type Section =
     | 'buy'
     | 'crosschain'
     | 'arena'
+    | 'agents'
     | 'daily'
     | 'browse'
     | 'domains'
@@ -375,6 +379,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'crosschain', label: () => t('crossTile') },
             { id: 'earn', label: () => t('earnTitle') },
             { id: 'liquidity', label: () => t('poolTitle') },
+            { id: 'agents', label: () => agentsT('nav') },
             { id: 'arena', label: () => arenaT('nav') },
             { id: 'otc', label: () => t('otcTitle') },
             { id: 'daily', label: () => t('dailyTitle') },
@@ -472,6 +477,7 @@ const TAB_OF: Record<Section, Section> = {
     buy: 'portfolio',
     crosschain: 'portfolio',
     arena: 'portfolio',
+    agents: 'portfolio',
     daily: 'portfolio',
     browse: 'portfolio',
     developer: 'portfolio',
@@ -2404,6 +2410,11 @@ watch(
                         :open-with="chatPeer"
                         :open-with-draft="chatDraft"
                         @opened="chatPeer = null"
+                    />
+
+                    <WalletTradingArena
+                        v-else-if="section === 'agents'"
+                        @back="openSection('portfolio')"
                     />
 
                     <WalletArena
