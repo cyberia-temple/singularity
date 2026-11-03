@@ -809,7 +809,7 @@ onBeforeUnmount(unsubscribe);
         -->
         <a
             v-if="!storeBuild"
-            href="/?site"
+            href="/"
             class="cw-btn cw-btn-secondary"
             style="height: 48px; margin-top: 8px; text-decoration: none"
         >
