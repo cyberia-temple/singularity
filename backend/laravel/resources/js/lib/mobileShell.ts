@@ -30,6 +30,12 @@ interface CapacitorPlugins {
         requestPermissions: () => Promise<{ receive: string }>;
         register: () => Promise<void>;
         unregister?: () => Promise<void>;
+        createChannel?: (channel: {
+            id: string;
+            name: string;
+            description?: string;
+            importance?: number;
+        }) => Promise<void>;
         addListener: (event: string, handler: (data: never) => void) => unknown;
     };
     Haptics?: {
@@ -187,6 +193,17 @@ export function nativePush(): {
             if (permission !== 'granted') {
                 return permission === 'denied' ? 'denied' : 'off';
             }
+
+            // The channel the server addresses (FCM_ANDROID_CHANNEL): Android files a
+            // message for a channel that does not exist under "Miscellaneous".
+            await push
+                .createChannel?.({
+                    id: 'cyberia',
+                    name: 'Cyberia',
+                    description: 'Activity on Cyberia',
+                    importance: 3,
+                })
+                .catch(() => undefined);
 
             const token = await new Promise<string | null>((resolve) => {
                 const timer = window.setTimeout(() => resolve(null), 15_000);
