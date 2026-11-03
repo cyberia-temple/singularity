@@ -298,6 +298,18 @@ export const readSide = (desk: OtcDesk, address: string): Promise<OtcSide> => {
     return pending;
 };
 
+/**
+ * Coin to keep back when the coin itself is being sold: the escrowed amount
+ * and the gas leave the same balance, so offering all of it is an offer that
+ * cannot be sent. Twice the most a desk call may cost at today's price, plus
+ * the approval it never needs for the coin.
+ */
+export const nativeGasReserve = async (desk: OtcDesk): Promise<bigint> => {
+    const { gasPrice } = await provider(desk).getFeeData();
+
+    return (gasPrice ?? 0n) * OTC_GAS_CAP * 2n;
+};
+
 /** What `owner` holds of one asset on the desk's network. */
 export const readBalance = async (
     desk: OtcDesk,

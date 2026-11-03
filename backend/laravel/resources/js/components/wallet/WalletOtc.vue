@@ -14,6 +14,7 @@ import {
     affordable,
     discussText,
     fillAllowed,
+    nativeGasReserve,
     otcAssets,
     payFor,
     readBalance,
@@ -375,10 +376,15 @@ const sides = reactive<{ sell: OtcSide | null; buy: OtcSide | null }>({
 /** What this wallet holds of the asset being sold. */
 const sellHeld = ref<bigint | null>(null);
 
+/** One counter per leg: only the newest resolution may write its result. */
+const resolving = { sell: 0, buy: 0 };
+
 const resolveLeg = async (key: 'sell' | 'buy'): Promise<void> => {
     const current = desk.value;
     const leg = legs[key];
     const address = leg.asset === CUSTOM ? leg.custom.trim() : leg.asset;
+    const generation = ++resolving[key];
+    const stale = (): boolean => resolving[key] !== generation;
 
     sides[key] = null;
 
@@ -393,17 +399,29 @@ const resolveLeg = async (key: 'sell' | 'buy'): Promise<void> => {
     try {
         const side = await readSide(current, address);
 
-        if (desk.value?.chain !== current.chain) {
+        if (stale()) {
             return;
         }
 
         sides[key] = side;
 
         if (key === 'sell' && me.value) {
-            sellHeld.value = await readBalance(current, side.address, me.value);
+            const [held, reserve] = await Promise.all([
+                readBalance(current, side.address, me.value),
+                side.address === NATIVE
+                    ? nativeGasReserve(current)
+                    : Promise.resolve(0n),
+            ]);
+
+            if (!stale()) {
+                // What can be escrowed: the coin keeps back its own gas.
+                sellHeld.value = held > reserve ? held - reserve : 0n;
+            }
         }
     } catch {
-        sides[key] = null;
+        if (!stale()) {
+            sides[key] = null;
+        }
     }
 };
 
@@ -568,6 +586,9 @@ watch(tab, () => {
 });
 
 watch(chainId, () => {
+    // Offers are numbered per network: a card left from the last one would
+    // act on whatever carries its id here.
+    book.value = [];
     selected.value = null;
     editing.value = null;
     sent.value = null;
