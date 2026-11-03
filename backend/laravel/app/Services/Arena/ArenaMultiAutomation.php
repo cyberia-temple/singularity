@@ -171,9 +171,13 @@ class ArenaMultiAutomation
                     throw new DomainException('decision_deadline_passed');
                 }
                 $attempt = [...$attempt, ...$this->models->decideMulti($actor, $rules, $context), 'status' => 'ok'];
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
                 $attempt['status'] = 'failed';
                 $attempt['error_code'] = 'model_call_failed';
+                // Our own refusal codes say why; anything else is named by class
+                // only, so no upstream text (or credential) lands in the record.
+                $attempt['error_detail'] = $exception instanceof DomainException
+                    ? substr($exception->getMessage(), 0, 60) : class_basename($exception);
             }
             $attempt['completed_at'] = CarbonImmutable::now('UTC')->toIso8601String();
             $record['attempts'][$actor] = $attempt;
