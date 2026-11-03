@@ -3,6 +3,7 @@
 use App\Models\ArenaSeason;
 use App\Services\Arena\ArenaAutomation;
 use App\Services\Arena\ArenaMultiAutomation;
+use App\Services\Arena\ArenaQuoteBoard;
 use App\Services\Arena\ArenaSeasonManager;
 use App\Services\Arena\MultiLedger;
 use Carbon\CarbonImmutable;
@@ -187,4 +188,20 @@ it('retries a per-minute 429 and names the daily free allowance when it runs out
     $attempts = $season->cycles()->sole()->record['attempts'];
     expect($attempts['lain']['status'])->toBe('ok')
         ->and($attempts['challenger']['error_detail'])->toBe('model_http_429_daily');
+});
+
+it('prices Robinhood Chain tokens by key and names anchors by their own symbol', function () {
+    Http::fake(fn (Request $request) => Http::response(str_contains($request->url(), '/tokens/v1/robinhood/')
+        ? [['chainId' => 'robinhood', 'baseToken' => ['address' => '0x9d783133a3ff9BA27Fa1605547368CF9a316341E', 'symbol' => 'EQUI'],
+            'priceUsd' => '0.00008237', 'liquidity' => ['usd' => 20901]]]
+        : [['chainId' => 'solana', 'baseToken' => ['address' => '3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh', 'symbol' => 'WBTC'],
+            'priceUsd' => '77420.13', 'liquidity' => ['usd' => 1772408]]]));
+
+    $board = app(ArenaQuoteBoard::class)->read(['3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh', 'robinhood:0x9d783133a3ff9ba27fa1605547368cf9a316341e',
+        'robinhood:0x2b79a071a75dd40f1aca68146d7978204efd156a'], 5000, ['3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh' => 'BTC']);
+
+    expect($board['prices'])->toHaveKeys(['3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh', 'robinhood:0x9d783133a3ff9ba27fa1605547368cf9a316341e'])
+        ->not->toHaveKey('robinhood:0x2b79a071a75dd40f1aca68146d7978204efd156a')
+        ->and($board['prices']['3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh']['symbol'])->toBe('BTC')
+        ->and($board['prices']['robinhood:0x9d783133a3ff9ba27fa1605547368cf9a316341e']['usd'])->toBe('0.00008237');
 });

@@ -130,7 +130,7 @@ class ArenaModelClient
         return [$data, $served];
     }
 
-    public const MULTI_PROMPT = 'You are a bounded paper-trading contestant on Solana tokens. You have no tools, wallet, web access or private memory. There is no fixed list: you may buy any Solana token by its mint address, and it fills only if a public DEX index prices it from a pool above the liquidity floor. The board lists what is in view this round (USD per whole token, pool liquidity, the 24h change; the promoted rows are paid promotion, not a recommendation) and every token you hold. Cash is paper USD. Do not invent news, indicators or history. Compare costs and uncertainty: every order pays the modeled fee and slippage, and thin pools move. Output only JSON with exactly action (hold/buy/sell), token (a mint address, or null for hold), bps (0 for hold; 2500/5000/10000 otherwise) and reason (at most 600 characters). No markdown. Buying spends that fraction of cash on the token; selling sells that fraction of your position in it. Never buy with no cash or sell a token you do not hold. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object. Example: {"action":"buy","token":"So11111111111111111111111111111111111111112","bps":2500,"reason":"Deepest pool, small allocation while the board is mixed."}';
+    public const MULTI_PROMPT = 'You are a bounded paper-trading contestant on crypto tokens. You have no tools, wallet, web access or private memory. There is no fixed list: you may buy any Solana token by its mint address, or a Robinhood Chain token on the board by its key (robinhood:0x…), and it fills only if a public DEX index prices it from a pool above the liquidity floor. The board lists what is in view this round (USD per whole token, pool liquidity, the 24h change; the promoted rows are paid promotion, not a recommendation) and every token you hold. Cash is paper USD. Do not invent news, indicators or history. Compare costs and uncertainty: every order pays the modeled fee and slippage, and thin pools move. Output only JSON with exactly action (hold/buy/sell), token (a mint address or board key, or null for hold), bps (0 for hold; 2500/5000/10000 otherwise) and reason (at most 600 characters). No markdown. Buying spends that fraction of cash on the token; selling sells that fraction of your position in it. Never buy with no cash or sell a token you do not hold. The future fill price is unknown. Your public reason must explain the decision briefly; it is not a private chain of thought. Return exactly one JSON object. Example: {"action":"buy","token":"So11111111111111111111111111111111111111112","bps":2500,"reason":"Deepest pool, small allocation while the board is mixed."}';
 
     /**
      * @param  array<string, mixed>  $rules
@@ -176,7 +176,7 @@ class ArenaModelClient
      */
     private static function mint(string $token, array $context): ?string
     {
-        if (preg_match(ArenaQuoteBoard::MINT, $token)) {
+        if (preg_match(ArenaQuoteBoard::KEY, $token)) {
             return $token;
         }
         $matches = collect([...$context['board'] ?? [], ...$context['portfolio']['positions'] ?? []])
