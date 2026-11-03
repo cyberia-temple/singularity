@@ -555,19 +555,21 @@ const refuse = (): void => {
     window.dispatchEvent(new CustomEvent('cyberia:replay-refused'));
 };
 
+// Short on purpose: on a phone the notice sits over whatever the page put at the bottom (a
+// sign-in button, the wallet's tab bar), so it has to say what it must in three lines.
 const NOTICE_TEXT: Record<'en' | 'ru' | 'zh', [string, string, string]> = {
     en: [
-        'We record how this site is used — clicks, scrolling and pointer movement — to find what is broken or confusing. Recordings stay on our own server and go to nobody else. What you type, keys, addresses and conversations are hidden.',
+        'We record clicks and scrolling, on our own server only, to find what is broken. What you type, keys and addresses stay hidden.',
         'OK',
         'Don’t record',
     ],
     ru: [
-        'Мы записываем, как используется сайт — клики, прокрутку и движения мыши, — чтобы находить, что сломано и неудобно. Записи хранятся только на нашем сервере и никому не передаются. Ввод, ключи, адреса и переписка скрыты.',
+        'Записываем клики и прокрутку — только на своём сервере, чтобы находить поломки. Ввод, ключи и адреса скрыты.',
         'Понятно',
         'Не записывать',
     ],
     zh: [
-        '我们会记录本网站的使用方式——点击、滚动和指针移动——以发现故障和难用之处。录制只保存在我们自己的服务器上，不会交给任何第三方。您输入的内容、密钥、地址和对话均被隐藏。',
+        '我们只在自己的服务器上记录点击和滚动，用来发现故障。您输入的内容、密钥和地址都会被隐藏。',
         '好的',
         '不要录制',
     ],
@@ -598,10 +600,10 @@ const showNotice = (): void => {
     box.setAttribute('role', 'status');
     box.setAttribute('data-replay-block', '');
     box.style.cssText =
-        'position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:2147483000;max-width:min(420px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:1px solid #23233a;border-radius:10px;background:#03030b;color:#d9d9ec;font:13px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.5)';
+        'position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:2147483000;max-width:min(420px,calc(100vw - 24px));box-sizing:border-box;padding:10px 12px;border:1px solid #23233a;border-radius:10px;background:#03030b;color:#d9d9ec;font:12.5px/1.4 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.5)';
 
     const body = document.createElement('p');
-    body.style.cssText = 'margin:0 0 10px';
+    body.style.cssText = 'margin:0 0 8px';
     body.textContent = text;
 
     const row = document.createElement('div');
@@ -616,7 +618,7 @@ const showNotice = (): void => {
         element.type = 'button';
         element.textContent = label;
         element.style.cssText =
-            'cursor:pointer;border-radius:6px;padding:6px 12px;font:inherit;font-weight:600;' +
+            'cursor:pointer;border-radius:6px;padding:5px 12px;font:inherit;font-weight:600;' +
             (primary
                 ? 'border:0;background:#c7c7ff;color:#03030b'
                 : 'border:1px solid #33334d;background:transparent;color:#d9d9ec');
@@ -694,6 +696,7 @@ const boot = (): void => {
     };
 
     start();
+
     if (options.hideNotice !== 'true') {
         showNotice();
     }

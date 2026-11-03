@@ -2946,7 +2946,7 @@ export const walletMessages: Messages = {
         priceSource: 'Цены: DexScreener · CoinGecko',
         pricePartial: 'Частично',
         change24h: 'за 24 ч',
-        priceMissing: 'без цены сетей: {count} из {total}',
+        priceMissing: 'нет цены у {count} из {total} сетей',
         balanceMissing: 'не прочитано сетей: {count} из {total}',
         tokensUnpriced: 'токенов без цены: {count} — в итог не входят',
         priceOffline:
