@@ -90,6 +90,7 @@ export default defineConfig({
                     text: 'Project',
                     collapsed: true,
                     items: [
+                        { text: 'Team onboarding (RU)', link: '/operations/team-onboarding' },
                         { text: 'Documentation guide', link: '/contributing' },
                         { text: 'Documentation plan', link: '/documentation-plan' },
                         { text: 'Good first issues', link: '/GOOD_FIRST_ISSUES' },
