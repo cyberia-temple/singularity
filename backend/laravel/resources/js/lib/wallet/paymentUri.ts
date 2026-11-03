@@ -5,9 +5,12 @@
  * Wallets put an address in a QR code three ways: bare (`0xabc…`), as an
  * EIP-681 payment link (`ethereum:0xabc…@8453?value=…`, the `pay-` prefix
  * included), or as a scheme of the chain (`bitcoin:bc1…?amount=…`,
- * `solana:…`). Only the address is taken: an amount or a contract call inside
- * a code is somebody else's choice of what to sign, and the form is where the
- * person makes that choice themselves.
+ * `solana:…`). Only the address is taken: an amount inside a code is somebody
+ * else's choice of what to sign, and the form is where the person makes that
+ * choice themselves. A code that names a contract call (`ethereum:<token>/
+ * transfer?address=<recipient>`) is refused outright: the address in front of
+ * the call is the token contract, and taking it as the recipient would send
+ * the money to the contract.
  */
 
 export interface ScannedPayment {
@@ -28,6 +31,12 @@ export function parsePaymentUri(raw: string): ScannedPayment | null {
         return { address: text.toLowerCase(), family: 'evm', chainId: null };
     }
 
+    const plain = bareAddress(text);
+
+    if (plain !== null) {
+        return plain;
+    }
+
     const scheme = /^([a-z]+):(?:\/\/)?(.+)$/i.exec(text);
 
     if (scheme === null) {
@@ -38,10 +47,8 @@ export function parsePaymentUri(raw: string): ScannedPayment | null {
     const body = scheme[2].split('?')[0];
 
     if (name === 'ethereum') {
-        // EIP-681: ethereum:[pay-]<address>[@<chainId>][/<function>]
-        const match = /^(?:pay-)?(0x[0-9a-fA-F]{40})(?:@(\d+))?(?:\/.*)?$/.exec(
-            body,
-        );
+        // EIP-681: ethereum:[pay-]<address>[@<chainId>] — and no /<function>.
+        const match = /^(?:pay-)?(0x[0-9a-fA-F]{40})(?:@(\d+))?$/.exec(body);
 
         return match === null
             ? null
@@ -69,4 +76,40 @@ export function parsePaymentUri(raw: string): ScannedPayment | null {
     }
 
     return null;
+}
+
+/**
+ * A bare address of the other chains, as the wallet's own Receive screen draws
+ * it. Which chain it belongs to is a guess from its shape (a short base58
+ * string can be read several ways); the send form then checks it against the
+ * network it is on, exactly as it checks a typed address.
+ */
+function bareAddress(text: string): ScannedPayment | null {
+    const of = (family: ScannedPayment['family']): ScannedPayment => ({
+        address: text,
+        family,
+        chainId: null,
+    });
+
+    if (/^bc1[0-9a-z]{20,90}$/i.test(text)) {
+        return of('bitcoin');
+    }
+
+    if (/^ltc1[0-9a-z]{20,90}$/i.test(text)) {
+        return of('litecoin');
+    }
+
+    if (/^[48][1-9A-HJ-NP-Za-km-z]{94,105}$/.test(text)) {
+        return of('monero');
+    }
+
+    if (/^[13][1-9A-HJ-NP-Za-km-z]{25,34}$/.test(text)) {
+        return of('bitcoin');
+    }
+
+    if (/^[LM][1-9A-HJ-NP-Za-km-z]{25,34}$/.test(text)) {
+        return of('litecoin');
+    }
+
+    return BASE58.test(text) ? of('solana') : null;
 }

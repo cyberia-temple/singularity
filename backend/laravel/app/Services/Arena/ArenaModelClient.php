@@ -211,6 +211,24 @@ class ArenaModelClient
         return ['https://openrouter.ai/api/v1/chat/completions', (string) config('arena.automation.api_key'), $model, true];
     }
 
+    /**
+     * Whether every model a season names can be asked: a direct provider's model needs that
+     * provider's key, anything else the OpenRouter key. A season of Groq models alone runs
+     * without an OpenRouter key at all.
+     *
+     * @param  array<int|string, mixed>  $models
+     */
+    public static function hasKeysFor(array $models): bool
+    {
+        foreach ($models as $model) {
+            if (! is_string($model) || self::endpoint($model)[1] === '') {
+                return false;
+            }
+        }
+
+        return $models !== [];
+    }
+
     /** The direct provider id a "<id>/<model>" names, when it is allowed and has a key. */
     private static function directProvider(string $model): ?string
     {

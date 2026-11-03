@@ -347,6 +347,15 @@ it('asks a groq contestant on the Groq free-tier key, without OpenRouter fields'
         && $request->hasHeader('Authorization', 'Bearer groq-test-key'));
 });
 
+it('needs the OpenRouter key only for the models that go through OpenRouter', function () {
+    config()->set('ai.providers.groq', ['api_key' => 'groq-test-key', 'base_url' => 'https://api.groq.com/openai/v1']);
+    config()->set('arena.automation.api_key', null);
+    expect(ArenaModelClient::hasKeysFor(['lain' => 'groq/openai/gpt-oss-120b', 'challenger' => 'groq/qwen/qwen3-32b']))->toBeTrue()
+        ->and(ArenaModelClient::hasKeysFor(['lain' => 'groq/openai/gpt-oss-120b', 'challenger' => 'fixture/challenger:free']))->toBeFalse();
+    config()->set('ai.providers.groq.api_key', null);
+    expect(ArenaModelClient::hasKeysFor(['lain' => 'groq/openai/gpt-oss-120b', 'challenger' => 'groq/qwen/qwen3-32b']))->toBeFalse();
+});
+
 it('refuses a groq contestant when there is no Groq key', function () {
     config()->set('ai.providers.groq', ['api_key' => null, 'base_url' => 'https://api.groq.com/openai/v1']);
     $rules = automaticArena()->rules;

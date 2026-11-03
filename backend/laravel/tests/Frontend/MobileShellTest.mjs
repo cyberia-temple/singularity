@@ -51,9 +51,12 @@ test('a QR code gives an address and never an amount or a call', () => {
         family: 'evm',
         chainId: 8453,
     });
+    // The address in front of a call is the token contract, not the recipient.
     assert.equal(
-        parsePaymentUri(`ethereum:pay-${plain}/transfer?address=0x0`)?.address,
-        plain.toLowerCase(),
+        parsePaymentUri(
+            `ethereum:${plain}/transfer?address=0x8ba1f109551bD432803012645Ac136ddd64DBA72&uint256=10`,
+        ),
+        null,
     );
     assert.equal(
         parsePaymentUri(
@@ -66,6 +69,26 @@ test('a QR code gives an address and never an amount or a call', () => {
             ?.family,
         'solana',
     );
+    // Bare addresses, as the Receive screen draws them for the other chains.
+    assert.equal(
+        parsePaymentUri('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')?.family,
+        'bitcoin',
+    );
+    assert.equal(
+        parsePaymentUri('ltc1qg82tcz5wcc2xg4a3dvxwzsqwk2pyafmkzh0rmn')?.family,
+        'litecoin',
+    );
+    assert.equal(
+        parsePaymentUri('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')?.family,
+        'solana',
+    );
+    assert.equal(
+        parsePaymentUri(
+            '44AFFq5kSiGBoZ4NMDwYtN18obc8AemS33DBLWs3H7otXft3XjrpDtQGv7SqSsaBYBb98uNbr2VBBEt7f2wfn3RVGQBEP3A',
+        )?.family,
+        'monero',
+    );
+    assert.equal(parsePaymentUri('hello world'), null);
     assert.equal(parsePaymentUri('https://cyberia.church'), null);
     assert.equal(parsePaymentUri('0x1234'), null);
     assert.equal(parsePaymentUri('ethereum:0xnothex'), null);

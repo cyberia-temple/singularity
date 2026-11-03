@@ -82,7 +82,7 @@ class ArenaAutomation
         if ($now->greaterThanOrEqualTo($season->ends_at)) {
             return 'ended';
         }
-        if (! config('arena.automation.api_key')) {
+        if (! ArenaModelClient::hasKeysFor((array) ($settings['models'] ?? []))) {
             $season->update(['automation_error' => 'missing_model_key']);
 
             return 'missing_model_key';
