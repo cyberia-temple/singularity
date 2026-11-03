@@ -2,9 +2,9 @@
 
 namespace App\Services\Social;
 
-use App\Services\Push\FcmFanOut;
 use App\Models\AnalyticsUser;
 use App\Models\User;
+use App\Services\Push\FcmFanOut;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
