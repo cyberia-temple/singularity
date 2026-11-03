@@ -36,7 +36,15 @@ for (const name of ['desktop.ts', 'components/wallet/DesktopWalletGate.vue']) {
 // the patch is only for a wallet checkout that predates them.
 const patchArgs = ['apply', '--unsafe-paths', '-p3', `--directory=${stage}`, path.join(desktop, 'renderer-desktop.patch')];
 const patchCwd = path.resolve(desktop, '../..');
-if (spawnSync('git', [...patchArgs.slice(0, 1), '--check', '--reverse', ...patchArgs.slice(1)], { cwd: patchCwd }).status !== 0) {
+// The changes sit in master now, where surrounding edits move their context
+// lines: a reverse check then fails although nothing is missing, and the
+// forward apply fails too. The markers decide instead of the context.
+const stagedSource = (name) => readFileSync(path.join(stage, 'resources/js', name), 'utf8');
+const alreadyDesktop =
+    stagedSource('lib/wallet/vault.ts').includes('The desktop wallet requires a vault password') &&
+    stagedSource('components/wallet/WalletOnboarding.vue').includes('passwordRequired') &&
+    stagedSource('components/wallet/WalletBrowse.vue').includes("kind: 'external'");
+if (!alreadyDesktop && spawnSync('git', [...patchArgs.slice(0, 1), '--check', '--reverse', ...patchArgs.slice(1)], { cwd: patchCwd }).status !== 0) {
     execFileSync('git', [patchArgs[0], '--verbose', ...patchArgs.slice(1)], { cwd: patchCwd, stdio: 'inherit' });
 }
 if (!readFileSync(path.join(stage, 'resources/js/lib/wallet/vault.ts'), 'utf8').includes('The desktop wallet requires a vault password')) {

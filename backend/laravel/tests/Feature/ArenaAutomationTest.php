@@ -328,3 +328,38 @@ it('accepts a canonical served identity while keeping the requested free variant
     $attempt = $season->cycles()->sole()->record['attempts']['lain'];
     expect($attempt['served_model'])->toBe('fixture/lain')->and($attempt['decision']['model'])->toBe('fixture/lain:free');
 });
+
+it('asks a groq contestant on the Groq free-tier key, without OpenRouter fields', function () {
+    config()->set('ai.providers.groq', ['api_key' => 'groq-test-key', 'base_url' => 'https://api.groq.com/openai/v1']);
+    $rules = automaticArena()->rules;
+    $rules['automation']['models']['lain'] = 'groq/llama-3.3-70b-versatile';
+    Http::fake(['https://api.groq.com/openai/v1/chat/completions' => Http::response([
+        'model' => 'llama-3.3-70b-versatile',
+        'choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode(['action' => 'hold', 'bps' => 0, 'reason' => 'Fixture'])]]],
+    ])]);
+
+    $result = app(ArenaModelClient::class)->decide('lain', $rules, []);
+
+    expect($result['decision']['action'])->toBe('hold');
+    Http::assertSent(fn (Request $request) => $request->url() === 'https://api.groq.com/openai/v1/chat/completions'
+        && $request['model'] === 'llama-3.3-70b-versatile'
+        && ! isset($request['provider'], $request['reasoning'])
+        && $request->hasHeader('Authorization', 'Bearer groq-test-key'));
+});
+
+it('needs the OpenRouter key only for the models that go through OpenRouter', function () {
+    config()->set('ai.providers.groq', ['api_key' => 'groq-test-key', 'base_url' => 'https://api.groq.com/openai/v1']);
+    config()->set('arena.automation.api_key', null);
+    expect(ArenaModelClient::hasKeysFor(['lain' => 'groq/openai/gpt-oss-120b', 'challenger' => 'groq/qwen/qwen3-32b']))->toBeTrue()
+        ->and(ArenaModelClient::hasKeysFor(['lain' => 'groq/openai/gpt-oss-120b', 'challenger' => 'fixture/challenger:free']))->toBeFalse();
+    config()->set('ai.providers.groq.api_key', null);
+    expect(ArenaModelClient::hasKeysFor(['lain' => 'groq/openai/gpt-oss-120b', 'challenger' => 'groq/qwen/qwen3-32b']))->toBeFalse();
+});
+
+it('refuses a groq contestant when there is no Groq key', function () {
+    config()->set('ai.providers.groq', ['api_key' => null, 'base_url' => 'https://api.groq.com/openai/v1']);
+    $rules = automaticArena()->rules;
+    $rules['automation']['models']['lain'] = 'groq/llama-3.3-70b-versatile';
+    expect(fn () => app(ArenaModelClient::class)->decide('lain', $rules, []))->toThrow(DomainException::class);
+    Http::assertNothingSent();
+});

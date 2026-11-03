@@ -42,6 +42,10 @@ from bot.config import (
     AI_MODELS_URL,
     AI_PROXY_URL,
     AI_TIMEOUT_SECONDS,
+    GROQ_API_KEY,
+    GROQ_BASE_URL,
+    GROQ_FREE_TIER,
+    GROQ_PREFIX,
 )
 from bot.db import _kv_get, _kv_set
 
@@ -270,9 +274,58 @@ async def fetch_catalogue(force: bool = False) -> tuple[Catalogue | None, str]:
                 return _cache["catalogue"], "список моделей сейчас не читается — показываю прошлый"
             return None, "провайдер не отдал список моделей"
 
+        if GROQ_API_KEY:
+            catalogue = merge_catalogues(catalogue, await _groq_catalogue(client_args))
+
         _cache["at"] = time.monotonic()
         _cache["catalogue"] = catalogue
         return catalogue, ""
+
+
+def groq_choices(payload: Any, free: bool = True) -> tuple[ModelChoice, ...]:
+    """Groq's `/models` as choices under the `groq/` prefix.
+
+    Groq publishes no prices, so free is what the key is (its free tier), and
+    speech, moderation and inactive models are dropped: none can answer.
+    """
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    out: list[ModelChoice] = []
+    for entry in rows if isinstance(rows, list) else []:
+        if not isinstance(entry, dict) or entry.get("active") is False:
+            continue
+        model_id = str(entry.get("id") or "").strip()
+        lowered = model_id.lower()
+        if not model_id or any(word in lowered for word in ("whisper", "tts", "guard", "distil")):
+            continue
+        context = entry.get("context_window") or entry.get("context_length")
+        try:
+            context_len = int(context) if context else None
+        except (TypeError, ValueError):
+            context_len = None
+        out.append(ModelChoice(id=GROQ_PREFIX + model_id, label=f"Groq: {model_id}", context=context_len, free=free))
+    return tuple(sorted(out, key=lambda m: m.label.lower()))
+
+
+def merge_catalogues(main: Catalogue, extra: tuple[ModelChoice, ...]) -> Catalogue:
+    """The main pool plus a second provider's models, deduplicated by id."""
+    seen = {m.id for m in main.models}
+    models = main.models + tuple(m for m in extra if m.id not in seen)
+    return Catalogue(models=models, priced=main.priced)
+
+
+async def _groq_catalogue(client_args: dict[str, Any]) -> tuple[ModelChoice, ...]:
+    """Groq's list, or nothing: a second pool that is down must not cost the first."""
+    try:
+        async with httpx.AsyncClient(**client_args) as client:
+            response = await client.get(
+                f"{GROQ_BASE_URL}/models",
+                headers={"Accept": "application/json", "Authorization": f"Bearer {GROQ_API_KEY}"},
+            )
+        response.raise_for_status()
+        return groq_choices(response.json(), GROQ_FREE_TIER)
+    except (httpx.HTTPError, ValueError, TypeError) as exc:
+        logger.warning(f"groq model list unreadable: {exc}")
+        return ()
 
 
 # ------------------------------------------------------------------- the UI

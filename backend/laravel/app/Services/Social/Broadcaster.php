@@ -4,6 +4,7 @@ namespace App\Services\Social;
 
 use App\Models\AnalyticsUser;
 use App\Models\User;
+use App\Services\Push\FcmFanOut;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +75,14 @@ class Broadcaster
 
         $this->installations()
             ->chunkById(self::CHUNK, fn ($installs) => $installs->each($deliver));
+
+        // The native apps: the same notification through Firebase, since a
+        // WebView cannot hold the Web Push subscription the loop above uses.
+        try {
+            $sent += app(FcmFanOut::class)->send($notification);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return $sent;
     }

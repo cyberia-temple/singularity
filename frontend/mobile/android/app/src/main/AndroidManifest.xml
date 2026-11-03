@@ -19,6 +19,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Long-press shortcuts on the launcher icon (scan, chat, feed). -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+
             <!-- cyberia://feed — used by Telegram posts and the desktop app. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -42,6 +45,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Push (FCM): the small icon is the die's monochrome layer, tinted cyan. -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_launcher_monochrome" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_accent" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="cyberia" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -54,4 +62,11 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- QR codes only: the wallet reads an address off the camera, on the device; no photo is kept or sent. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Haptics: a short buzz when a signature is confirmed. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Android 13+: asked once, from the wallet, when the person turns notifications on. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

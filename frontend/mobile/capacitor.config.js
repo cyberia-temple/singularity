@@ -51,6 +51,9 @@ const config = {
             androidSplashResourceName: 'splash',
             showSpinner: false,
         },
+        PushNotifications: {
+            presentationOptions: ['badge', 'sound', 'alert'],
+        },
         StatusBar: {
             style: 'DARK',
             backgroundColor: '#0b0f10',

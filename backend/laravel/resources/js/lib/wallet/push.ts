@@ -13,13 +13,9 @@
  * one that never offered notifications.
  */
 import { installationId } from '@/lib/analytics';
+import { nativePush } from '@/lib/mobileShell';
 
-export type PushState =
-    | 'unsupported'
-    | 'unavailable'
-    | 'denied'
-    | 'off'
-    | 'on';
+export type PushState = 'unsupported' | 'unavailable' | 'denied' | 'off' | 'on';
 
 const SW = '/sw.js';
 
@@ -55,6 +51,12 @@ function sameKey(subscription: PushSubscription, key: string): boolean {
 }
 
 export function pushSupported(vapidKey: string | null): boolean {
+    // The Android/iOS app: a WebView holds no Web Push subscription, so the
+    // same button registers with Firebase instead (lib/mobileShell.ts).
+    if (nativePush() !== null) {
+        return true;
+    }
+
     return (
         typeof navigator !== 'undefined' &&
         'serviceWorker' in navigator &&
@@ -79,6 +81,12 @@ export async function pushState(vapidKey: string | null): Promise<PushState> {
         return 'unavailable';
     }
 
+    const native = nativePush();
+
+    if (native !== null) {
+        return native.state();
+    }
+
     if (Notification.permission === 'denied') {
         return 'denied';
     }
@@ -101,6 +109,12 @@ export async function enablePush(
 
     if (install === null) {
         return 'unavailable';
+    }
+
+    const native = nativePush();
+
+    if (native !== null) {
+        return native.enable(install, locale);
     }
 
     if ((await Notification.requestPermission()) !== 'granted') {
@@ -148,6 +162,11 @@ export async function enablePush(
 
 export async function disablePush(): Promise<PushState> {
     const install = installationId();
+    const native = nativePush();
+
+    if (native !== null) {
+        return native.disable();
+    }
 
     try {
         const registration = await navigator.serviceWorker.getRegistration(SW);

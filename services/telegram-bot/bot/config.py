@@ -484,6 +484,19 @@ AI_PROXY_URL = (
     or ""
 ).strip()
 
+# Groq (OpenAI-compatible, free tier) as a second pool next to the main one:
+# with a key, /model also lists Groq's models as `groq/<id>` and those
+# questions go straight to Groq. GROQ_FREE_TIER=false treats them as paid
+# (hidden from a priced catalogue's free list).
+GROQ_API_KEY = (os.environ.get("GROQ_API_KEY", "") or "").strip()
+GROQ_BASE_URL = (
+    os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1") or ""
+).strip().rstrip("/")
+GROQ_FREE_TIER = (
+    os.environ.get("GROQ_FREE_TIER", "1").strip().lower() in {"1", "true", "yes", "on"}
+)
+GROQ_PREFIX = "groq/"
+
 # Contract addresses surfaced by "ca". CYBER.sol is the community pump.fun token
 # (also gates the whales chat); its EVM counterpart is the bridged CYBER.sol on
 # Cyberia (matches PRICE_RELAY_TOKENS). Blank values are simply omitted.

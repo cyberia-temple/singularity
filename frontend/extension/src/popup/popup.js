@@ -1,3 +1,8 @@
+// popup.html?panel=1 is the same wallet docked in the browser's side panel.
+if (new URLSearchParams(window.location.search).has('panel')) {
+    document.documentElement.dataset.surface = 'panel';
+}
+
 /**
  * The popup: 348 pixels of the design system, and every decision in the wallet
  * that needs a person.

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue';
+import { haptic } from '@/lib/mobileShell';
 
 /**
  * Hold-to-confirm.
@@ -39,6 +40,8 @@ const tick = (): void => {
 
     if (progress.value >= 1) {
         stop();
+        // On a phone the hand holding the button feels the signature land.
+        haptic('success');
         emit('complete');
 
         return;

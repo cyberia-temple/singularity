@@ -9,6 +9,17 @@ import type { Messages } from '@/composables/useLocale';
  */
 export const walletMessages: Messages = {
     en: {
+        // Camera (QR codes) and the share sheet — the phone app and phone browsers
+        qrScan: 'Scan a QR code',
+        qrScanTitle: 'QR code scanner',
+        qrScanHint: 'Point the camera at a QR code with an address.',
+        qrUnsupported: 'This browser cannot read QR codes.',
+        qrNoCamera:
+            'No access to the camera. Allow it in the system settings and try again.',
+        qrNotAddress: 'That QR code holds no address this wallet can use.',
+        qrClose: 'Close',
+        shareAddress: 'Share address',
+        shareCopied: 'Copied — paste it where you need it',
         // Chrome
         wallet: 'Wallet',
         eyebrow: 'One seed, every chain',
@@ -2646,6 +2657,18 @@ export const walletMessages: Messages = {
         chainFailed: 'It did not go through: {message}',
     },
     ru: {
+        // Камера (QR-коды) и системное «Поделиться» — приложение и мобильные браузеры
+        qrScan: 'Сканировать QR-код',
+        qrScanTitle: 'Сканер QR-кода',
+        qrScanHint: 'Наведите камеру на QR-код с адресом.',
+        qrUnsupported: 'Этот браузер не умеет читать QR-коды.',
+        qrNoCamera:
+            'Нет доступа к камере. Разрешите его в настройках системы и попробуйте ещё раз.',
+        qrNotAddress:
+            'В этом QR-коде нет адреса, который может принять кошелёк.',
+        qrClose: 'Закрыть',
+        shareAddress: 'Поделиться адресом',
+        shareCopied: 'Скопировано — вставьте, куда нужно',
         // Chrome
         wallet: 'Кошелёк',
         eyebrow: 'Одна сид-фраза, все сети',
@@ -2930,7 +2953,7 @@ export const walletMessages: Messages = {
         priceSource: 'Цены: DexScreener · CoinGecko',
         pricePartial: 'Частично',
         change24h: 'за 24 ч',
-        priceMissing: 'без цены сетей: {count} из {total}',
+        priceMissing: 'нет цены у {count} из {total} сетей',
         balanceMissing: 'не прочитано сетей: {count} из {total}',
         tokensUnpriced: 'токенов без цены: {count} — в итог не входят',
         priceOffline:
@@ -5178,6 +5201,16 @@ export const walletMessages: Messages = {
         chainFailed: 'Не прошло: {message}',
     },
     zh: {
+        // 相机（二维码）与系统分享 — 手机应用与手机浏览器
+        qrScan: '扫描二维码',
+        qrScanTitle: '二维码扫描',
+        qrScanHint: '将相机对准带有地址的二维码。',
+        qrUnsupported: '此浏览器无法读取二维码。',
+        qrNoCamera: '无法访问相机。请在系统设置中允许后重试。',
+        qrNotAddress: '该二维码中没有本钱包可用的地址。',
+        qrClose: '关闭',
+        shareAddress: '分享地址',
+        shareCopied: '已复制 — 粘贴到需要的地方',
         // Chrome
         wallet: '钱包',
         eyebrow: '一组助记词，所有链',

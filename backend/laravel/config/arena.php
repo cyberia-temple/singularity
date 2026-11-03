@@ -75,6 +75,9 @@ return [
         'enabled' => (bool) env('ARENA_AUTOMATION_ENABLED', false),
         'rpc_url' => env('ARENA_MARKET_RPC_URL', 'https://mainnet.base.org'),
         'api_key' => env('ARENA_OPENROUTER_API_KEY'),
+        // Hosts a contestant may be named on directly ("groq/<id>"), on the
+        // free-tier key config/ai.php already holds. Inference hosts only.
+        'direct_providers' => array_values(array_filter(explode(',', (string) env('ARENA_DIRECT_PROVIDERS', 'groq')))),
         'models' => [
             'lain' => env('ARENA_LAIN_MODEL', 'xingchen-agi/xing4.0-29b-a4b:free'),
             'challenger' => env('ARENA_CHALLENGER_MODEL', 'nvidia/nemotron-3.5-super-vl:free'),

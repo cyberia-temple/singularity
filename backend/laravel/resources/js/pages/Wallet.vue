@@ -16,6 +16,7 @@ import {
 import type { Component } from 'vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
+import QrScanner from '@/components/wallet/QrScanner.vue';
 import WalletAccounts from '@/components/wallet/WalletAccounts.vue';
 import WalletAddNetwork from '@/components/wallet/WalletAddNetwork.vue';
 import WalletAnalytics from '@/components/wallet/WalletAnalytics.vue';
@@ -86,6 +87,7 @@ import { useWalletMode } from '@/composables/useWalletMode';
 import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { arcadeMessages } from '@/lib/arcadeMessages';
+import { qrScanSupported } from '@/lib/mobileShell';
 import { isNativeShell, nativeShell, onHardwareBack } from '@/lib/native';
 import {
     hiddenInStore,
@@ -115,6 +117,7 @@ import {
     announceWalletEvent,
     playWalletSound,
 } from '@/lib/wallet/notifications';
+import { parsePaymentUri } from '@/lib/wallet/paymentUri';
 import type { PlayerTrack } from '@/lib/wallet/player';
 import { NO_CHANGES } from '@/lib/wallet/priceChange';
 import type { PriceChanges } from '@/lib/wallet/priceChange';
@@ -1070,6 +1073,46 @@ const takeSectionRequest = (): void => {
     }
 };
 
+/*
+ * `?scan=1` — the app's "Scan QR" home-screen shortcut. The camera opens over
+ * the wallet; an address goes to the send form, or, in a store build that has
+ * no sending, to a chat with that address. The parameter removes itself: a
+ * refresh should not reopen the camera.
+ */
+const scanOpen = ref(false);
+const scanRefused = ref(false);
+const takeScanRequest = (): void => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+
+    if (url.searchParams.get('scan') === null) {
+        return;
+    }
+
+    url.searchParams.delete('scan');
+    window.history.replaceState(window.history.state, '', url.toString());
+    scanOpen.value = qrScanSupported();
+};
+
+const takeScanned = (text: string): void => {
+    scanOpen.value = false;
+    const scanned = parsePaymentUri(text);
+    scanRefused.value = scanned === null || scanned.family !== 'evm';
+
+    if (scanned === null || scanned.family !== 'evm') {
+        return;
+    }
+
+    if (socialOnly()) {
+        openChatWith(scanned.address);
+    } else {
+        openSendTo(scanned.address);
+    }
+};
+
 const takeSwapRequest = (): void => {
     if (typeof window === 'undefined') {
         return;
@@ -1893,6 +1936,7 @@ onMounted(() => {
     void signInInsideTelegram();
     void startFresh();
     takeSectionRequest();
+    takeScanRequest();
     takeWrapRequest();
     takeSwapRequest();
     applyWrapRequest();
@@ -3019,6 +3063,26 @@ watch(
             <div class="cw-raster" aria-hidden="true"></div>
             <div class="cw-scan" aria-hidden="true"></div>
             <WalletExperimentsLayer v-if="experiments.anyOn.value" />
+            <QrScanner
+                v-if="scanOpen"
+                @detected="takeScanned"
+                @close="scanOpen = false"
+            />
+            <p
+                v-if="scanRefused"
+                class="cw-note cw-note-warn"
+                role="status"
+                style="
+                    position: fixed;
+                    left: 16px;
+                    right: 16px;
+                    bottom: calc(16px + env(safe-area-inset-bottom));
+                    z-index: 70;
+                "
+                @click="scanRefused = false"
+            >
+                <span>{{ t('qrNotAddress') }}</span>
+            </p>
         </div>
     </div>
 </template>

@@ -185,8 +185,11 @@ test('the firefox manifest is the same wallet in gecko dialect', () => {
     // lists an add-on for Android off this key.
     assert.ok(!('gecko_android' in gecko.browser_specific_settings), 'not an Android add-on');
 
-    // Everything that decides what the wallet may reach stays identical.
-    assert.deepEqual(gecko.permissions, manifest.permissions);
+    // Everything that decides what the wallet may reach stays identical; the
+    // side panel API is Chromium's alone, and Firefox docks the same page as
+    // its sidebar instead.
+    assert.deepEqual(gecko.permissions, manifest.permissions.filter((p) => p !== 'sidePanel'));
+    assert.equal(gecko.sidebar_action.default_panel, manifest.side_panel.default_path);
     assert.deepEqual(gecko.optional_permissions, manifest.optional_permissions);
     assert.deepEqual(gecko.host_permissions, manifest.host_permissions);
     assert.ok(!('content_scripts' in gecko));

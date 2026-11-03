@@ -50,6 +50,7 @@ import { balanceOf, feesFor, gasFor, nonceOf, quotes, rpc, sendRaw, tokenMeta, t
 import { applyRelay, permissionsFor, relayScope } from './relay.js';
 import { syncInjection } from './injection.js';
 import * as requests from './requests.js';
+import { classify, lookupUrl, omniboxTarget, suggestion } from './lookup.js';
 
 const SESSION_KEY = 'vaultKey';
 const LOCK_ALARM = 'cyberia-lock';
@@ -920,6 +921,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 chrome.runtime.onInstalled.addListener(async (details) => {
     const { vault, grants, relay } = await readLocal(['vault', 'grants', 'relay']);
 
+    // The menu and, on Chromium, the side panel: both are rebuilt on every
+    // install and update because the browser forgets nothing else about them.
+    createMenus();
+
     await syncInjection(grants);
     await requests.refreshBadge();
     await applyRelay(relay);
@@ -934,4 +939,52 @@ chrome.runtime.onStartup.addListener(async () => {
 
     await syncInjection(grants);
     await applyRelay(relay);
+});
+
+/* -------------------------------------------- selection, omnibox, panel --- */
+
+/**
+ * Right-click a selected address, hash, block or .cyber name on any page and
+ * open it on the Cyberia explorer; `cy <text>` in the address bar does the same.
+ * Nothing is read from the page beyond the selection the browser hands over.
+ */
+function createMenus() {
+    chrome.contextMenus?.removeAll(() => {
+        chrome.contextMenus.create({
+            id: 'cyberia-lookup',
+            title: 'Open "%s" on Cyberia',
+            contexts: ['selection'],
+        });
+        if (chrome.sidePanel) {
+            chrome.contextMenus.create({
+                id: 'cyberia-panel',
+                title: 'Open Cyberia Wallet in the side panel',
+                contexts: ['action'],
+            });
+        }
+    });
+}
+
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === 'cyberia-lookup' && info.selectionText) {
+        void chrome.tabs.create({ url: lookupUrl(classify(info.selectionText)), index: (tab?.index ?? 0) + 1 });
+    }
+    if (info.menuItemId === 'cyberia-panel' && tab?.windowId !== undefined) {
+        void chrome.sidePanel?.open({ windowId: tab.windowId }).catch(() => undefined);
+    }
+});
+
+chrome.omnibox?.setDefaultSuggestion({ description: 'Cyberia: an address, a transaction hash, a block or a .cyber name' });
+chrome.omnibox?.onInputChanged.addListener((text, suggest) => {
+    if (text.trim()) {
+        suggest([suggestion(text)]);
+    }
+});
+chrome.omnibox?.onInputEntered.addListener((text, disposition) => {
+    const url = omniboxTarget(text);
+    if (disposition === 'currentTab') {
+        void chrome.tabs.update({ url });
+    } else {
+        void chrome.tabs.create({ url, active: disposition !== 'newBackgroundTab' });
+    }
 });

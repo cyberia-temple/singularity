@@ -77,16 +77,20 @@ class ArenaModelClient
         // seasons ask for them; older frozen seasons keep one request); the
         // daily allowance is not, and is named so the record says which.
         for ($attempt = 1; ; $attempt++) {
-            $response = Http::withToken((string) config('arena.automation.api_key'))->acceptJson()
+            [$url, $key, $upstream, $viaOpenRouter] = self::endpoint($model);
+            $body = [
+                'model' => $upstream, 'stream' => false, 'max_tokens' => $settings['max_output_tokens'], 'temperature' => 0.2,
+                'response_format' => ['type' => 'json_object'],
+                'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
+            ];
+            if ($viaOpenRouter) {
+                // OpenRouter's own fields: never fall back, never pay.
+                $body += ['reasoning' => ['enabled' => false], 'provider' => ['allow_fallbacks' => false, 'require_parameters' => true,
+                    'max_price' => ['prompt' => 0, 'completion' => 0, 'request' => 0]]];
+            }
+            $response = Http::withToken($key)->acceptJson()
                 ->connectTimeout(3)->timeout($settings['timeout_seconds'])->withOptions(['allow_redirects' => false])
-                ->post('https://openrouter.ai/api/v1/chat/completions', [
-                    'model' => $model, 'stream' => false, 'max_tokens' => $settings['max_output_tokens'], 'temperature' => 0.2,
-                    'reasoning' => ['enabled' => false],
-                    'provider' => ['allow_fallbacks' => false, 'require_parameters' => true,
-                        'max_price' => ['prompt' => 0, 'completion' => 0, 'request' => 0]],
-                    'response_format' => ['type' => 'json_object'],
-                    'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
-                ]);
+                ->post($url, $body);
             if ($response->status() !== 429) {
                 break;
             }
@@ -98,7 +102,7 @@ class ArenaModelClient
             usleep($attempt * (int) config('arena.automation.retry_microseconds', self::RETRY_MICROSECONDS));
         }
         $served = $response->json('model');
-        $expected = preg_replace('/:free$/D', '', $model);
+        $expected = preg_replace('/:free$/D', '', self::endpoint($model)[2]);
         if (! $response->successful()) {
             throw new DomainException('model_http_'.$response->status());
         }
@@ -186,6 +190,55 @@ class ArenaModelClient
         return $matches->count() === 1 ? $matches->first() : null;
     }
 
+    /**
+     * Where a contestant's model is asked. An OpenRouter ":free" variant goes
+     * to OpenRouter with max_price 0 on the request; "groq/<id>" goes straight
+     * to Groq on the free-tier key in config/ai.php (arena.automation.direct_providers
+     * lists which hosts may be addressed that way — inference hosts only, so
+     * "openai/…:free" keeps meaning OpenRouter).
+     *
+     * @return array{0: string, 1: string, 2: string, 3: bool} [url, key, upstream id, via OpenRouter]
+     */
+    public static function endpoint(string $model): array
+    {
+        $direct = self::directProvider($model);
+        if ($direct !== null) {
+            $provider = config("ai.providers.{$direct}");
+
+            return [rtrim((string) $provider['base_url'], '/').'/chat/completions', (string) $provider['api_key'], substr($model, strlen($direct) + 1), false];
+        }
+
+        return ['https://openrouter.ai/api/v1/chat/completions', (string) config('arena.automation.api_key'), $model, true];
+    }
+
+    /**
+     * Whether every model a season names can be asked: a direct provider's model needs that
+     * provider's key, anything else the OpenRouter key. A season of Groq models alone runs
+     * without an OpenRouter key at all.
+     *
+     * @param  array<int|string, mixed>  $models
+     */
+    public static function hasKeysFor(array $models): bool
+    {
+        foreach ($models as $model) {
+            if (! is_string($model) || self::endpoint($model)[1] === '') {
+                return false;
+            }
+        }
+
+        return $models !== [];
+    }
+
+    /** The direct provider id a "<id>/<model>" names, when it is allowed and has a key. */
+    private static function directProvider(string $model): ?string
+    {
+        $id = strstr($model, '/', true);
+        $provider = $id === false ? null : config("ai.providers.{$id}");
+
+        return $id !== false && in_array($id, (array) config('arena.automation.direct_providers', ['groq']), true)
+            && is_array($provider) && filled($provider['api_key'] ?? null) && filled($provider['base_url'] ?? null) ? $id : null;
+    }
+
     /** @param array<string, mixed> $settings */
     public static function assertFreeOnly(array $settings): void
     {
@@ -196,7 +249,10 @@ class ArenaModelClient
         }
         foreach (['lain', 'challenger'] as $actor) {
             $model = $settings['models'][$actor] ?? null;
-            if (! is_string($model) || ! preg_match('/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]{1,80}:free$/D', $model)) {
+            $freeVariant = is_string($model) && preg_match('/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]{1,80}:free$/D', $model);
+            // A free-tier key bills nothing per token, so the whole model list behind it is free.
+            $freeTier = is_string($model) && preg_match('/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.\/-]{1,120}$/D', $model) && self::directProvider($model) !== null;
+            if (! $freeVariant && ! $freeTier) {
                 throw new DomainException('free_models_required');
             }
         }

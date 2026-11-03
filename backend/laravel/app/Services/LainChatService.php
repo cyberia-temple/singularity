@@ -54,7 +54,45 @@ class LainChatService
 
     public function enabled(): bool
     {
-        return (bool) config('services.lain.openrouter_api_key');
+        return (bool) config('services.lain.openrouter_api_key') || $this->directModel() !== null;
+    }
+
+    /**
+     * The model on a direct provider (Groq by default) that answers when
+     * OpenRouter's free pool does not, or null when no such key is set.
+     * "groq/llama-3.3-70b-versatile" means Groq's llama-3.3-70b-versatile.
+     */
+    private function directModel(): ?string
+    {
+        $model = trim((string) config('services.lain.direct_model', ''));
+
+        return $model !== '' && $this->directEndpoint($model) !== null ? $model : null;
+    }
+
+    /**
+     * Where a "<provider>/<model>" id goes when <provider> is one of
+     * services.lain.direct_providers and config('ai.providers') has its key.
+     * Only inference hosts are allowed there: "openai/…" and "deepseek/…" are
+     * OpenRouter model namespaces as well as provider ids, and must keep going
+     * to OpenRouter.
+     *
+     * @return array{0: string, 1: string, 2: string}|null [completions URL, key, upstream id]
+     */
+    private function directEndpoint(string $model): ?array
+    {
+        $slash = strpos($model, '/');
+        if ($slash === false) {
+            return null;
+        }
+
+        $id = substr($model, 0, $slash);
+        $provider = config("ai.providers.{$id}");
+        if (! in_array($id, (array) config('services.lain.direct_providers', []), true)
+            || ! is_array($provider) || blank($provider['api_key'] ?? null) || blank($provider['base_url'] ?? null)) {
+            return null;
+        }
+
+        return [rtrim((string) $provider['base_url'], '/').'/chat/completions', (string) $provider['api_key'], substr($model, $slash + 1)];
     }
 
     /**
@@ -190,9 +228,13 @@ class LainChatService
         // Free models get upstream-rate-limited without warning; when the
         // pinned one fails, fall through to OpenRouter's free-model router,
         // which picks whatever is currently available.
+        // A direct provider's free tier (Groq) is the last resort, so a
+        // rate-limited OpenRouter pool no longer means no answer at all.
+        $openRouter = (bool) config('services.lain.openrouter_api_key');
         $models = array_values(array_unique(array_filter([
-            (string) config('services.lain.model', 'openrouter/free'),
-            (string) config('services.lain.fallback_model', 'openrouter/free'),
+            $openRouter ? (string) config('services.lain.model', 'openrouter/free') : null,
+            $openRouter ? (string) config('services.lain.fallback_model', 'openrouter/free') : null,
+            $this->directModel(),
         ])));
 
         $lastError = null;
@@ -240,7 +282,10 @@ class LainChatService
      */
     private function complete(string $model, string $system, array $messages): array
     {
-        $response = Http::withToken((string) config('services.lain.openrouter_api_key'))
+        [$url, $key, $upstream] = $this->directEndpoint($model)
+            ?? ['https://openrouter.ai/api/v1/chat/completions', (string) config('services.lain.openrouter_api_key'), $model];
+
+        $response = Http::withToken($key)
             ->withHeaders([
                 'HTTP-Referer' => (string) config('app.url'),
                 'X-Title' => 'Cyberia — Talk to Lain',
@@ -252,8 +297,8 @@ class LainChatService
                 when: fn (Throwable $exception): bool => $this->shouldRetry($exception),
                 throw: false,
             )
-            ->post('https://openrouter.ai/api/v1/chat/completions', [
-                'model' => $model,
+            ->post($url, [
+                'model' => $upstream,
                 'max_tokens' => 1024,
                 'temperature' => 0.8,
                 'messages' => [

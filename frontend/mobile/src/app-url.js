@@ -112,8 +112,12 @@ function resolveStoreEdition(env = process.env) {
 function resolveUserAgent(env = process.env, version = '1.0.0') {
     const edition = resolveStoreEdition(env);
     const own = `CyberiaMobile/${env.CYBERIA_VERSION_NAME || version}`;
+    // Firebase is configured in this build (google-services.json was there at
+    // sync time): the site may register for push. Without it, asking the
+    // plugin to register would fail inside Firebase itself.
+    const push = env.CYBERIA_PUSH === '1' ? ' CyberiaPush/1' : '';
 
-    return edition ? `${own} CyberiaStore/${edition}` : own;
+    return (edition ? `${own} CyberiaStore/${edition}` : own) + push;
 }
 
 module.exports = {

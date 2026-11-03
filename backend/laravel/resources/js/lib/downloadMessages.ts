@@ -46,7 +46,7 @@ export const downloadMessages: Messages = {
         linuxNote:
             'Make the AppImage executable (chmod +x) and run it, or install the .deb with your package manager.',
         androidNote:
-            'Android asks for permission to install apps from your browser the first time. There is no Play listing — the APK is downloaded from here.',
+            'The full wallet — sending, swaps, the bridge — is this APK, or the web app: open cyberia.church/wallet in Chrome → ⋮ → Install app. Android asks once to allow installs from your browser. The Google Play build is the social edition: feed, chat and DAO.',
         iosNote:
             'There is no App Store build. Open cyberia.church in Safari, tap Share, then Add to Home Screen — the wallet runs full screen and works offline the same way.',
         extensionNote:
@@ -98,7 +98,7 @@ export const downloadMessages: Messages = {
         linuxNote:
             'Сделайте AppImage исполняемым (chmod +x) и запустите, либо установите .deb пакетным менеджером.',
         androidNote:
-            'При первой установке Android попросит разрешить установку приложений из браузера. Приложения нет в Play — APK скачивается отсюда.',
+            'Полный кошелёк — переводы, обмен, мост — это этот APK или веб-приложение: откройте cyberia.church/wallet в Chrome → ⋮ → «Установить приложение». Android один раз попросит разрешить установку из браузера. Версия в Google Play — социальная: лента, чат и DAO.',
         iosNote:
             'Сборки для App Store нет. Откройте cyberia.church в Safari, нажмите «Поделиться» → «На экран «Домой»» — кошелёк откроется на весь экран.',
         extensionNote:
@@ -150,7 +150,7 @@ export const downloadMessages: Messages = {
         linuxNote:
             '给 AppImage 加上可执行权限（chmod +x）再运行，或者用你的包管理器安装 .deb。',
         androidNote:
-            '第一次安装时，Android 会请求允许从浏览器安装应用。应用商店里没有上架 — APK 就从这里下载。',
+            '完整钱包（转账、兑换、跨链桥）就是这个 APK，或者网页应用：在 Chrome 中打开 cyberia.church/wallet → ⋮ → 安装应用。第一次安装时 Android 会请求允许从浏览器安装。Google Play 版本是社交版：动态、聊天和 DAO。',
         iosNote:
             '没有 App Store 版本。用 Safari 打开 cyberia.church，点“分享”，再点“添加到主屏幕” — 钱包会全屏运行，离线也一样能用。',
         extensionNote:

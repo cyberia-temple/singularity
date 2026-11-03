@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Long-press the app icon. Each shortcut is an App Link into the wallet; the site
+    reads ?section= and ?scan= (resources/js/pages/Wallet.vue) and the shell's
+    appUrlOpen listener (resources/js/lib/mobileShell.ts) routes a link that arrives
+    while the app is already open. Only screens every build has: no "send" here,
+    because the Google Play build is social-only.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutShortLabel="@string/shortcut_scan"
+        android:shortcutLongLabel="@string/shortcut_scan_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="church.cyberia.app"
+            android:targetClass="church.cyberia.app.MainActivity"
+            android:data="cyberia://wallet?scan=1" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_chat"
+        android:shortcutShortLabel="@string/shortcut_chat"
+        android:shortcutLongLabel="@string/shortcut_chat_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="church.cyberia.app"
+            android:targetClass="church.cyberia.app.MainActivity"
+            android:data="cyberia://wallet?section=chat" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="feed"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_feed"
+        android:shortcutShortLabel="@string/shortcut_feed"
+        android:shortcutLongLabel="@string/shortcut_feed_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="church.cyberia.app"
+            android:targetClass="church.cyberia.app.MainActivity"
+            android:data="cyberia://wallet?section=feed" />
+    </shortcut>
+</shortcuts>

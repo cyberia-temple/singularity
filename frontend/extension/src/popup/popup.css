@@ -964,3 +964,9 @@ button.cw-row:hover {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
+
+/* In the side panel (Chromium) or sidebar (Firefox) the wallet takes the panel's width. */
+html[data-surface='panel'] body {
+    width: auto;
+    min-height: 100vh;
+}

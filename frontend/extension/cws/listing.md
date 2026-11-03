@@ -96,6 +96,8 @@ A non-custodial crypto wallet for EVM networks: it keeps the user's keys encrypt
 | `alarms` | Locks the wallet automatically after the inactivity period the user chose. |
 | `scripting` | Registers the wallet's provider script (window.ethereum) only on websites the user connected, via scripting.registerContentScripts. There is no static content script and no access to sites the user did not connect. |
 | `activeTab` | Reads which website the popup was opened on, so the popup can offer to connect that one site. |
+| `contextMenus` | One item on selected text: open a selected address, transaction hash, block number or `.cyber` name on the Cyberia explorer. Only the selection the browser hands over is used, and only to build that link. |
+| `sidePanel` | Lets the same wallet screen stay open in Chrome's side panel next to a dapp, instead of a popup that closes when focus moves. |
 | `proxy` (optional) | Requested only when the user turns on the relay, to route the wallet's network requests through a SOCKS5, Tor or I2P service the user runs. Chrome applies it to the whole browser; the wallet says so on that screen. |
 | `privacy` (optional) | Requested together with the relay, to set webRTCIPHandlingPolicy so WebRTC cannot reveal the user's IP address around the relay. |
 | Host permissions | The fixed hosts are the blockchain RPC nodes and token index the wallet reads balances from and broadcasts approved transactions to (rpc.cyberia.church, explorer.cyberia.church, Robinhood Chain, BNB Chain and Base public RPCs) and cyberia.church for USD prices. The optional `https://*/*` and `http://localhost/*` are never requested at install: when the user presses Connect on a site, the wallet asks Chrome for that one site's origin only. |

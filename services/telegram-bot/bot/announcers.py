@@ -1365,6 +1365,32 @@ def _build_digest_text(
             """),
             {"s": since},
         ).fetchone()
+        # The rest of the ecosystem the watchers record: NFTs, names,
+        # zones, prediction markets. Counts, plus one example per kind.
+        ecosystem = conn.execute(
+            text("""
+                SELECT kind, COUNT(*), MAX(meta)
+                FROM activity_events
+                WHERE kind IN ('nft_mint', 'nft_sale', 'domain', 'zone', 'predict_market', 'predict_bet')
+                  AND created_at >= :s
+                GROUP BY kind
+            """),
+            {"s": since},
+        ).fetchall()
+        # Wallets doing anything on chain for the first time in this window:
+        # the growth number, as opposed to the same few people trading more.
+        newcomers = conn.execute(
+            text("""
+                SELECT COUNT(*) FROM (
+                    SELECT user_addr FROM activity_events
+                    WHERE user_addr IS NOT NULL
+                    GROUP BY user_addr
+                    HAVING MIN(created_at) >= :s
+                )
+            """),
+            {"s": since},
+        ).fetchone()
+    eco = {kind: (cnt, meta) for kind, cnt, meta in (ecosystem or [])}
 
     total = (
         swap_count
@@ -1374,6 +1400,7 @@ def _build_digest_text(
         + sum(c for c, _v in staking.values())
         + (conversions[0] if conversions else 0)
         + (sol_buys[0] if sol_buys else 0)
+        + sum(cnt for cnt, _meta in eco.values())
     )
     if total == 0:
         return None
@@ -1461,6 +1488,30 @@ def _build_digest_text(
         if b_new:
             line += f" · {b_new} new"
         blocks.append([line])
+
+    if eco:
+        labels = {
+            "nft_mint": ("🖼", "NFT minted", "NFTs minted"),
+            "nft_sale": ("🏷", "NFT sold", "NFTs sold"),
+            "domain": ("🌐", "domain registered", "domains registered"),
+            "zone": ("🗺", "zone opened", "zones opened"),
+            "predict_market": ("🔮", "prediction market opened", "prediction markets opened"),
+            "predict_bet": ("🎲", "bet placed", "bets placed"),
+        }
+        parts = []
+        for kind, (emoji, one, many) in labels.items():
+            if kind in eco:
+                cnt, meta = eco[kind]
+                example = (
+                    f" ({_esc(str(meta)[:40])})"
+                    if meta and kind in ("domain", "zone", "predict_market")
+                    else ""
+                )
+                parts.append(f"{emoji} {cnt} {one if cnt == 1 else many}{example}")
+        blocks.append(["🧩 <b>Ecosystem</b>"] + [f"• {p}" for p in parts])
+
+    if newcomers and newcomers[0]:
+        blocks.append([f"👋 <b>{_plural(newcomers[0], 'new wallet')}</b> on chain for the first time"])
 
     if include_prices:
         prices = _market_price_block()

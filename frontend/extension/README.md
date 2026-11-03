@@ -89,6 +89,19 @@ rewrites both and the extension reloads with one click.
   asking a font CDN on every popup open would announce each time you looked at
   your balance.
 
+## Beyond the popup
+
+- **Look it up on Cyberia.** Select an address, a transaction hash, a block
+  number or a `.cyber` name on any page → right click → *Open on Cyberia*; or
+  type `cy` and a space in the address bar, then the same text
+  (`src/background/lookup.js`, pinned by `test/lookup.test.js`). Only Cyberia's
+  explorer and wallet are ever opened — an omnibox entry cannot send the
+  extension's name to another site.
+- **Docked wallet.** Right-click the toolbar icon → *Open Cyberia Wallet in the
+  side panel* (Chromium); Firefox shows the same page as a sidebar
+  (`sidebar_action`). It is `popup.html?panel=1`, which only widens the layout.
+- **Shortcut.** Alt+Shift+C opens the wallet.
+
 ## The relay
 
 This is the one place where the browser you use changes what the wallet can

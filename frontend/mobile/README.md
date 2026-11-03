@@ -29,7 +29,8 @@ straight after install.
 npm install
 npm run www             # regenerate the local fallback pages
 npm run sync            # www + copy config/plugins into android/ and ios/
-npm run assets          # regenerate icons and splash screens from resources/
+node scripts/icon.mjs    # redraw every icon (Android vectors + PNGs; PNGs need Playwright)
+npm run assets          # regenerate splash screens from resources/
 npm run open:android    # open the project in Android Studio
 npm run open:ios        # open the workspace in Xcode
 npm run android:apk     # sync + assembleDebug -> android/app/build/outputs/apk/debug/
@@ -80,6 +81,24 @@ than pointing the whole app at another origin.
   is running inside the app (`resources/js/lib/native.ts`).
 - **Local vault** — Android backup is disabled, so the encrypted wallet vault
   and WebView storage stay on the device instead of entering a cloud backup.
+
+## What the phone adds
+
+The site reaches the device through `resources/js/lib/mobileShell.ts`, using the
+Capacitor plugins bundled here when it runs in the app and web APIs otherwise:
+
+- **Shortcuts** on a long press of the icon — Scan QR, Chat, Feed
+  (`android/app/src/main/res/xml/shortcuts.xml`, `cyberia://wallet?…`; the site's
+  `appUrlOpen` listener routes a link that arrives while the app is open).
+- **QR codes**: the camera fills the send form's recipient, and the Scan QR
+  shortcut opens the camera over the wallet (BarcodeDetector in the WebView,
+  `CAMERA` permission, nothing leaves the device). In the social-only Play build
+  a scanned address opens a chat instead of a payment.
+- **Share sheet** for an address on Receive (`@capacitor/share`).
+- **Haptics** when a hold-to-sign completes (`@capacitor/haptics`).
+- **Icon**: an adaptive icon with a monochrome layer for Android 13+ themed
+  icons, drawn as vectors by `scripts/icon.mjs`, which also renders the legacy,
+  iOS, store, PWA, extension and desktop icons from the same geometry.
 
 ## Signing and release
 

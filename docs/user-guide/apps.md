@@ -11,6 +11,20 @@ Cyberia can be used in a browser or through desktop, mobile, and browser-extensi
 | Mobile | Using the Cyberia site and wallet experience on a phone | <https://cyberia.church/download> |
 | Browser extension | Connecting a Cyberia wallet directly to compatible web applications | <https://cyberia.church/download> |
 
+## On a phone
+
+- **Google Play** has the social edition: the feed, chat between wallets, the DAO and your profile. Sending, swaps and the bridge are not in the store build.
+- **The full wallet on Android** is the APK from <https://cyberia.church/download>, or the web app: open <https://cyberia.church/wallet> in Chrome → ⋮ → **Install app**.
+- Long-press the app icon for **Scan QR**, **Chat** and **Feed**. Scanning a QR code with an address fills the send form's recipient (in the store build it opens a chat with that address).
+- **Receive** has a share button that sends your address through any messenger; signing with hold-to-confirm gives a short vibration.
+- Turn on notifications in **Settings → Alerts** to hear about new posts, DAO votes and on-chain activity.
+
+## Browser extension extras
+
+- Select an address, transaction hash, block number or `.cyber` name on any page → right click → **Open on Cyberia**.
+- Type `cy` and a space in the address bar, then an address or a name.
+- Right-click the toolbar icon → **Open Cyberia Wallet in the side panel** to keep it next to a dapp. Shortcut: Alt+Shift+C.
+
 ## Install step by step
 
 1. Open the official download page at <https://cyberia.church/download>.
