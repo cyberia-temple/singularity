@@ -1,8 +1,5 @@
 import { Contract, JsonRpcProvider, ZeroAddress, getAddress } from 'ethers';
-import {
-    CYBERIA_FUJI_CHAIN_ID,
-    CYBERIA_FUJI_PUBLIC_RPC,
-} from '@/lib/evmChains';
+import type { WalletChain, WalletChainId } from '@/lib/wallet/chains';
 import { evmSigner } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
 
@@ -21,13 +18,20 @@ import type { WalletKeySource } from '@/lib/wallet/keys';
  * A deal discussed in chat becomes binding as a private offer: one side
  * escrows its half and names the other side's address as the only taker.
  *
- * Deployed 2026-10-25, block 134 (crypto/hardhat/deployments/cyberia-otc-49407.json).
+ * The same contract is deployed on every network below, one book per
+ * network: an offer is escrowed where its assets live, so a book cannot span
+ * two chains. Each address comes from crypto/hardhat/deployments/cyberia-otc-<chainId>.json.
  */
-export const OTC_ADDRESS: string | null =
-    '0xD199e6ae74B992F017f8940B26Fa18A7dD30eE86';
+export const OTC_DEPLOYMENTS: Partial<Record<WalletChainId, string>> = {
+    cyberia: '0x34401D64E45Cfcc453Ef2aC02aF091FefBC137Ac',
+    cyberia_fuji: '0xD199e6ae74B992F017f8940B26Fa18A7dD30eE86',
+    robinhood: '0x36ac9af0375f05235b61337ab8c19990fa1d7022',
+    base: '0x176c70dd7cf17056596d8c4c7e2b1f2537df978f',
+    bnb: '0x388bc06c966cf66454547c6f6af3428b18177370',
+};
 
-/** The desk lives on the new network, Cyberia Fuji L1. */
-export const OTC_CHAIN_ID = CYBERIA_FUJI_CHAIN_ID;
+/** The network the screen opens on when nothing names one. */
+export const OTC_DEFAULT_CHAIN: WalletChainId = 'cyberia';
 
 /** `address(0)` in the contract is the native coin. */
 export const NATIVE = ZeroAddress;
@@ -47,19 +51,94 @@ const BOOK_DEPTH = 200n;
 export type OtcAsset = { address: string; symbol: string };
 
 /**
- * What the picker offers before anyone types an address: the coin and the
- * assets of the new protocol (resources/chaos-protocol.json in lain-labs/backend).
- * Anything else is a pasted contract address, read from the chain.
+ * Tokens worth offering on a network before the wallet has listed any of its
+ * own: the wrapped coin and the protocol's assets. The coin itself, the
+ * tokens this wallet holds there and any pasted contract are added on top.
  */
-export const OTC_ASSETS: OtcAsset[] = [
-    { address: NATIVE, symbol: 'CYBER' },
-    { address: '0x000000000000000000000000000000000000c0fe', symbol: 'WCYBER' },
-    { address: '0x1e0537ce7e47947477a5442b9b59113ca9e483c0', symbol: 'ASH' },
-    {
-        address: '0xa084bcd3a16be2cf141b62ea94b330f2db818a1d',
-        symbol: 'AVAX.FUJI',
-    },
-];
+export const OTC_KNOWN_ASSETS: Partial<Record<WalletChainId, OtcAsset[]>> = {
+    cyberia: [
+        {
+            address: '0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9',
+            symbol: 'WCYBER',
+        },
+    ],
+    cyberia_fuji: [
+        {
+            address: '0x000000000000000000000000000000000000c0fe',
+            symbol: 'WCYBER',
+        },
+        {
+            address: '0x1e0537ce7e47947477a5442b9b59113ca9e483c0',
+            symbol: 'ASH',
+        },
+        {
+            address: '0xa084bcd3a16be2cf141b62ea94b330f2db818a1d',
+            symbol: 'AVAX.FUJI',
+        },
+    ],
+};
+
+/** Everything a read or a signature needs to know about one network's desk. */
+export type OtcDesk = {
+    chain: WalletChainId;
+    chainId: number;
+    address: string;
+    rpcUrl: string;
+    /** The coin, as the contract's `address(0)`. */
+    native: OtcSide;
+};
+
+/** The desk on a network, or null where the contract is not deployed. */
+export const otcDesk = (
+    chain: WalletChain,
+    rpcUrl?: string,
+): OtcDesk | null => {
+    const address = OTC_DEPLOYMENTS[chain.id];
+    const url = rpcUrl ?? chain.endpoint;
+
+    if (!address || chain.chainId === undefined || !url) {
+        return null;
+    }
+
+    return {
+        chain: chain.id,
+        chainId: chain.chainId,
+        address,
+        rpcUrl: url,
+        native: {
+            address: NATIVE,
+            symbol: chain.symbol,
+            decimals: chain.decimals,
+        },
+    };
+};
+
+/**
+ * What the picker offers on one network: the coin first, then what this
+ * wallet holds there, then the shipped list — each contract once.
+ */
+export const otcAssets = (
+    desk: Pick<OtcDesk, 'chain' | 'native'>,
+    held: OtcAsset[] = [],
+): OtcAsset[] => {
+    const seen = new Set<string>();
+    const out: OtcAsset[] = [];
+
+    for (const asset of [
+        { address: NATIVE, symbol: desk.native.symbol },
+        ...held,
+        ...(OTC_KNOWN_ASSETS[desk.chain] ?? []),
+    ]) {
+        const key = asset.address.toLowerCase();
+
+        if (!seen.has(key)) {
+            seen.add(key);
+            out.push(asset);
+        }
+    }
+
+    return out;
+};
 
 const ORDER_TUPLE =
     'tuple(address maker, address sellToken, address buyToken, address taker, uint256 priceSell, uint256 priceBuy, uint256 remaining, uint256 minFill, uint64 expiry, bool partialFill, bool closed)';
@@ -146,46 +225,65 @@ export const isOpen = (
     order.remaining > 0n &&
     (order.expiry === 0n || Number(order.expiry) > now);
 
+/** The link that opens one offer on its own network. */
+export const offerLink = (chain: WalletChainId, id: bigint): string =>
+    `https://cyberia.church/wallet?section=otc&chain=${chain}&offer=${id}`;
+
 /** Text for the chat composer that points the other side at an offer. */
-export const discussText = (order: OtcOrder, unitPrice: string): string =>
-    `OTC #${order.id}: ${order.sell.symbol} @ ${unitPrice} — https://cyberia.church/wallet?section=otc&offer=${order.id}`;
+export const discussText = (
+    chain: WalletChainId,
+    order: OtcOrder,
+    unitPrice: string,
+): string =>
+    `OTC #${order.id}: ${order.sell.symbol} @ ${unitPrice} — ${offerLink(chain, order.id)}`;
+
+/**
+ * Of `total` units of the sell asset priced at `pay` of the buy asset, the
+ * price of one whole unit — what the summary line says before anything is
+ * signed. Null while either side is empty.
+ */
+export const unitPriceOf = (
+    total: bigint,
+    pay: bigint,
+    sellDecimals: number,
+): bigint | null =>
+    total > 0n && pay > 0n ? (10n ** BigInt(sellDecimals) * pay) / total : null;
 
 const isNative = (address: string): boolean =>
     address.toLowerCase() === NATIVE.toLowerCase();
 
-const provider = (rpcUrl?: string): JsonRpcProvider =>
-    new JsonRpcProvider(rpcUrl || CYBERIA_FUJI_PUBLIC_RPC, OTC_CHAIN_ID, {
-        staticNetwork: true,
-    });
+const providers = new Map<string, JsonRpcProvider>();
 
-const desk = (runner: unknown): Contract => {
-    if (!OTC_ADDRESS) {
-        throw new Error('The OTC contract is not deployed yet');
+const provider = (desk: OtcDesk): JsonRpcProvider => {
+    const key = `${desk.chainId}:${desk.rpcUrl}`;
+    let found = providers.get(key);
+
+    if (!found) {
+        found = new JsonRpcProvider(desk.rpcUrl, desk.chainId, {
+            staticNetwork: true,
+        });
+        providers.set(key, found);
     }
 
-    return new Contract(OTC_ADDRESS, OTC_ABI, runner as JsonRpcProvider);
+    return found;
 };
+
+const contractOf = (desk: OtcDesk, runner: unknown): Contract =>
+    new Contract(desk.address, OTC_ABI, runner as JsonRpcProvider);
 
 const sideCache = new Map<string, Promise<OtcSide>>();
 
 /** Symbol and decimals of one asset, read once per page from its contract. */
-export const readSide = (
-    address: string,
-    rpcUrl?: string,
-): Promise<OtcSide> => {
+export const readSide = (desk: OtcDesk, address: string): Promise<OtcSide> => {
     if (isNative(address)) {
-        return Promise.resolve({
-            address: NATIVE,
-            symbol: 'CYBER',
-            decimals: 18,
-        });
+        return Promise.resolve(desk.native);
     }
 
-    const key = address.toLowerCase();
+    const key = `${desk.chainId}:${address.toLowerCase()}`;
     let pending = sideCache.get(key);
 
     if (!pending) {
-        const token = new Contract(address, ERC20_ABI, provider(rpcUrl));
+        const token = new Contract(address, ERC20_ABI, provider(desk));
         pending = Promise.all([token.symbol(), token.decimals()]).then(
             ([symbol, decimals]) => ({
                 address: getAddress(address),
@@ -200,15 +298,27 @@ export const readSide = (
     return pending;
 };
 
+/**
+ * Coin to keep back when the coin itself is being sold: the escrowed amount
+ * and the gas leave the same balance, so offering all of it is an offer that
+ * cannot be sent. Twice the most a desk call may cost at today's price, plus
+ * the approval it never needs for the coin.
+ */
+export const nativeGasReserve = async (desk: OtcDesk): Promise<bigint> => {
+    const { gasPrice } = await provider(desk).getFeeData();
+
+    return (gasPrice ?? 0n) * OTC_GAS_CAP * 2n;
+};
+
 /** What `owner` holds of one asset on the desk's network. */
 export const readBalance = async (
+    desk: OtcDesk,
     asset: string,
     owner: string,
-    rpcUrl?: string,
 ): Promise<bigint> =>
     isNative(asset)
-        ? provider(rpcUrl).getBalance(owner)
-        : ((await new Contract(asset, ERC20_ABI, provider(rpcUrl)).balanceOf(
+        ? provider(desk).getBalance(owner)
+        : ((await new Contract(asset, ERC20_ABI, provider(desk)).balanceOf(
               owner,
           )) as bigint);
 
@@ -230,8 +340,8 @@ type RawOrder = {
  * The live part of the book, newest first, plus the expired offers that
  * still hold something — those are shown to their maker with "take back".
  */
-export const readOtcBook = async (rpcUrl?: string): Promise<OtcOrder[]> => {
-    const [ids, page] = (await desk(provider(rpcUrl)).getOrders(
+export const readOtcBook = async (desk: OtcDesk): Promise<OtcOrder[]> => {
+    const [ids, page] = (await contractOf(desk, provider(desk)).getOrders(
         0n,
         BOOK_DEPTH,
     )) as [bigint[], RawOrder[]];
@@ -244,8 +354,8 @@ export const readOtcBook = async (rpcUrl?: string): Promise<OtcOrder[]> => {
         }
 
         const [sell, buy] = await Promise.all([
-            readSide(row.sellToken, rpcUrl),
-            readSide(row.buyToken, rpcUrl),
+            readSide(desk, row.sellToken),
+            readSide(desk, row.buyToken),
         ]);
 
         orders.push({
@@ -336,11 +446,11 @@ const argsOf = (action: OtcAction): unknown[] => {
  */
 export const executeOtc = async (
     source: WalletKeySource,
-    request: { action: OtcAction; gasPrice: bigint; rpcUrl?: string },
+    request: { desk: OtcDesk; action: OtcAction; gasPrice: bigint },
 ): Promise<string> => {
-    const { action, gasPrice } = request;
-    const signer = evmSigner(source).connect(provider(request.rpcUrl));
-    const contract = desk(signer);
+    const { desk, action, gasPrice } = request;
+    const signer = evmSigner(source).connect(provider(desk));
+    const contract = contractOf(desk, signer);
     const owner = await signer.getAddress();
     const spend = spendOf(action);
     /*
@@ -352,10 +462,13 @@ export const executeOtc = async (
 
     if (spend && !isNative(spend.token)) {
         const token = new Contract(spend.token, ERC20_ABI, signer);
-        const allowance = (await token.allowance(owner, OTC_ADDRESS)) as bigint;
+        const allowance = (await token.allowance(
+            owner,
+            desk.address,
+        )) as bigint;
 
         if (allowance < spend.amount) {
-            const approval = await token.approve(OTC_ADDRESS, spend.amount, {
+            const approval = await token.approve(desk.address, spend.amount, {
                 gasLimit: APPROVE_GAS,
                 gasPrice,
             });

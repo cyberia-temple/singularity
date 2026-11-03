@@ -1,0 +1,10 @@
+{
+  "chainId": 56,
+  "rpc": "https://bsc-dataseed.bnbchain.org",
+  "CyberiaOTC": "0x388bc06c966cf66454547c6f6af3428b18177370",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployTx": "0xc7cf45b1006fed90b63913bf4fadda8f80c4f841fb1d5d3ec85d38f983765f21",
+  "block": 131458161,
+  "timestamp": "2026-11-03T15:37:57.826Z"
+}

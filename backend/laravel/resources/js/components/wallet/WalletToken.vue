@@ -11,6 +11,7 @@ import { formatUnits, hasSwap, sameToken, walletChain } from '@/lib/wallet';
 import type { WalletChainId, WalletTokenBalance } from '@/lib/wallet';
 import { isRoutedChain } from '@/lib/wallet/crosschain';
 import { formatUsd, formatUsdPrice, usdValue } from '@/lib/wallet/format';
+import { OTC_DEPLOYMENTS } from '@/lib/wallet/otc';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -39,6 +40,8 @@ const emit = defineEmits<{
     back: [];
     send: [token: WalletTokenBalance];
     swap: [token: WalletTokenBalance];
+    /** Sell it at a named price on this network's OTC desk. */
+    otc: [token: WalletTokenBalance];
     unwrap: [];
     /** The token was dropped from the list and this screen has nothing left. */
     hidden: [];
@@ -48,6 +51,7 @@ const { locale, t } = useLocale(walletMessages);
 const clipboard = useSecureClipboard();
 
 const chain = computed(() => walletChain(props.chain));
+const hasOtc = computed(() => Boolean(OTC_DEPLOYMENTS[props.chain]));
 const isWrappedNative = computed(() =>
     LIQUIDITY_CHAINS.some(
         (config) =>
@@ -285,6 +289,16 @@ const hide = async (): Promise<void> => {
                     @click="emit('swap', token)"
                 >
                     {{ t('swapTitle') }}
+                </button>
+                <button
+                    v-if="hasOtc"
+                    type="button"
+                    class="cw-btn cw-btn-secondary"
+                    style="height: 50px"
+                    :disabled="!chain.send"
+                    @click="emit('otc', token)"
+                >
+                    {{ t('otcOfferHere') }}
                 </button>
                 <a
                     v-if="explorerUrl"

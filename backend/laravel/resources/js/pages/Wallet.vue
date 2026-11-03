@@ -754,6 +754,14 @@ const chatPeer = ref<string | null>(null);
 /** What the composer should already hold for that peer, e.g. an OTC offer. */
 const chatDraft = ref<string | null>(null);
 
+/** A new OTC offer selling one token, opened from that token's screen. */
+const otcPrefill = ref<{ chain: WalletChainId; sell: string } | null>(null);
+
+const openOtcFor = (token: WalletTokenBalance): void => {
+    otcPrefill.value = { chain: chain.value, sell: token.address };
+    openSection('otc');
+};
+
 const openChatWith = (address: string, draft: string | null = null): void => {
     chatPeer.value = address;
     chatDraft.value = draft;
@@ -2474,7 +2482,10 @@ watch(
                         @back="openSection('portfolio')"
                         @buy="openSection('buy')"
                         @gas="openSection('gas')"
-                        @otc="openSection('otc')"
+                        @otc="
+                            otcPrefill = null;
+                            openSection('otc');
+                        "
                         @wrap="openWrap('wrap', 'cyberia')"
                         @torrent="openNftPlace('torrent', 'more')"
                         @dao="openSection('dao')"
@@ -2528,6 +2539,7 @@ watch(
                         @back="openSection(tokenOrigin)"
                         @send="openSend"
                         @swap="openSwap"
+                        @otc="openOtcFor"
                         @unwrap="openWrap('unwrap')"
                         @hidden="openSection(tokenOrigin)"
                     />
@@ -2543,7 +2555,13 @@ watch(
                     -->
                     <WalletOtc
                         v-else-if="section === 'otc'"
+                        :key="
+                            otcPrefill
+                                ? `${otcPrefill.chain}:${otcPrefill.sell}`
+                                : 'otc'
+                        "
                         :wallet="wallet"
+                        :prefill="otcPrefill"
                         @back="openSection('more')"
                         @discuss="openChatWith"
                     />

@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     NATIVE,
-    OTC_ASSETS,
+    OTC_DEPLOYMENTS,
+    OTC_KNOWN_ASSETS,
+    otcAssets,
+    unitPriceOf,
+    offerLink,
     affordable,
     fillAllowed,
     isOpen,
@@ -78,11 +82,42 @@ test('isOpen drops closed, sold-out and expired offers', () => {
     );
 });
 
-test('the picker starts with the coin and lists every asset once', () => {
-    assert.equal(OTC_ASSETS[0].address, NATIVE);
-    const addresses = OTC_ASSETS.map((asset) => asset.address.toLowerCase());
-    assert.equal(new Set(addresses).size, addresses.length);
-    assert.ok(
-        OTC_ASSETS.every((asset) => /^0x[0-9a-fA-F]{40}$/.test(asset.address)),
+test('every desk and every shipped asset is a real address, once per network', () => {
+    const isAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(value);
+    assert.ok(Object.values(OTC_DEPLOYMENTS).every(isAddress));
+
+    for (const list of Object.values(OTC_KNOWN_ASSETS)) {
+        const addresses = list.map((asset) => asset.address.toLowerCase());
+        assert.equal(new Set(addresses).size, addresses.length);
+        assert.ok(list.every((asset) => isAddress(asset.address)));
+    }
+});
+
+test('the picker leads with the coin and lists each contract once', () => {
+    const desk = {
+        chain: 'cyberia_fuji',
+        native: { address: NATIVE, symbol: 'CYBER', decimals: 18 },
+    };
+    const ash = OTC_KNOWN_ASSETS.cyberia_fuji[1];
+    const list = otcAssets(desk, [
+        { address: ash.address.toUpperCase().replace('0X', '0x'), symbol: 'ASH' },
+    ]);
+    assert.equal(list[0].address, NATIVE);
+    assert.equal(list[0].symbol, 'CYBER');
+    const keys = list.map((asset) => asset.address.toLowerCase());
+    assert.equal(new Set(keys).size, keys.length);
+    assert.equal(list.length, 1 + OTC_KNOWN_ASSETS.cyberia_fuji.length);
+});
+
+test('unitPriceOf is the price of one whole unit of the sell side', () => {
+    // 2 CYBER for 5 tokens (6 decimals): 2.5 tokens per CYBER.
+    assert.equal(unitPriceOf(2n * E18, 5_000_000n, 18), 2_500_000n);
+    assert.equal(unitPriceOf(0n, 5n, 18), null);
+});
+
+test('an offer link names its network', () => {
+    assert.equal(
+        offerLink('base', 7n),
+        'https://cyberia.church/wallet?section=otc&chain=base&offer=7',
     );
 });
