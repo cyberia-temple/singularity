@@ -4,24 +4,30 @@ import HoldButton from '@/components/wallet/HoldButton.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { formatUnits, parseUnits } from '@/lib/wallet';
+import { walletChain, walletChains } from '@/lib/wallet/chains';
+import type { WalletChainId } from '@/lib/wallet/chains';
 import { shortAddress } from '@/lib/wallet/format';
 import {
     NATIVE,
-    OTC_ADDRESS,
-    OTC_ASSETS,
+    OTC_DEFAULT_CHAIN,
+    OTC_DEPLOYMENTS,
     affordable,
     discussText,
     fillAllowed,
+    otcAssets,
     payFor,
     readBalance,
     readOtcBook,
     readSide,
+    unitPriceOf,
 } from '@/lib/wallet/otc';
-import type { OtcAction, OtcOrder, OtcSide } from '@/lib/wallet/otc';
+import type { OtcAction, OtcAsset, OtcOrder, OtcSide } from '@/lib/wallet/otc';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
- * OTC: offers at a price somebody names, on Cyberia Fuji L1.
+ * OTC: offers at a price somebody names, on any network the desk is
+ * deployed on — one book per network, because an offer is escrowed where its
+ * assets live.
  *
  * A pool prices a trade against itself, so the bigger the trade the worse the
  * price. Here the seller names the price for the whole amount, puts it in
@@ -36,7 +42,11 @@ import { walletMessages } from '@/lib/walletMessages';
  * binds anyone; the chat is where the terms are found.
  */
 
-const props = defineProps<{ wallet: MultiWallet }>();
+const props = defineProps<{
+    wallet: MultiWallet;
+    /** Open a new offer selling this token, from the token's own screen. */
+    prefill?: { chain: WalletChainId; sell: string } | null;
+}>();
 const emit = defineEmits<{
     back: [];
     /** Open the encrypted chat with an address, with a line ready to send. */
@@ -45,14 +55,41 @@ const emit = defineEmits<{
 
 const { t } = useLocale(walletMessages);
 
-const tab = ref<'book' | 'new'>('book');
-const deployed = OTC_ADDRESS !== null;
+const tab = ref<'book' | 'new'>(props.prefill ? 'new' : 'book');
+
+const params =
+    typeof window === 'undefined'
+        ? new URLSearchParams()
+        : new URL(window.location.href).searchParams;
+
+/** Every network with a desk, in the wallet's own order. */
+const networks = walletChains().filter(
+    (chain) => chain.family === 'evm' && OTC_DEPLOYMENTS[chain.id],
+);
+
+const initialChain = (): WalletChainId => {
+    const wanted = props.prefill?.chain ?? params.get('chain');
+    const found = networks.find((chain) => chain.id === wanted);
+
+    return (
+        found?.id ??
+        networks.find((chain) => chain.id === OTC_DEFAULT_CHAIN)?.id ??
+        networks[0]?.id ??
+        OTC_DEFAULT_CHAIN
+    );
+};
+
+const chainId = ref<WalletChainId>(initialChain());
+const chain = computed(() => walletChain(chainId.value));
+const desk = computed(() => props.wallet.otcDeskFor(chainId.value));
+const deployed = computed(() => desk.value !== null);
 
 /** One key, one address on every EVM network — the desk's included. */
 const me = computed(
     () =>
-        props.wallet.accounts.value.find((entry) => entry.chain === 'cyberia')
-            ?.address ?? null,
+        props.wallet.accounts.value.find(
+            (entry) => entry.chain === chainId.value,
+        )?.address ?? null,
 );
 
 const isMine = (address: string): boolean =>
@@ -62,20 +99,23 @@ const book = ref<OtcOrder[]>([]);
 const loading = ref(false);
 const failure = ref<string | null>(null);
 const sent = ref<string | null>(null);
+const sentUrl = computed(() =>
+    sent.value ? chain.value.explorerTxUrl(sent.value) : null,
+);
 
 /** An offer named by a link (`?offer=12`), opened on arrival. */
 const linked = (() => {
-    if (typeof window === 'undefined') {
-        return null;
-    }
-
-    const value = new URL(window.location.href).searchParams.get('offer');
+    const value = params.get('offer');
 
     return value && /^\d+$/.test(value) ? BigInt(value) : null;
 })();
 
 const load = async (): Promise<void> => {
-    if (!deployed) {
+    const current = desk.value;
+
+    if (!current) {
+        book.value = [];
+
         return;
     }
 
@@ -83,7 +123,14 @@ const load = async (): Promise<void> => {
     failure.value = null;
 
     try {
-        book.value = await readOtcBook();
+        const read = await readOtcBook(current);
+
+        // The network changed while this was in flight.
+        if (desk.value?.chain !== current.chain) {
+            return;
+        }
+
+        book.value = read;
         const wanted = book.value.find((order) => order.id === linked);
 
         if (wanted && !selected.value) {
@@ -103,7 +150,7 @@ const run = async (action: OtcAction): Promise<boolean> => {
     sent.value = null;
 
     try {
-        sent.value = await props.wallet.otc(action);
+        sent.value = await props.wallet.otc(chainId.value, action);
         selected.value = null;
         editing.value = null;
         // The book is read from the chain; give the block a moment to land.
@@ -138,8 +185,17 @@ const unitPrice = (order: OtcOrder): string =>
         8,
     );
 
+/** All offers, or only the ones this wallet made or was offered. */
+const filter = ref<'all' | 'mine'>('all');
+
 const visible = computed(() =>
-    book.value.filter((order) => !order.expired || isMine(order.maker)),
+    book.value.filter(
+        (order) =>
+            (!order.expired || isMine(order.maker)) &&
+            (filter.value === 'all' ||
+                isMine(order.maker) ||
+                (order.taker !== null && isMine(order.taker))),
+    ),
 );
 
 /* ---------------------------------------------------------------- take --- */
@@ -188,7 +244,11 @@ const open = async (order: OtcOrder): Promise<void> => {
     }
 
     try {
-        budget.value = await readBalance(order.buy.address, me.value);
+        budget.value = await readBalance(
+            desk.value!,
+            order.buy.address,
+            me.value,
+        );
 
         // Cannot pay for all of it: offer the most that can be paid for.
         if (
@@ -212,7 +272,11 @@ const open = async (order: OtcOrder): Promise<void> => {
 };
 
 const discuss = (order: OtcOrder): void =>
-    emit('discuss', order.maker, discussText(order, unitPrice(order)));
+    emit(
+        'discuss',
+        order.maker,
+        discussText(chainId.value, order, unitPrice(order)),
+    );
 
 /* ----------------------------------------------------- the maker's own --- */
 
@@ -262,10 +326,143 @@ const editAction = (order: OtcOrder): OtcAction | null => {
 
 const CUSTOM = 'custom';
 
+/**
+ * What can be picked on this network: the coin, what this wallet holds here,
+ * and the protocol's own tokens — anything else is a pasted address.
+ */
+const assets = computed((): OtcAsset[] => {
+    const current = desk.value;
+
+    if (!current) {
+        return [];
+    }
+
+    const held = (props.wallet.tokens.value[chainId.value]?.items ?? []).map(
+        (token) => ({ address: token.address, symbol: token.symbol }),
+    );
+
+    return otcAssets(current, held);
+});
+
 /** The two legs of a new offer: which asset, a typed address for any other, how much. */
 const legs = reactive({
     sell: { asset: NATIVE, custom: '', value: '' },
-    buy: { asset: OTC_ASSETS[2].address, custom: '', value: '' },
+    buy: { asset: CUSTOM, custom: '', value: '' },
+});
+
+/** Default the buy side to the first asset that is not the sell side. */
+const resetLegs = (): void => {
+    legs.sell.asset = props.prefill?.sell ?? NATIVE;
+    legs.sell.custom = '';
+    legs.buy.asset =
+        assets.value.find(
+            (asset) =>
+                asset.address.toLowerCase() !== legs.sell.asset.toLowerCase(),
+        )?.address ?? CUSTOM;
+    legs.buy.custom = '';
+
+    if (pickerValue(legs.sell.asset) === CUSTOM) {
+        legs.sell.custom = legs.sell.asset;
+        legs.sell.asset = CUSTOM;
+    }
+};
+
+/** Both legs resolved to their contracts, once each address reads. */
+const sides = reactive<{ sell: OtcSide | null; buy: OtcSide | null }>({
+    sell: null,
+    buy: null,
+});
+/** What this wallet holds of the asset being sold. */
+const sellHeld = ref<bigint | null>(null);
+
+const resolveLeg = async (key: 'sell' | 'buy'): Promise<void> => {
+    const current = desk.value;
+    const leg = legs[key];
+    const address = leg.asset === CUSTOM ? leg.custom.trim() : leg.asset;
+
+    sides[key] = null;
+
+    if (key === 'sell') {
+        sellHeld.value = null;
+    }
+
+    if (!current || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+        return;
+    }
+
+    try {
+        const side = await readSide(current, address);
+
+        if (desk.value?.chain !== current.chain) {
+            return;
+        }
+
+        sides[key] = side;
+
+        if (key === 'sell' && me.value) {
+            sellHeld.value = await readBalance(current, side.address, me.value);
+        }
+    } catch {
+        sides[key] = null;
+    }
+};
+
+watch(
+    () => [chainId.value, legs.sell.asset, legs.sell.custom, me.value],
+    () => void resolveLeg('sell'),
+    { immediate: true },
+);
+watch(
+    () => [chainId.value, legs.buy.asset, legs.buy.custom],
+    () => void resolveLeg('buy'),
+    { immediate: true },
+);
+
+const maxSell = (): void => {
+    const side = sides.sell;
+
+    if (side && sellHeld.value !== null) {
+        legs.sell.value = formatUnits(
+            sellHeld.value,
+            side.decimals,
+            side.decimals,
+        );
+    }
+};
+
+/**
+ * The deal as one sentence, before anything is signed: what leaves this
+ * wallet, what comes back, and the price of one unit.
+ */
+const summary = computed((): string | null => {
+    const sell = sides.sell;
+    const buy = sides.buy;
+
+    if (!sell || !buy) {
+        return null;
+    }
+
+    const give = parse(legs.sell.value, sell.decimals);
+    const get = parse(legs.buy.value, buy.decimals);
+    const unit = give && get ? unitPriceOf(give, get, sell.decimals) : null;
+
+    if (!give || !get || unit === null) {
+        return null;
+    }
+
+    return t('otcSummary', {
+        give: amount(give, sell),
+        get: amount(get, buy),
+        unit: amount(unit, buy, 8),
+        symbol: sell.symbol,
+    });
+});
+
+const overBalance = computed(() => {
+    const side = sides.sell;
+    const give = side ? parse(legs.sell.value, side.decimals) : null;
+
+    return give !== null && sellHeld.value !== null && give > sellHeld.value;
 });
 const takerInput = ref('');
 const partialFill = ref(true);
@@ -273,10 +470,10 @@ const minFillInput = ref('');
 const expiryDays = ref(0);
 
 const sideOf = async (choice: string, custom: string): Promise<OtcSide> =>
-    readSide(choice === CUSTOM ? custom.trim() : choice);
+    readSide(desk.value!, choice === CUSTOM ? custom.trim() : choice);
 
 const pickerValue = (address: string): string =>
-    OTC_ASSETS.find(
+    assets.value.find(
         (asset) => asset.address.toLowerCase() === address.toLowerCase(),
     )?.address ?? CUSTOM;
 
@@ -305,12 +502,11 @@ const counter = (order: OtcOrder): void => {
     tab.value = 'new';
 };
 
-const makeReady = computed(() =>
-    [legs.sell, legs.buy].every(
-        (leg) =>
-            leg.value.trim() !== '' &&
-            (leg.asset !== CUSTOM || leg.custom.trim() !== ''),
-    ),
+const makeReady = computed(
+    () =>
+        summary.value !== null &&
+        !overBalance.value &&
+        sides.sell?.address.toLowerCase() !== sides.buy?.address.toLowerCase(),
 );
 
 const make = async (): Promise<void> => {
@@ -324,7 +520,7 @@ const make = async (): Promise<void> => {
         const sellAmount = parseUnits(legs.sell.value.trim(), sell.decimals);
 
         if (me.value) {
-            const held = await readBalance(sell.address, me.value);
+            const held = await readBalance(desk.value!, sell.address, me.value);
 
             if (held < sellAmount) {
                 failure.value = t('otcNotEnough', {
@@ -370,6 +566,17 @@ const make = async (): Promise<void> => {
 watch(tab, () => {
     failure.value = null;
 });
+
+watch(chainId, () => {
+    selected.value = null;
+    editing.value = null;
+    sent.value = null;
+    failure.value = null;
+    resetLegs();
+    void load();
+});
+
+resetLegs();
 </script>
 
 <template>
@@ -380,6 +587,30 @@ watch(tab, () => {
 
         <h2 class="cw-title" style="margin: 22px 0 8px">{{ t('otcTitle') }}</h2>
         <p class="cw-prose">{{ t('otcIntro') }}</p>
+
+        <!-- One book per network: an offer is escrowed where its assets live. -->
+        <div
+            v-if="networks.length > 1"
+            class="cw-row"
+            style="
+                gap: 8px;
+                margin-top: 14px;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            "
+        >
+            <button
+                v-for="network in networks"
+                :key="network.id"
+                type="button"
+                class="cw-chip"
+                :class="{ 'cw-chip-on': chainId === network.id }"
+                :aria-pressed="chainId === network.id"
+                @click="chainId = network.id"
+            >
+                {{ network.label }}
+            </button>
+        </div>
 
         <p
             v-if="!deployed"
@@ -405,7 +636,16 @@ watch(tab, () => {
             </div>
 
             <p v-if="sent" class="cw-note" style="margin-top: 14px">
-                <span>{{ t('otcSent') }} {{ shortAddress(sent) }}</span>
+                <span
+                    >{{ t('otcSent') }}
+                    <a
+                        v-if="sentUrl"
+                        :href="sentUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >{{ shortAddress(sent) }} ↗</a
+                    ><template v-else>{{ shortAddress(sent) }}</template></span
+                >
             </p>
             <p
                 v-if="failure"
@@ -417,16 +657,49 @@ watch(tab, () => {
 
             <!-- ----------------------------------------------------- book -- -->
             <template v-if="tab === 'book'">
+                <div
+                    class="cw-row"
+                    style="
+                        gap: 8px;
+                        margin-top: 14px;
+                        justify-content: flex-start;
+                    "
+                >
+                    <button
+                        v-for="option in ['all', 'mine'] as const"
+                        :key="option"
+                        type="button"
+                        class="cw-chip"
+                        :class="{ 'cw-chip-on': filter === option }"
+                        @click="filter = option"
+                    >
+                        {{ option === 'all' ? t('otcAll') : t('otcMine') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="cw-chip"
+                        :disabled="loading"
+                        @click="load()"
+                    >
+                        ↻
+                    </button>
+                </div>
                 <p v-if="loading" class="cw-prose" style="margin-top: 18px">
                     {{ t('otcLoading') }}
                 </p>
-                <p
-                    v-else-if="visible.length === 0"
-                    class="cw-prose"
-                    style="margin-top: 18px"
-                >
-                    {{ t('otcEmpty') }}
-                </p>
+                <div v-else-if="visible.length === 0" style="margin-top: 18px">
+                    <p class="cw-prose">
+                        {{ t('otcEmptyOn', { network: chain.label }) }}
+                    </p>
+                    <button
+                        type="button"
+                        class="cw-btn cw-btn-primary"
+                        style="margin-top: 12px"
+                        @click="tab = 'new'"
+                    >
+                        {{ t('otcPlaceFirst') }}
+                    </button>
+                </div>
 
                 <div
                     v-for="order in visible"
@@ -729,7 +1002,7 @@ watch(tab, () => {
                             style="flex: 0 0 40%"
                         >
                             <option
-                                v-for="asset in OTC_ASSETS"
+                                v-for="asset in assets"
                                 :key="asset.address"
                                 :value="asset.address"
                             >
@@ -753,7 +1026,41 @@ watch(tab, () => {
                         spellcheck="false"
                         placeholder="0x…"
                     />
+                    <div
+                        v-if="key === 'sell' && sides.sell && sellHeld !== null"
+                        class="cw-row"
+                        style="margin-top: 6px"
+                    >
+                        <span class="cw-label">{{
+                            t('otcBalance', {
+                                amount: amount(sellHeld, sides.sell),
+                            })
+                        }}</span>
+                        <button
+                            type="button"
+                            class="cw-chip"
+                            :disabled="sellHeld === 0n"
+                            @click="maxSell()"
+                        >
+                            Max
+                        </button>
+                    </div>
                 </template>
+
+                <p v-if="summary" class="cw-note" style="margin-top: 16px">
+                    <span>{{ summary }}</span>
+                </p>
+                <p
+                    v-if="overBalance && sides.sell && sellHeld !== null"
+                    class="cw-note cw-note-warn"
+                    style="margin-top: 10px"
+                >
+                    <span>{{
+                        t('otcNotEnough', {
+                            amount: amount(sellHeld, sides.sell),
+                        })
+                    }}</span>
+                </p>
 
                 <span
                     class="cw-label"

@@ -124,8 +124,8 @@ import type {
 } from '@/lib/wallet/liquidity';
 import { mintNft as submitMint } from '@/lib/wallet/nft';
 import type { MintQuote } from '@/lib/wallet/nft';
-import { executeOtc } from '@/lib/wallet/otc';
-import type { OtcAction } from '@/lib/wallet/otc';
+import { executeOtc, otcDesk } from '@/lib/wallet/otc';
+import type { OtcAction, OtcDesk } from '@/lib/wallet/otc';
 import { executeShop } from '@/lib/wallet/shop';
 import type { ShopAction } from '@/lib/wallet/shop';
 import { executeSwap } from '@/lib/wallet/swap';
@@ -1669,17 +1669,30 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     };
 
     /** One OTC offer action, on the network the desk lives on (49407). */
-    const otc = async (action: OtcAction): Promise<string> => {
-        const chainId: WalletChainId = 'cyberia_fuji';
+    /** The OTC desk on one EVM network, or null where none is deployed. */
+    const otcDeskFor = (chainId: WalletChainId): OtcDesk | null =>
+        otcDesk(walletChain(chainId), rpcFor(chainId));
+
+    /** One OTC action, on the network whose book it belongs to. */
+    const otc = async (
+        chainId: WalletChainId,
+        action: OtcAction,
+    ): Promise<string> => {
+        const desk = otcDeskFor(chainId);
+
+        if (!desk) {
+            throw new Error('There is no OTC desk on this network.');
+        }
+
         const source = sourceFor(chainId);
 
         busy.value = true;
 
         try {
             return await executeOtc(source, {
+                desk,
                 action,
                 gasPrice: await gasPrice(chainId),
-                rpcUrl: rpcFor(chainId),
             });
         } finally {
             busy.value = false;
@@ -2225,6 +2238,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         wrap,
         vpnBuy,
         otc,
+        otcDeskFor,
         shop,
         launchToken,
         domains,
