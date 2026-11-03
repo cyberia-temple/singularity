@@ -59,7 +59,7 @@ return [
     'partner' => env('ARENA_PARTNER'),
     'partners' => [
         'hatcher' => [
-            'title' => 'Hatcher Cup',
+            'title' => 'Paper Cup',
             'name' => 'HatcherLabs',
             'website' => 'https://hatcher.host/',
             'x' => 'https://x.com/HatcherLabs',

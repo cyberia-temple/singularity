@@ -92,7 +92,7 @@ it('freezes the partner, units and market wording into a Hatcher season', functi
     expect($rules['market'])->toBe('HATCHER / SOL')
         ->and($rules['units'])->toBe(['cash' => 'SOL', 'asset' => 'HATCHER', 'lot' => 1000000])
         ->and($rules['initial_cash_micros'])->toBe('10000000')
-        ->and($rules['partner']['title'])->toBe('Hatcher Cup')
+        ->and($rules['partner']['title'])->toBe('Paper Cup')
         ->and($rules['automation']['prompt'])->toContain('SOL micro-units per lot of 1,000,000 HATCHER')
         ->and($rules['automation']['prompt'])->not->toContain('WETH');
 });
