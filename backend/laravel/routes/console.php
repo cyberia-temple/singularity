@@ -40,6 +40,10 @@ Schedule::command('predictions:resolve')->everyFiveMinutes()->withoutOverlapping
 // The market map on /heatmap: CoinGecko's market plus a price snapshot of
 // every Cyberia launch, from which the 24h change is read.
 Schedule::command('heatmap:snapshot')->everyTenMinutes()->withoutOverlapping()->runInBackground();
+// The wallet's 24h price change: nothing on chain remembers yesterday's price,
+// so the wallet's own quotes are written down every half hour and the change is
+// read against the snapshot taken a day earlier.
+Schedule::command('wallet:price-snapshot')->everyThirtyMinutes()->withoutOverlapping();
 // Deposits that land on an address instead of arriving as a signed
 // transaction: nothing notifies this server, so it looks. Every two minutes
 // because that is a Monero block — polling faster asks the same question

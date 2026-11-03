@@ -116,6 +116,8 @@ import {
     playWalletSound,
 } from '@/lib/wallet/notifications';
 import type { PlayerTrack } from '@/lib/wallet/player';
+import { NO_CHANGES } from '@/lib/wallet/priceChange';
+import type { PriceChanges } from '@/lib/wallet/priceChange';
 import type { SwipeIntent } from '@/lib/wallet/swipe';
 import { signInWithTelegram } from '@/lib/wallet/sync';
 import { canStream, torrentBridge } from '@/lib/wallet/torrent';
@@ -145,6 +147,8 @@ const props = defineProps<{
         prices: Record<string, number | null>;
         /** Chain id → (lowercased contract → USD price). */
         tokens: Record<string, Record<string, number>>;
+        /** 24h price changes in percent, only where one was measured. */
+        changes?: PriceChanges;
         fetchedAt: string;
     };
     /** Which contract the holders' room counts, and how much of it it wants. */
@@ -283,6 +287,7 @@ watch(overlay, (next) => {
 const chain = ref<WalletChainId>('cyberia');
 const prices = ref(props.quotes.prices);
 const tokenPrices = ref(props.quotes.tokens ?? {});
+const priceChanges = ref<PriceChanges>(props.quotes.changes ?? NO_CHANGES);
 const online = ref(true);
 const error = ref<string | null>(null);
 const payoutSaved = ref(false);
@@ -1600,10 +1605,12 @@ const refreshPrices = async (): Promise<void> => {
             const quotes = (await response.json()) as {
                 prices: Record<string, number | null>;
                 tokens?: Record<string, Record<string, number>>;
+                changes?: PriceChanges;
             };
 
             prices.value = quotes.prices;
             tokenPrices.value = quotes.tokens ?? {};
+            priceChanges.value = quotes.changes ?? NO_CHANGES;
         }
     } catch {
         // Quotes are a nicety; the balances underneath them are the product.
@@ -2389,6 +2396,7 @@ watch(
                             :wallet="wallet"
                             :prices="prices"
                             :token-prices="tokenPrices"
+                            :price-changes="priceChanges"
                             :online="online"
                             :authenticated="authenticated"
                             :profile-address="signedInAddress"

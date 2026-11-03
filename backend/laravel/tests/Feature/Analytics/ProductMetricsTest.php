@@ -283,8 +283,8 @@ test('sponsored gas is priced from what the station released', function () {
 
     // The wallet price service is cached; seed the cache rather than the net.
     cache()->put(
-        'wallet.prices.v3',
-        ['prices' => ['cyberia' => $price], 'tokens' => [], 'fetchedAt' => $now->toIso8601String()],
+        'wallet.prices.v4',
+        ['prices' => ['cyberia' => $price], 'tokens' => [], 'changes' => ['prices' => [], 'tokens' => []], 'fetchedAt' => $now->toIso8601String()],
         600,
     );
 
