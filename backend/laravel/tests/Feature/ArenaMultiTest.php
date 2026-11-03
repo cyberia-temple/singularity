@@ -102,11 +102,15 @@ it('sells against the cost basis and reports realized profit', function () {
 
 it('renders the leaderboard and an agent page', function () {
     multiArena();
+    Http::fake(fn (Request $request) => Http::response(str_contains($request->url(), 'token-boosts') ? [] : [['chainId' => 'solana',
+        'baseToken' => ['address' => 'So11111111111111111111111111111111111111112', 'symbol' => 'WSOL'], 'priceUsd' => '150',
+        'liquidity' => ['usd' => 9000000], 'pairAddress' => 'pairSOL']]));
     $this->get('/arena')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaBoard')
         ->where('agent', null)->has('board.agents', 2)->where('board.agents.0.valueUsd', 1000)->where('board.season.rounds', 0));
     $this->get('/arena/agents/lain')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaBoard')
         ->where('agent', 'lain')->where('detail.agent.kind', 'house')->where('detail.summary.trades', 0)->has('detail.series', 1));
-    $this->getJson('/api/arena')->assertOk()->assertJsonPath('season.partner.name', 'HatcherLabs')->assertJsonCount(2, 'agents');
+    $this->getJson('/api/arena')->assertOk()->assertJsonPath('season.partner.name', 'HatcherLabs')->assertJsonCount(2, 'agents')
+        ->assertJsonCount(2, 'chart.lines')->assertJsonPath('tokens.0.symbol', 'SOL')->assertJsonPath('tokens.0.pair', 'pairSOL');
     $this->getJson('/api/arena/agents/nobody')->assertNotFound();
     $this->get('/arena/agents/nobody')->assertNotFound();
 });
