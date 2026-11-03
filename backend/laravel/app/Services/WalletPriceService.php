@@ -195,8 +195,9 @@ class WalletPriceService
 
     /**
      * The snapshot taken closest to a day ago, keyed chain → asset ('' for the
-     * chain's coin) → USD. A day ago means 23 to 26 hours: an hourly snapshot
-     * that ran a few minutes late is still yesterday, a two-day-old one is not.
+     * chain's coin) → USD. A day ago means 24 hours where such a snapshot
+     * exists, with 23 to 26 hours tolerated for a missed run; a two-day-old
+     * one is not yesterday.
      *
      * @return array<string, array<string, float>>
      */
@@ -207,10 +208,16 @@ class WalletPriceService
         }
 
         return Cache::remember(self::CACHE_KEY.'.day-ago', self::DAY_AGO_TTL_SECONDS, function (): array {
+            // The newest snapshot at least a day old; failing that (the
+            // snapshot due then was missed), the oldest one under a day.
             $at = DB::table('wallet_price_snapshots')
-                ->where('captured_at', '<=', now()->subHours(23))
+                ->where('captured_at', '<=', now()->subDay())
                 ->where('captured_at', '>=', now()->subHours(26))
-                ->max('captured_at');
+                ->max('captured_at')
+                ?? DB::table('wallet_price_snapshots')
+                    ->where('captured_at', '>', now()->subDay())
+                    ->where('captured_at', '<=', now()->subHours(23))
+                    ->min('captured_at');
 
             if ($at === null) {
                 return [];

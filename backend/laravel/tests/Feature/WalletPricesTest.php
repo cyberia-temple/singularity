@@ -289,8 +289,10 @@ it('measures the 24h change of CYBER and Cyberia tokens against yesterday\'s sna
     nativeCyberPool();
 
     // Yesterday CYBER was worth half its $0.0000126, and nothing was written about USDC.
+    // A half-hour-later snapshot (23.5h) at another price must not win over it.
     DB::table('wallet_price_snapshots')->insert([
-        'chain' => 'cyberia', 'asset' => '', 'usd' => 0.0000063, 'captured_at' => now()->subHours(24),
+        ['chain' => 'cyberia', 'asset' => '', 'usd' => 0.0000063, 'captured_at' => now()->subHours(24)->subMinute()],
+        ['chain' => 'cyberia', 'asset' => '', 'usd' => 0.0000126, 'captured_at' => now()->subMinutes(23 * 60 + 30)],
     ]);
 
     $changes = app(WalletPriceService::class)->quotes()['changes'];
