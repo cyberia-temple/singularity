@@ -4,10 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Middleware\EnsureCrmAdmin;
 use App\Http\Requests\StoreArenaCommentRequest;
-use App\Models\ArenaAgent;
 use App\Models\ArenaComment;
 use App\Models\ArenaSeason;
-use App\Services\Arena\ArenaLeague;
+use App\Services\Arena\ArenaBoard;
 use App\Services\Arena\ArenaSeasonManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +22,7 @@ class ArenaController extends Controller
         abort_unless(config('arena.enabled'), 404);
         $season = ArenaSeason::query()->where('slug', config('arena.slug'))->first();
         if ($season && $season->rules['mode'] === 'automatic-multi') {
-            return $this->multi($season, null);
+            return Inertia::render('ArenaBoard', ['board' => app(ArenaBoard::class)->overview(), 'agent' => null, 'detail' => null]);
         }
         $user = $request->user();
         $moderator = EnsureCrmAdmin::allows($user);
@@ -78,56 +77,13 @@ class ArenaController extends Controller
         ]);
     }
 
-    public function agent(string $agent, ArenaLeague $league): Response
+    public function agent(string $agent, ArenaBoard $board): Response
     {
         abort_unless(config('arena.enabled'), 404);
-        $season = ArenaSeason::query()->where('slug', config('arena.slug'))->first();
-        if ($season && $season->rules['mode'] === 'automatic-multi' && isset($season->rules['agents'][$agent])) {
-            return $this->multi($season, $agent);
-        }
-        $registered = ArenaAgent::query()->where('slug', $agent)->whereNull('hidden_at')->firstOrFail();
+        $detail = $board->agent($agent);
+        abort_if($detail === null, 404);
 
-        return Inertia::render('ArenaLeagueAgent', [
-            'agent' => ['slug' => $registered->slug, 'name' => $registered->name, 'framework' => $registered->framework,
-                'description' => $registered->description, 'website' => $registered->website, 'owner' => $registered->owner_address,
-                'registeredAt' => $registered->created_at->toIso8601String(), 'lastTradeAt' => $registered->last_trade_at?->toIso8601String()],
-            'book' => $league->book($registered),
-            'season' => $season ? ['title' => $season->title] : null,
-        ]);
-    }
-
-    /**
-     * The multi-token arena: a leaderboard, or one agent's whole record. The
-     * page derives charts, holdings and statistics from the rounds, which are
-     * the same records the evidence download carries.
-     */
-    private function multi(ArenaSeason $season, ?string $agent): Response
-    {
-        $pending = $season->cycles()->whereIn('status', ['collecting', 'awaiting_fill'])->orderBy('slot')->first();
-
-        return Inertia::render('ArenaMulti', [
-            'agent' => $agent,
-            'season' => ['title' => $season->title, 'slug' => $season->slug, 'startsAt' => $season->starts_at?->toIso8601String(),
-                'endsAt' => $season->ends_at?->toIso8601String(), 'rulesHash' => $season->rules_hash],
-            'rules' => collect($season->rules)->except('automation')->all()
-                + ['models' => $season->rules['automation']['models']],
-            'automation' => ['enabled' => (bool) config('arena.automation.enabled'), 'lastTickAt' => $season->last_tick_at?->toIso8601String(),
-                'error' => $season->automation_error],
-            'pending' => $pending ? ['status' => $pending->status, 'fillDueAt' => $pending->fill_due_at->toIso8601String(),
-                'commitHash' => $pending->commit_hash,
-                'decisions' => $pending->status === 'awaiting_fill' ? ($pending->record['decisions'] ?? null) : null] : null,
-            'skipped' => $season->cycles()->where('status', 'skipped')->orderByDesc('slot')->limit(5)->get(['slot', 'error_code'])
-                ->map(fn ($cycle) => ['slot' => $cycle->slot, 'error' => $cycle->error_code]),
-            'league' => $agent === null ? app(ArenaLeague::class)->standings() : [],
-            'rounds' => $season->rounds()->orderBy('sequence')->get()->map(fn ($round) => [
-                'sequence' => $round->sequence, 'decisionAt' => $round->decision_at->toIso8601String(),
-                'filledAt' => $round->filled_at->toIso8601String(), 'recordHash' => $round->record_hash,
-                'decisions' => $round->evidence['decisions'],
-                'board' => collect($round->evidence['board']['prices'] ?? [])->map(fn ($row) => ['symbol' => $row['symbol'] ?? null,
-                    'usd' => $row['usd'], 'change' => $row['change_h24'], 'liquidity' => $row['liquidity_usd'], 'pair' => $row['pair']]),
-                'result' => $round->result,
-            ]),
-        ]);
+        return Inertia::render('ArenaBoard', ['board' => $board->overview(), 'agent' => $agent, 'detail' => $detail]);
     }
 
     public function comment(StoreArenaCommentRequest $request): RedirectResponse

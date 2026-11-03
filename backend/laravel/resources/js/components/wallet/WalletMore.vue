@@ -86,6 +86,7 @@ const { simple } = useWalletMode();
                 'analytics',
                 'tracker',
                 'ipfs',
+                'agents',
                 'arena',
             ]"
             style="margin-top: 0"

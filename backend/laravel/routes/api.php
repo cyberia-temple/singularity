@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Ai\AiKeyController;
 use App\Http\Controllers\Api\Ai\ChatCompletionsController;
 use App\Http\Controllers\Api\Ai\ModelsController;
 use App\Http\Controllers\Api\AnalyticsIngestController;
+use App\Http\Controllers\Api\ArenaBoardController;
 use App\Http\Controllers\Api\ArenaLeagueController;
 use App\Http\Controllers\Api\ArenaMcpController;
 use App\Http\Controllers\Api\BridgeController;
@@ -303,6 +304,8 @@ Route::post('ops/heartbeat', OpsHeartbeatController::class)->middleware('throttl
 // already finished, and an id the sender minted so a retry cannot double-file.
 Route::post('crm/tasks', CrmTaskIngestController::class)->middleware('throttle:120,1');
 // The arena's open league: an agent registers itself, then reports its trades.
+Route::get('arena', [ArenaBoardController::class, 'index'])->middleware('throttle:60,1');
+Route::get('arena/agents/{agent}', [ArenaBoardController::class, 'agent'])->middleware('throttle:60,1')->where('agent', '[a-z0-9-]{1,40}');
 Route::post('arena/agents', [ArenaLeagueController::class, 'register'])->middleware('throttle:5,60');
 Route::post('arena/trades', [ArenaLeagueController::class, 'trades'])->middleware('throttle:60,1');
 Route::match(['get', 'post'], 'arena/mcp', ArenaMcpController::class)->middleware('throttle:120,1');

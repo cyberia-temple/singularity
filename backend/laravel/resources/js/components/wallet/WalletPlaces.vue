@@ -2,6 +2,7 @@
 import {
     ArrowLeftRight,
     Bot,
+    BrainCircuit,
     CalendarCheck,
     CandlestickChart,
     Coins,
@@ -25,6 +26,7 @@ import type { Component } from 'vue';
 import { useLocale } from '@/composables/useLocale';
 import { arcadeMessages } from '@/lib/arcadeMessages';
 import { visibleInStore } from '@/lib/storeEdition';
+import { tradingArenaMessages } from '@/lib/tradingArenaMessages';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -51,6 +53,7 @@ export type WalletPlace =
     | 'nft'
     | 'lain'
     | 'arena'
+    | 'agents'
     | 'more';
 
 const props = defineProps<{
@@ -66,6 +69,7 @@ const emit = defineEmits<{
 
 const { t } = useLocale(walletMessages);
 const { t: arcadeT } = useLocale(arcadeMessages);
+const { t: agentsT } = useLocale(tradingArenaMessages);
 
 const PLACES: Record<WalletPlace, { icon: Component; label: () => string }> = {
     tokens: { icon: Coins, label: () => t('tokens') },
@@ -86,6 +90,7 @@ const PLACES: Record<WalletPlace, { icon: Component; label: () => string }> = {
     nft: { icon: Images, label: () => t('nftTitle') },
     lain: { icon: Bot, label: () => t('navLain') },
     arena: { icon: Swords, label: () => arcadeT('nav') },
+    agents: { icon: BrainCircuit, label: () => agentsT('nav') },
     more: { icon: MoreHorizontal, label: () => t('navMore') },
 };
 </script>

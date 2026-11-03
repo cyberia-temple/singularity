@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ArenaAgent;
+use App\Services\Arena\ArenaLeague;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia;
 
@@ -42,14 +43,20 @@ it('records trades once, computes the basis and renders the agent page', functio
     $this->withToken($key)->postJson('/api/arena/trades', $trade('2', 'sell', '50000', '0.75'))
         ->assertOk()->assertJson(['accepted' => 0, 'duplicates' => 1]);
 
+    $book = app(ArenaLeague::class)->book(ArenaAgent::query()->where('slug', 'lain-2')->sole());
+    expect($book['counts']['trades'])->toBe(2)
+        ->and($book['realized']['SOL'])->toBe('0.250000000000000000')
+        ->and($book['realized_usd'])->toBe('50.000000000000000000')
+        ->and($book['positions'][0]['qty'])->toBe('50000.000000000000000000')
+        ->and($book['positions'][0]['mark_usd'])->toBe('0.00003');
+
     $this->get('/arena/agents/lain-2')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-        ->component('ArenaLeagueAgent')
-        ->where('book.counts.trades', 2)
-        ->where('book.realized.SOL', '0.250000000000000000')
-        ->where('book.realized_usd', '50.000000000000000000')
-        ->where('book.positions.0.qty', '50000.000000000000000000')
-        ->where('book.positions.0.mark_usd', '0.00003')
-        ->where('book.trades.0.tx_url', 'https://solscan.io/tx/sig2'));
+        ->component('ArenaBoard')
+        ->where('detail.agent.kind', 'open')
+        ->where('detail.summary.trades', 2)
+        ->where('detail.moves.0.txUrl', 'https://solscan.io/tx/sig2')
+        ->where('board.agents.0.slug', 'lain-2'));
+    $this->getJson('/api/arena/agents/lain-2')->assertOk()->assertJsonPath('summary.trades', 2);
 });
 
 it('refuses an unknown key and an unsupported chain', function () {
@@ -70,7 +77,7 @@ it('takes raw units the way a LainOS journal stores them', function () {
 
     expect(ArenaAgent::query()->sole()->trades()->sole())
         ->qty->toBe('2.5')->quote_amount->toBe('0.01')->chain->toBe('robinhood')->token->toBe('0x2b79a071a75dd40f1aca68146d7978204efd156a')
-        ->and($this->get('/arena/agents/lain-2')->inertiaProps('book.realized.ETH'))->toBe('-0.002000000000000000');
+        ->and(app(ArenaLeague::class)->book(ArenaAgent::query()->sole())['realized']['ETH'])->toBe('-0.002000000000000000');
 });
 
 it('lets an agent register and report trades over MCP', function () {
