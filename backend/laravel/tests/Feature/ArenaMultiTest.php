@@ -140,3 +140,32 @@ it('records why a model call failed and accepts the dated slug OpenRouter serves
     expect($attempts['lain']['status'])->toBe('ok')
         ->and($attempts['challenger']['error_detail'])->toBe('model_http_404');
 });
+
+it('retries a per-minute 429 and names the daily free allowance when it runs out', function () {
+    config()->set('arena.automation.retry_microseconds', 0);
+    $season = multiArena();
+    $GLOBALS['arenaCalls'] = 0;
+    Http::fake(function (Request $request) {
+        if ($request->url() === 'https://api.dexscreener.com/token-boosts/top/v1') {
+            return Http::response([]);
+        }
+        if (str_starts_with($request->url(), 'https://api.dexscreener.com/')) {
+            return Http::response([['chainId' => 'solana', 'baseToken' => ['address' => 'So11111111111111111111111111111111111111112', 'symbol' => 'SOL'],
+                'priceUsd' => '150', 'liquidity' => ['usd' => 9000000]]]);
+        }
+        if ($request['model'] === 'fixture/challenger:free') {
+            return Http::response(['error' => ['message' => 'Rate limit exceeded: free-models-per-day. Add 10 credits']], 429);
+        }
+        if (++$GLOBALS['arenaCalls'] === 1) {
+            return Http::response(['error' => ['message' => 'Rate limit exceeded: free-models-per-min.']], 429);
+        }
+
+        return Http::response(['model' => 'fixture/lain', 'choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => json_encode(['action' => 'hold', 'token' => null, 'bps' => 0, 'reason' => 'Waiting.'])]]]]);
+    });
+    app(ArenaAutomation::class)->tick();
+
+    $attempts = $season->cycles()->sole()->record['attempts'];
+    expect($attempts['lain']['status'])->toBe('ok')
+        ->and($attempts['challenger']['error_detail'])->toBe('model_http_429_daily');
+});
