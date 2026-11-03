@@ -74,6 +74,8 @@ class DigestTextTest(unittest.TestCase):
             rows.get("staking", []),
             rows.get("conversions", (0, 0.0, 0.0, 0.0)),
             rows.get("sol_buys", (0, 0.0, 0, 0)),
+            rows.get("ecosystem", []),
+            rows.get("newcomers", (0,)),
         ]
 
         class _Result:
@@ -131,6 +133,20 @@ class DigestTextTest(unittest.TestCase):
         # Blocks are separated, so the post is not one grey paragraph.
         self.assertIn("\n\n", text)
         self.assertTrue(text.startswith("📊 <b>Cyberia · last 6h</b>"))
+
+    def test_the_rest_of_the_ecosystem_and_new_wallets(self):
+        text = self._build(
+            ecosystem=[("nft_mint", 3, "#12"), ("domain", 1, "lain.cyber"), ("predict_bet", 2, None)],
+            newcomers=(4,),
+        )
+        self.assertIn("🧩 <b>Ecosystem</b>", text)
+        self.assertIn("3 NFTs minted", text)
+        self.assertIn("1 domain registered (lain.cyber)", text)
+        self.assertIn("2 bets placed", text)
+        self.assertIn("4 new wallets", text)
+
+    def test_new_wallets_alone_are_not_a_digest(self):
+        self.assertIsNone(self._build(newcomers=(2,)))
 
     def test_one_sided_liquidity_and_staking_omit_the_empty_half(self):
         text = self._build(
