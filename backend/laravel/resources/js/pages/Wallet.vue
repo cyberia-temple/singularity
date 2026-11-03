@@ -2035,7 +2035,7 @@ watch(
             -->
             <a
                 v-if="!storeBuild"
-                href="/"
+                href="/?site"
                 class="cw-ghost"
                 style="text-decoration: none"
             >
