@@ -146,6 +146,19 @@ if changed services/blockscout/docker-compose/proxy services/blockscout/docker-c
     docker exec proxy nginx -t
 fi
 
+# The explorer's indexer reads its settings only when its container is created,
+# so a merged change to them used to sit in the checkout while the old process
+# ran on: #133 (stop retrying traces polygon-edge cannot give, most of the
+# host's load) was pulled and never applied. Converge on every deploy instead
+# of diffing — compose recreates `backend` only when its resolved config no
+# longer matches the running container, so an unchanged deploy is a no-op.
+# The image tag is pinned, so backend.yml's `pull_policy: always` costs one
+# registry check, not a new image. A failure here must not fail the site's
+# deploy, which has already finished above.
+echo "==> converge explorer backend"
+docker compose -f "$COMPOSE_FILE" up -d --no-deps backend \
+    || echo "!! explorer backend did not converge — check: docker compose -f $COMPOSE_FILE up -d --no-deps backend"
+
 if changed docs services/blockscout/docker-compose/proxy services/blockscout/docker-compose/services/nginx.yml; then
     echo "==> verify docs.cyberia.church"
     curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 2 \
