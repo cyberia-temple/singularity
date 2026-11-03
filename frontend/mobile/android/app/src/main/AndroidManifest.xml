@@ -19,6 +19,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Long-press shortcuts on the launcher icon (scan, chat, feed). -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+
             <!-- cyberia://feed — used by Telegram posts and the desktop app. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -54,4 +57,9 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- QR codes only: the wallet reads an address off the camera, on the device; no photo is kept or sent. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Haptics: a short buzz when a signature is confirmed. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

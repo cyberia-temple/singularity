@@ -25,6 +25,9 @@ from bot.config import (
     AI_PROXY_URL,
     AI_TIMEOUT_SECONDS,
     AI_USER_COOLDOWN_SECONDS,
+    GROQ_API_KEY,
+    GROQ_BASE_URL,
+    GROQ_PREFIX,
 )
 from bot.ai_models import model_for, served_note
 
@@ -135,6 +138,14 @@ def _split_telegram_text(text: str, limit: int = 4000) -> list[str]:
 _MODEL_STATUSES = {400, 402, 404, 429}
 
 
+def _endpoint_for(model: str) -> tuple[str, str, str]:
+    """(completions URL, key, model id there): `groq/<id>` goes to Groq when
+    the bot has a Groq key, everything else to the main provider."""
+    if GROQ_API_KEY and model.startswith(GROQ_PREFIX):
+        return f"{GROQ_BASE_URL}/chat/completions", GROQ_API_KEY, model[len(GROQ_PREFIX):]
+    return AI_API_URL, AI_API_KEY, model
+
+
 async def _request_answer(
     question: str, history: list[dict[str, str]], model: str
 ) -> tuple[str, str]:
@@ -144,8 +155,9 @@ async def _request_answer(
     answered by a different model per request, and the body says which. Echoing
     back the id we sent would be a lie by omission.
     """
+    url, key, upstream = _endpoint_for(model)
     payload: dict[str, Any] = {
-        "model": model,
+        "model": upstream,
         "messages": [
             {"role": "system", "content": _SYSTEM_PROMPT},
             *history,
@@ -155,7 +167,7 @@ async def _request_answer(
         "temperature": 0.2,
     }
     headers = {
-        "Authorization": f"Bearer {AI_API_KEY}",
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
 
@@ -166,7 +178,7 @@ async def _request_answer(
     try:
         async with _request_slots:
             async with httpx.AsyncClient(**client_args) as client:
-                response = await client.post(AI_API_URL, headers=headers, json=payload)
+                response = await client.post(url, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
         answer = data["choices"][0]["message"]["content"]

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import QrCode from '@/components/wallet/QrCode.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useSecureClipboard } from '@/composables/useSecureClipboard';
+import { nativeShare } from '@/lib/mobileShell';
+import { nativeShell } from '@/lib/native';
 import { walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
 import { addressGroups } from '@/lib/wallet/format';
@@ -34,6 +36,20 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useLocale(walletMessages);
+
+/*
+ * The system share sheet: on a phone an address goes to a messenger in two
+ * taps instead of a copy, an app switch and a paste. Offered only where there
+ * is a sheet to open — the app, or a phone browser.
+ */
+const canShare =
+    nativeShell() === 'mobile' ||
+    (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+const shareNote = ref<string | null>(null);
+const share = async (address: string): Promise<void> => {
+    const outcome = await nativeShare({ text: address });
+    shareNote.value = outcome === 'copied' ? t('shareCopied') : null;
+};
 const clipboard = useSecureClipboard();
 
 /**
@@ -177,12 +193,25 @@ const payoutOffered = computed(
                             : t('copyAddress')
                     }}
                 </button>
+                <button
+                    v-if="canShare"
+                    type="button"
+                    class="cw-ghost"
+                    :aria-label="t('shareAddress')"
+                    :title="t('shareAddress')"
+                    @click="share(account.address)"
+                >
+                    ↗
+                </button>
                 <NetworkMark
                     :chain="chain"
                     :size="44"
                     style="border-radius: 3px"
                 />
             </div>
+            <p v-if="shareNote" class="cw-note" style="margin-top: 8px">
+                <span>{{ shareNote }}</span>
+            </p>
         </div>
 
         <p class="cw-note cw-note-warn" style="margin-top: 16px">

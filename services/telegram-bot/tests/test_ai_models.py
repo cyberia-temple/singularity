@@ -204,3 +204,46 @@ class SelectableTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GroqPoolTest(unittest.TestCase):
+    """A Groq key adds Groq's models under `groq/`, and a down Groq costs nothing."""
+
+    def test_groq_models_are_prefixed_and_chat_only(self):
+        from bot.ai_models import groq_choices
+
+        body = {
+            "data": [
+                {"id": "llama-3.3-70b-versatile", "active": True, "context_window": 131072},
+                {"id": "whisper-large-v3"},
+                {"id": "meta-llama/llama-guard-4-12b"},
+                {"id": "retired", "active": False},
+            ]
+        }
+        choices = groq_choices(body, free=True)
+        self.assertEqual([c.id for c in choices], ["groq/llama-3.3-70b-versatile"])
+        self.assertTrue(choices[0].free)
+        self.assertEqual(choices[0].context, 131072)
+
+    def test_merge_keeps_main_pool_and_its_pricing(self):
+        from bot.ai_models import merge_catalogues
+
+        main = Catalogue(models=(ModelChoice("a/b:free", "A", None, True),), priced=True)
+        merged = merge_catalogues(main, (ModelChoice("groq/x", "Groq: x", None, True),))
+        self.assertTrue(merged.priced)
+        self.assertEqual([m.id for m in merged.selectable()], ["a/b:free", "groq/x"])
+
+    def test_groq_ids_route_to_groq_only_with_a_key(self):
+        import bot.ai as ai
+
+        original = ai.GROQ_API_KEY
+        try:
+            ai.GROQ_API_KEY = ""
+            self.assertEqual(ai._endpoint_for("groq/llama")[2], "groq/llama")
+            ai.GROQ_API_KEY = "gsk_test"
+            url, key, model = ai._endpoint_for("groq/llama")
+            self.assertTrue(url.endswith("/chat/completions") and "groq" in url)
+            self.assertEqual((key, model), ("gsk_test", "llama"))
+            self.assertEqual(ai._endpoint_for("openrouter/free")[2], "openrouter/free")
+        finally:
+            ai.GROQ_API_KEY = original

@@ -1,8 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#0b0f10"/>
-  <g fill="none" stroke="#00e5d1" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M32 10 51 20.75v21.5L32 53 13 42.25v-21.5L32 10Z"/>
-    <path d="M13 20.75 32 31.5l19-10.75"/>
-    <path d="M32 31.5V53"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+<defs>
+<radialGradient id="bg" cx="50%" cy="46%" r="70%"><stop offset="0" stop-color="#123236"/><stop offset="1" stop-color="#05090A"/></radialGradient>
+<filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.6"/></filter>
+<clipPath id="m"><rect width="108" height="108" rx="24"/></clipPath>
+</defs>
+<g clip-path="url(#m)"><rect width="108" height="108" fill="url(#bg)"/>
+<path d="M54,22 L82,38 L54,54 L26,38 Z" fill="#253536"/>
+<path d="M26,38 L54,54 L54,86 L26,70 Z" fill="#131D1E"/>
+<path d="M54,54 L82,38 L82,70 L54,86 Z" fill="#0A1112"/>
+<g fill="none" stroke="#00E5D1" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M54,22 L82,38 L82,70 L54,86 L26,70 L26,38 Z"/><path d="M26,38 L54,54 L82,38"/><path d="M54,54 L54,86"/><path d="M38.32,38 L39.89,37.15 L41.46,36.32 L43.02,35.53 L44.59,34.8 L46.16,34.15 L47.73,33.6 L49.3,33.15 L50.86,32.83 L52.43,32.63 L54,32.56 L55.57,32.63 L57.14,32.83 L58.7,33.15 L60.27,33.6 L61.84,34.15 L63.41,34.8 L64.98,35.53 L66.54,36.32 L68.11,37.15 L69.68,38"/><path d="M38.32,38 L39.89,38.85 L41.46,39.68 L43.02,40.47 L44.59,41.2 L46.16,41.85 L47.73,42.4 L49.3,42.85 L50.86,43.17 L52.43,43.37 L54,43.44 L55.57,43.37 L57.14,43.17 L58.7,42.85 L60.27,42.4 L61.84,41.85 L63.41,41.2 L64.98,40.47 L66.54,39.68 L68.11,38.85 L69.68,38"/></g>
+<path d="M56.38,36.64 L56.91,37.04 L57.25,37.5 L57.37,38 L57.25,38.5 L56.91,38.96 L56.38,39.36 L55.68,39.67 L54.87,39.86 L54,39.92 L53.13,39.86 L52.32,39.67 L51.62,39.36 L51.09,38.96 L50.75,38.5 L50.63,38 L50.75,37.5 L51.09,37.04 L51.62,36.64 L52.32,36.33 L53.13,36.14 L54,36.08 L54.87,36.14 L55.68,36.33 L56.38,36.64 Z" fill="#00E5D1"/></g>
 </svg>

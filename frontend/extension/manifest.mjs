@@ -78,6 +78,15 @@ export const manifestFor = (base, target, version) => {
 
     delete manifest.minimum_chrome_version;
     manifest.background = { scripts: ['background.js'], type: 'module' };
+    // Firefox has no side panel API: the same wallet page is its sidebar.
+    delete manifest.side_panel;
+    manifest.permissions = manifest.permissions.filter((permission) => permission !== 'sidePanel');
+    manifest.sidebar_action = {
+        default_panel: 'popup.html?panel=1',
+        default_title: 'Cyberia Wallet',
+        default_icon: manifest.action.default_icon,
+        open_at_install: false,
+    };
     manifest.browser_specific_settings = {
         gecko: {
             id: GECKO_ID,

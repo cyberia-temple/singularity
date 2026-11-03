@@ -4,12 +4,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import GasSponsor from '@/components/wallet/GasSponsor.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
+import QrScanner from '@/components/wallet/QrScanner.vue';
 import StatusPill from '@/components/wallet/StatusPill.vue';
 import StockIcon from '@/components/wallet/StockIcon.vue';
 import WalletAssetPicker from '@/components/wallet/WalletAssetPicker.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { analytics, errorCode } from '@/lib/analytics';
+import { qrScanSupported } from '@/lib/mobileShell';
 import { logoForToken } from '@/lib/tokenLogos';
 import { formatUnits, parseUnits, walletChain } from '@/lib/wallet';
 import type {
@@ -31,6 +33,7 @@ import {
     announceWalletEvent,
     playWalletSound,
 } from '@/lib/wallet/notifications';
+import { parsePaymentUri } from '@/lib/wallet/paymentUri';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -81,6 +84,23 @@ const outcome = ref<Outcome>('signing');
 /** null is the network's own coin; anything else is an ERC20 on it. */
 const asset = ref<WalletTokenBalance | null>(props.token ?? null);
 const to = ref(props.recipient ?? '');
+
+/*
+ * The camera fills the recipient, and only the recipient: an amount or a call
+ * inside a payment link is somebody else's choice of what to sign.
+ */
+const canScan = qrScanSupported();
+const scanning = ref(false);
+const scanRefused = ref(false);
+const takeScanned = (text: string): void => {
+    scanning.value = false;
+    const scanned = parsePaymentUri(text);
+    scanRefused.value = scanned === null;
+
+    if (scanned !== null) {
+        to.value = scanned.address;
+    }
+};
 const amount = ref('');
 const tier = ref<WalletFeeTier>('normal');
 const txHash = ref<string | null>(null);
@@ -784,7 +804,33 @@ const balanceShown = computed(() =>
                     >
                         ⎘
                     </button>
+                    <button
+                        v-if="canScan"
+                        type="button"
+                        class="cw-icon-btn"
+                        style="height: 48px; width: 48px"
+                        :aria-label="t('qrScan')"
+                        :title="t('qrScan')"
+                        @click="scanning = true"
+                    >
+                        ⌗
+                    </button>
                 </div>
+                <QrScanner
+                    v-if="scanning"
+                    @detected="takeScanned"
+                    @close="scanning = false"
+                />
+                <p
+                    v-if="scanRefused"
+                    style="
+                        margin: 8px 0 0;
+                        font: 500 13px/1.4 var(--cw-mono);
+                        color: var(--cw-bad-soft);
+                    "
+                >
+                    {{ t('qrNotAddress') }}
+                </p>
                 <p
                     v-if="to.trim().length > 0"
                     style="margin: 8px 0 0; font: 500 13px/1.4 var(--cw-mono)"

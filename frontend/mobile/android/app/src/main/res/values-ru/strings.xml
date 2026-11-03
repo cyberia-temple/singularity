@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="shortcut_scan">Скан QR</string>
+    <string name="shortcut_scan_long">Сканировать QR-код</string>
+    <string name="shortcut_chat">Чат</string>
+    <string name="shortcut_chat_long">Сообщения</string>
+    <string name="shortcut_feed">Лента</string>
+    <string name="shortcut_feed_long">Лента Сайберии</string>
+</resources>

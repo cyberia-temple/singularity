@@ -4,4 +4,10 @@
     <string name="title_activity_main">Cyberia</string>
     <string name="package_name">church.cyberia.app</string>
     <string name="custom_url_scheme">cyberia</string>
+    <string name="shortcut_scan">Scan QR</string>
+    <string name="shortcut_scan_long">Scan a QR code</string>
+    <string name="shortcut_chat">Chat</string>
+    <string name="shortcut_chat_long">Messages</string>
+    <string name="shortcut_feed">Feed</string>
+    <string name="shortcut_feed_long">Cyberia feed</string>
 </resources>

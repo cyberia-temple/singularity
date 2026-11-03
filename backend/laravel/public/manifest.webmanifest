@@ -2,7 +2,7 @@
     "id": "/",
     "name": "Cyberia",
     "short_name": "Cyberia",
-    "description": "Cyberia social, governance, bridge, and on-chain tools.",
+    "description": "The Cyberia wallet: one seed for every chain, encrypted chat between wallets, the feed and the DAO.",
     "start_url": "/wallet",
     "scope": "/",
     "display": "standalone",
@@ -30,9 +30,31 @@
     ],
     "shortcuts": [
         {
+            "name": "Scan a QR code",
+            "short_name": "Scan QR",
+            "url": "/wallet?scan=1",
+            "icons": [
+                {
+                    "src": "/pwa/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Messages",
+            "short_name": "Chat",
+            "url": "/wallet?section=chat",
+            "icons": [
+                {
+                    "src": "/pwa/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
             "name": "Feed",
             "short_name": "Feed",
-            "url": "/feed",
+            "url": "/wallet?section=feed",
             "icons": [
                 {
                     "src": "/pwa/icon-192.png",
@@ -44,17 +66,6 @@
             "name": "Lain",
             "short_name": "Lain",
             "url": "/lain",
-            "icons": [
-                {
-                    "src": "/pwa/icon-192.png",
-                    "sizes": "192x192"
-                }
-            ]
-        },
-        {
-            "name": "Profile",
-            "short_name": "Profile",
-            "url": "/profile",
             "icons": [
                 {
                     "src": "/pwa/icon-192.png",

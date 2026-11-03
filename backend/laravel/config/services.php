@@ -53,6 +53,12 @@ return [
         'model' => env('LAIN_CHAT_MODEL', 'openrouter/free'),
         // Tried when the pinned model errors (free tiers rate-limit upstream).
         'fallback_model' => env('LAIN_CHAT_FALLBACK_MODEL', 'openrouter/free'),
+        // Last resort after both, straight on a provider's own key from
+        // config/ai.php ("groq/<id>"); empty or keyless = not used.
+        'direct_model' => env('LAIN_CHAT_DIRECT_MODEL', 'groq/llama-3.3-70b-versatile'),
+        // Provider ids that may be addressed that way: inference hosts only,
+        // never an OpenRouter model namespace such as openai/ or deepseek/.
+        'direct_providers' => array_values(array_filter(explode(',', (string) env('LAIN_CHAT_DIRECT_PROVIDERS', 'groq,cerebras,nvidia_nim')))),
         'timeout_seconds' => (int) env('LAIN_CHAT_TIMEOUT_SECONDS', 90),
         // Holder gate (LainHolderAccessService): the signed-in wallet must
         // hold this share of the live $LAIN supply. 1000 bps = 10%.

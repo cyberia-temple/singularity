@@ -18,6 +18,7 @@ import {
     initializeAnalytics,
     rememberAttribution,
 } from '@/lib/analytics';
+import { initMobileShell } from '@/lib/mobileShell';
 import { initializeNativeShell, isNativeShell } from '@/lib/native';
 import { onReplayRefused } from '@/lib/sessionReplay';
 import { initializeTelegram } from '@/lib/telegram';
@@ -26,6 +27,8 @@ import { track } from '@/lib/track';
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 initializeNativeShell();
+// In the Android/iOS app: home-screen shortcuts and cyberia:// links open the screen they name.
+initMobileShell();
 initializePwa();
 // Fetches Telegram's SDK, and only inside Telegram: the frame needs to be told
 // we are ready and to take the full height. Everything renders without it.

@@ -25,8 +25,32 @@
         "service_worker": "background.js",
         "type": "module"
     },
-    "permissions": ["storage", "alarms", "scripting", "activeTab"],
-    "optional_permissions": ["proxy", "privacy"],
+    "side_panel": {
+        "default_path": "popup.html?panel=1"
+    },
+    "omnibox": {
+        "keyword": "cy"
+    },
+    "commands": {
+        "_execute_action": {
+            "suggested_key": {
+                "default": "Alt+Shift+C"
+            },
+            "description": "Open Cyberia Wallet"
+        }
+    },
+    "permissions": [
+        "storage",
+        "alarms",
+        "scripting",
+        "activeTab",
+        "contextMenus",
+        "sidePanel"
+    ],
+    "optional_permissions": [
+        "proxy",
+        "privacy"
+    ],
     "host_permissions": [
         "https://rpc.cyberia.church/*",
         "https://explorer.cyberia.church/*",
@@ -35,7 +59,10 @@
         "https://bsc-dataseed.binance.org/*",
         "https://mainnet.base.org/*"
     ],
-    "optional_host_permissions": ["https://*/*", "http://localhost/*"],
+    "optional_host_permissions": [
+        "https://*/*",
+        "http://localhost/*"
+    ],
     "content_security_policy": {
         "extension_pages": "script-src 'self'; object-src 'self'; connect-src https:; img-src 'self' data:"
     }
