@@ -152,11 +152,12 @@ fi
 # host's load) was pulled and never applied. Converge on every deploy instead
 # of diffing — compose recreates `backend` only when its resolved config no
 # longer matches the running container, so an unchanged deploy is a no-op.
-# The image tag is pinned, so backend.yml's `pull_policy: always` costs one
-# registry check, not a new image. A failure here must not fail the site's
-# deploy, which has already finished above.
+# --pull never: backend.yml says `pull_policy: always`, and the pinned tag is
+# no longer on ghcr.io (`11.0.0: not found`), so asking the registry fails the
+# whole step; the image the container runs is already on the host. A failure
+# here must not fail the site's deploy, which has already finished above.
 echo "==> converge explorer backend"
-docker compose -f "$COMPOSE_FILE" up -d --no-deps backend \
+docker compose -f "$COMPOSE_FILE" up -d --no-deps --pull never backend \
     || echo "!! explorer backend did not converge — check: docker compose -f $COMPOSE_FILE up -d --no-deps backend"
 
 if changed docs services/blockscout/docker-compose/proxy services/blockscout/docker-compose/services/nginx.yml; then
