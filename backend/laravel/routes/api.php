@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\WalletGasController;
 use App\Http\Controllers\Api\WalletIpfsController;
 use App\Http\Controllers\Api\WalletMoneroSwapController;
 use App\Http\Controllers\Api\WalletOnrampController;
+use App\Http\Controllers\Api\WalletFcmController;
 use App\Http\Controllers\Api\WalletPushController;
 use App\Http\Controllers\Api\WalletStocksController;
 use App\Http\Controllers\Api\WalletTelegramLinkController;
@@ -156,6 +157,9 @@ Route::prefix('analytics')->group(function () {
      */
     Route::post('push', [WalletPushController::class, 'store'])->middleware('throttle:20,1');
     Route::delete('push', [WalletPushController::class, 'destroy'])->middleware('throttle:20,1');
+    // The native app's FCM token: a WebView holds no Web Push subscription.
+    Route::post('push/fcm', [WalletFcmController::class, 'store'])->middleware('throttle:20,1');
+    Route::delete('push/fcm', [WalletFcmController::class, 'destroy'])->middleware('throttle:20,1');
     // The one call that carries an address, kept apart from the event stream
     // so no ordinary event can ever be the thing that leaked one.
     Route::post('funding', [AnalyticsIngestController::class, 'funding'])->middleware('throttle:20,1');

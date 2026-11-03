@@ -104,3 +104,8 @@ test('the user agent carries the store token only in a store build', () => {
     // The site matches exactly this token (resources/js/lib/storeEdition.ts).
     assert.match(resolveUserAgent({ CYBERIA_STORE: 'appstore' }), /\bCyberiaStore\/(play|appstore)\b/);
 });
+
+test('a build with Firebase configured says so, and only then', () => {
+    assert.match(resolveUserAgent({ CYBERIA_PUSH: '1' }, '1.5.0'), /CyberiaMobile\/1\.5\.0 CyberiaPush\/1$/);
+    assert.doesNotMatch(resolveUserAgent({}, '1.5.0'), /CyberiaPush/);
+});

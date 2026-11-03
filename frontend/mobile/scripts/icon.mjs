@@ -206,7 +206,7 @@ write(join(res, 'drawable/ic_launcher_monochrome.xml'), monochromeXml);
 write(join(res, 'drawable/ic_launcher_background.xml'), backgroundXml);
 write(join(res, 'mipmap-anydpi-v26/ic_launcher.xml'), adaptiveXml);
 write(join(res, 'mipmap-anydpi-v26/ic_launcher_round.xml'), adaptiveXml);
-write(join(res, 'values/ic_launcher_background.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${BG_OUT}</color>\n</resources>\n`);
+write(join(res, 'values/ic_launcher_background.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${BG_OUT}</color>\n    <color name="notification_accent">${CYAN}</color>\n</resources>\n`);
 write(join(root, 'resources/icon.svg'), svg({ shape: 'none' }));
 
 // The old raster layers are replaced by the vectors above.

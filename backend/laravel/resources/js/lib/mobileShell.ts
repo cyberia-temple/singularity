@@ -25,6 +25,13 @@ interface CapacitorPlugins {
             url?: string;
         }) => Promise<unknown>;
     };
+    PushNotifications?: {
+        checkPermissions: () => Promise<{ receive: string }>;
+        requestPermissions: () => Promise<{ receive: string }>;
+        register: () => Promise<void>;
+        unregister?: () => Promise<void>;
+        addListener: (event: string, handler: (data: never) => void) => unknown;
+    };
     Haptics?: {
         impact: (options: {
             style: 'LIGHT' | 'MEDIUM' | 'HEAVY';
@@ -127,6 +134,128 @@ export function haptic(kind: HapticKind): void {
     }
 }
 
+const FCM_TOKEN_KEY = 'cyberia.push.fcm';
+
+type NativePushState = 'on' | 'off' | 'denied' | 'unavailable';
+
+/**
+ * Notifications in the app, through Firebase: the same button as Web Push in a
+ * browser (lib/wallet/push.ts asks here first). Offered only by a build that
+ * says Firebase is configured (`CyberiaPush/1` in its user agent) — asking the
+ * plugin to register without it fails inside Firebase itself.
+ */
+export function nativePush(): {
+    state: () => Promise<NativePushState>;
+    enable: (installation: string, locale: string) => Promise<NativePushState>;
+    disable: () => Promise<NativePushState>;
+} | null {
+    const push = plugins()?.PushNotifications;
+
+    if (
+        !push ||
+        nativeShell() !== 'mobile' ||
+        !/\bCyberiaPush\//.test(navigator.userAgent)
+    ) {
+        return null;
+    }
+
+    const stored = (): string | null => {
+        try {
+            return localStorage.getItem(FCM_TOKEN_KEY);
+        } catch {
+            return null;
+        }
+    };
+
+    return {
+        async state() {
+            const permission = (
+                await push
+                    .checkPermissions()
+                    .catch(() => ({ receive: 'prompt' }))
+            ).receive;
+
+            return permission === 'denied'
+                ? 'denied'
+                : stored() !== null && permission === 'granted'
+                  ? 'on'
+                  : 'off';
+        },
+        async enable(installation, locale) {
+            const permission = (await push.requestPermissions()).receive;
+
+            if (permission !== 'granted') {
+                return permission === 'denied' ? 'denied' : 'off';
+            }
+
+            const token = await new Promise<string | null>((resolve) => {
+                const timer = window.setTimeout(() => resolve(null), 15_000);
+                push.addListener('registration', ((data: { value: string }) => {
+                    window.clearTimeout(timer);
+                    resolve(data.value);
+                }) as (data: never) => void);
+                push.addListener('registrationError', (() => {
+                    window.clearTimeout(timer);
+                    resolve(null);
+                }) as (data: never) => void);
+                void push.register().catch(() => resolve(null));
+            });
+
+            if (token === null) {
+                return 'unavailable';
+            }
+
+            const response = await fetch('/api/analytics/push/fcm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'omit',
+                body: JSON.stringify({
+                    user_id: installation,
+                    token,
+                    platform: /iPhone|iPad/.test(navigator.userAgent)
+                        ? 'ios'
+                        : 'android',
+                    locale,
+                }),
+            }).catch(() => null);
+
+            if (!response?.ok) {
+                return 'off';
+            }
+
+            try {
+                localStorage.setItem(FCM_TOKEN_KEY, token);
+            } catch {
+                // The token still works; the button just will not remember it.
+            }
+
+            return 'on';
+        },
+        async disable() {
+            const token = stored();
+
+            if (token !== null) {
+                await fetch('/api/analytics/push/fcm', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'omit',
+                    body: JSON.stringify({ token }),
+                }).catch(() => undefined);
+
+                try {
+                    localStorage.removeItem(FCM_TOKEN_KEY);
+                } catch {
+                    // Nothing to forget.
+                }
+            }
+
+            await push.unregister?.().catch(() => undefined);
+
+            return 'off';
+        },
+    };
+}
+
 /** Whether this browser can read QR codes off the camera by itself. */
 export function qrScanSupported(): boolean {
     return (
@@ -199,6 +328,21 @@ export function initMobileShell(): void {
     };
 
     app.addListener('appUrlOpen', ({ url }) => open(url));
+    // A tapped notification opens what it is about.
+    plugins()?.PushNotifications?.addListener(
+        'pushNotificationActionPerformed',
+        ((action: { notification?: { data?: { url?: string } } }) => {
+            const url = action.notification?.data?.url;
+
+            if (url) {
+                open(
+                    url.startsWith('/')
+                        ? `https://${window.location.host}${url}`
+                        : url,
+                );
+            }
+        }) as (data: never) => void,
+    );
     void app
         .getLaunchUrl?.()
         .then((launch) => open(launch?.url))

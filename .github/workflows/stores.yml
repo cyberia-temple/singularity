@@ -144,6 +144,16 @@ jobs:
           echo "name=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
+      - name: Firebase config
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
+            echo "CYBERIA_PUSH=1" >> "$GITHUB_ENV"
+          fi
+
       - name: Build the store bundle
         if: steps.gate.outputs.ready == 'true'
         env:

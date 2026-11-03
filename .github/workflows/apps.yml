@@ -145,6 +145,20 @@ jobs:
       - name: Tests
         run: npm test
 
+      # Push: the Firebase app config (Firebase console → Project settings →
+      # Android app church.cyberia.app → google-services.json, base64) turns
+      # FCM on in this build; without it the app simply does not ask.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
+            echo "CYBERIA_PUSH=1" >> "$GITHUB_ENV"
+          else
+            echo "::notice title=Push off::GOOGLE_SERVICES_JSON_BASE64 is not set; this APK will not register for notifications."
+          fi
+
       - name: Sync web assets
         run: npm run sync:android
 

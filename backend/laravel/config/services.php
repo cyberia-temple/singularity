@@ -47,6 +47,13 @@ return [
     // "Talk to Lain" web chat (LainChatService): a tool-less Lain persona
     // answered straight by OpenRouter — the LainOS daemon is not involved.
     // Without an API key the /lain page renders but chat reports itself off.
+    // Firebase Cloud Messaging for the Android/iOS app (App\Services\Push).
+    // The path of the Firebase project's service account JSON key; unset = off.
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS'),
+        'channel' => env('FCM_ANDROID_CHANNEL', 'cyberia'),
+    ],
+
     'lain' => [
         'openrouter_api_key' => env('OPENROUTER_API_KEY'),
         // openrouter/free is OpenRouter's $0 router over available free models.
