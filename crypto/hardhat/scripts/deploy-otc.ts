@@ -79,7 +79,8 @@ async function main() {
   if (!isAddress(rawOwner)) throw new Error(`OTC_OWNER is not an address: ${rawOwner}`);
   const owner = getAddress(rawOwner);
 
-  const quoted = await publicClient.getGasPrice();
+  // eth_gasPrice can trail a rising base fee (Robinhood refused it), so pad it.
+  const quoted = ((await publicClient.getGasPrice()) * 125n) / 100n;
   const floor = GAS_FLOOR[CHAIN_ID] ?? 0n;
   const gasPrice = quoted > floor ? quoted : floor;
 

@@ -1,0 +1,10 @@
+{
+  "chainId": 4663,
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "CyberiaOTC": "0x36ac9af0375f05235b61337ab8c19990fa1d7022",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployTx": "0x9c4d4afb224d0bdd7073d3aae112d02562d73f183d5605bbdb75a94074462ecf",
+  "block": 105170027,
+  "timestamp": "2026-11-03T15:38:41.942Z"
+}

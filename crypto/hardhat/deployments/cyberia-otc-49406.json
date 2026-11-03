@@ -1,0 +1,10 @@
+{
+  "chainId": 49406,
+  "rpc": "https://rpc.cyberia.church",
+  "CyberiaOTC": "0x34401D64E45Cfcc453Ef2aC02aF091FefBC137Ac",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployTx": "0xb68b0938259e94e20b6f4f894601bf3c8174fc15675ebd18fd106a07e518571f",
+  "block": 22636804,
+  "timestamp": "2026-11-03T15:37:25.231Z"
+}

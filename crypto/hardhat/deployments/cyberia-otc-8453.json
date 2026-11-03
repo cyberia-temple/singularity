@@ -1,0 +1,10 @@
+{
+  "chainId": 8453,
+  "rpc": "https://mainnet.base.org",
+  "CyberiaOTC": "0x176c70dd7cf17056596d8c4c7e2b1f2537df978f",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployTx": "0xafd70cd4a5effdbdaf79dd503925ea623b080bfe08873936a2819a9202f4866f",
+  "block": 53465455,
+  "timestamp": "2026-11-03T15:37:36.766Z"
+}
