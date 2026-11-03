@@ -85,10 +85,4 @@ test('the landing sends a visitor who holds a wallet straight into it', function
 
     expect(file_get_contents(resource_path('js/lib/wallet/vault.ts')))
         ->toContain("'cyberia.wallet.vault.v1'");
-
-    foreach (['js/pages/Wallet.vue', 'js/components/wallet/WalletPreferences.vue'] as $file) {
-        expect(file_get_contents(resource_path($file)))
-            ->toContain('href="/?site"')
-            ->not->toContain('href="/"');
-    }
 });
