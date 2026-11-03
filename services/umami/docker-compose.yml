@@ -1,0 +1,74 @@
+# Web analytics for cyberia.church, lain-os.com and chaos.fm: Umami, kept on
+# this host. See README.md.
+#
+#   umami      the dashboard and the collector, reached only by the site's nginx
+#              over docker-compose_default (stats.cyberia.church); never published
+#   umami-db   its own Postgres, on a network nothing else joins
+#
+# Secrets come from ./.env, which bootstrap.sh writes on first run and nobody
+# commits.
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "3"
+    compress: "true"
+
+services:
+  umami:
+    image: umamisoftware/umami:3.4.1
+    container_name: umami
+    logging: *logging
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?run bootstrap.sh}@umami-db:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?run bootstrap.sh}
+      TWO_FACTOR_ENCRYPTION_KEY: ${UMAMI_2FA_KEY:?run bootstrap.sh}
+      # Nothing about this install leaves the host.
+      DISABLE_TELEMETRY: "1"
+      DISABLE_UPDATES: "1"
+      # Names a blocker list does not know, so a visit is counted rather than
+      # silently dropped by the visitor's extension.
+      TRACKER_SCRIPT_NAME: s.js
+      COLLECT_API_ENDPOINT: /api/c
+      # nginx overwrites this one with the real peer. Left to its default list,
+      # Umami would believe a CF-Connecting-IP header any visitor can send.
+      CLIENT_IP_HEADER: x-real-ip
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/heartbeat >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [default, site]
+
+  umami-db:
+    image: postgres:17-alpine
+    container_name: umami-db
+    logging: *logging
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD:?run bootstrap.sh}
+    volumes:
+      - umami-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [default]
+
+volumes:
+  umami-db:
+
+networks:
+  default: {}
+  site:
+    name: docker-compose_default
+    external: true

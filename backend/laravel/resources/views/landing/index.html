@@ -1,6 +1,29 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>
+  // A visitor who already holds a wallet in this browser lands in it: the
+  // landing page is for people who have none yet. The vault key is the one
+  // lib/wallet/vault.ts writes. Moving around the site (a same-origin
+  // referrer) or asking for the site outright (?site) still shows the landing.
+  (function () {
+    try {
+      if (!localStorage.getItem('cyberia.wallet.vault.v1')) return;
+      if (/[?&]site(=|&|$)/.test(location.search)) return;
+      var ref = document.referrer;
+      if (ref && ref.indexOf(location.origin + '/') === 0) return;
+      location.replace('/wallet' + location.hash);
+    } catch (e) {}
+  })();
+</script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJNFCHJMN5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BJNFCHJMN5');
+</script>
 <meta charset="utf-8" />
 <title>Cyberia — Wallet, Bridge and Swap</title>
 <!--

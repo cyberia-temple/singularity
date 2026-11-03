@@ -77,8 +77,11 @@ rewrites both and the extension reloads with one click.
   instead of rendering a 78-digit number nobody parses.
 - **`eth_sign` is not supported.** It signs 32 arbitrary bytes that can be a
   transaction hash; there is no preview that makes that safe.
-- **No vendor server.** No analytics, no crash reporter, no remote config, no
-  hosted token list. Balances and tokens come from the chain's own RPC and its
+- **Limited usage analytics.** Opening the wallet sends a random installation ID
+  to Cyberia, which forwards an opening event to Google Analytics. Firefox sends
+  this only when its optional technical and interaction data permission is granted.
+  No wallet addresses, connected sites or secrets are included. No crash reporter,
+  remote config or hosted token list. Balances and tokens come from the chain's own RPC and its
   keyless Blockscout index; USD quotes come from this project's own endpoint and
   a quote that cannot be read stays `null` and renders as a dash.
 - **No fonts are fetched.** The stylesheet declares the same stack as the site

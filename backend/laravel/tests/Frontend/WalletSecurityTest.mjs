@@ -28,28 +28,48 @@ function mountSecurity(reveal = async () => 'test backup') {
     runInNewContext(code, {
         exports,
         require(name) {
-            if (name === 'vue') return vue;
-            if (name.includes('NetworkMark')) return { default: {} };
-            if (name.includes('useLocale'))
-                return { useLocale: () => ({ t: (key) => key }) };
-            if (name.includes('useSecureClipboard'))
-                return {
+            if (name === 'vue') {
+return vue;
+}
+
+            if (name.includes('NetworkMark')) {
+return { default: {} };
+}
+
+            if (name.includes('useLocale')) {
+return { useLocale: () => ({ t: (key) => key }) };
+}
+
+            if (name.includes('useSecureClipboard')) {
+return {
                     useSecureClipboard: () => clipboard,
                     clipboardAutoClear: vue.ref(false),
                 };
-            if (name.includes('analytics'))
-                return {
+}
+
+            if (name.includes('analytics')) {
+return {
                     analytics: {
                         enabled: () => false,
                         blockedByBrowser: () => false,
                     },
                 };
-            if (name.includes('walletMessages')) return { walletMessages: {} };
+}
+
+            if (name.includes('walletMessages')) {
+return { walletMessages: {} };
+}
+
+            if (name.includes('sessionReplay')) {
+return { setReplayEnabled() {} };
+}
+
             throw new Error(`Unexpected import: ${name}`);
         },
         setTimeout(callback, delay) {
             const id = ++timerId;
             timers.set(id, { callback, delay });
+
             return id;
         },
         clearTimeout(id) {
@@ -82,6 +102,7 @@ function mountSecurity(reveal = async () => 'test backup') {
     const component = { ...exports.default, render: () => null };
     const app = renderer.createApp(component, { wallet });
     const instance = app.mount({});
+
     return {
         state: instance.$.setupState,
         wallet,
@@ -102,8 +123,10 @@ test('a short press reveals nothing; a full hold reveals the backup', async () =
     let calls = 0;
     const panel = mountSecurity(async () => {
         calls++;
+
         return 'test backup';
     });
+
     try {
         assert.equal(panel.state.phrase, null);
         panel.state.startHold();
@@ -134,6 +157,7 @@ test('switching or leaving cancels a hold and drops a pending reveal', async () 
                 resolve = done;
             }),
     );
+
     try {
         panel.state.startHold();
         panel.wallet.activeAccountId.value = 'imported';
@@ -149,11 +173,13 @@ test('switching or leaving cancels a hold and drops a pending reveal', async () 
     } finally {
         panel.app.unmount();
     }
+
     assert.equal(panel.timers.size, 0);
 });
 
 test('a protected vault still requires its password before a hold', () => {
     const panel = mountSecurity();
+
     try {
         panel.wallet.protection.value = 'password';
         panel.state.startHold();

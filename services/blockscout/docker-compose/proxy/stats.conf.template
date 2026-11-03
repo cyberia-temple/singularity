@@ -1,0 +1,47 @@
+# Web analytics (services/umami): the dashboard, the tracker script and the
+# collector for cyberia.church, lain-os.com and chaos.fm. The hostname resolves
+# through the wildcard record; this exact name wins over the launchpad regex.
+server {
+    listen 80;
+    server_name stats.cyberia.church;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://stats.cyberia.church$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name stats.cyberia.church;
+
+    # Its own webroot certificate, issued by services/umami/bootstrap.sh and
+    # renewed by the `certbot renew` cron — not the wildcard, which is renewed
+    # by hand. The variable makes nginx read it per handshake: a certificate
+    # that has not been issued yet costs this hostname its TLS, never the
+    # proxy its start (and with it every other site here).
+    ssl_certificate /etc/letsencrypt/live/$ssl_server_name/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$ssl_server_name/privkey.pem;
+
+    # Resolved per request, so nginx still starts while umami is down.
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    set $umami http://umami:3000;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+
+    location / {
+        proxy_pass $umami;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # The one header Umami is told to read the visitor's address from
+        # (CLIENT_IP_HEADER): overwritten here, so a visitor cannot set it.
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        client_max_body_size 256k;
+    }
+}

@@ -73,6 +73,7 @@ test('claims the exact intent before signing and passes its reference to submit'
             body: JSON.parse(options.body),
             credentials: options.credentials,
         });
+
         return new Response(
             JSON.stringify(
                 url.endsWith('/reserve')
@@ -95,6 +96,7 @@ test('claims the exact intent before signing and passes its reference to submit'
     const locked = await withBridgeReservation(intent, async () => {
         assert.equal(calls.length, 1);
         assert.equal(calls[0].url, '/bridge/reserve');
+
         return { txHash: 'source-hash', nonce: 0 };
     });
     const result = await submitBridge({

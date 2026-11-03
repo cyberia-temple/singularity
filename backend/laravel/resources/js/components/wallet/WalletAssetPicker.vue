@@ -84,6 +84,7 @@ const networkOf = (chain: WalletChainId): string =>
 const TAG_LABEL = {
     bridged: 'provBridged',
     wrapped: 'provWrapped',
+    partner: 'provPartner',
     unverified: 'provUnverified',
 } as const;
 </script>

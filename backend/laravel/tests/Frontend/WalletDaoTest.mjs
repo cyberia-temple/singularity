@@ -47,19 +47,33 @@ function mountDao(
     runInNewContext(code, {
         exports,
         require(name) {
-            if (name === 'vue') return vue;
-            if (name === '@inertiajs/vue3') return { useForm: () => form };
-            if (name === 'lucide-vue-next') return { ExternalLink: {} };
-            if (name.includes('useLocale'))
-                return {
+            if (name === 'vue') {
+return vue;
+}
+
+            if (name === '@inertiajs/vue3') {
+return { useForm: () => form };
+}
+
+            if (name === 'lucide-vue-next') {
+return { ExternalLink: {} };
+}
+
+            if (name.includes('useLocale')) {
+return {
                     useLocale: () => ({
                         t: (key) => key,
                         locale: vue.ref('en'),
                     }),
                 };
-            if (name.includes('/session')) return { signInWithWallet: login };
-            if (name.includes('/social'))
-                return {
+}
+
+            if (name.includes('/session')) {
+return { signInWithWallet: login };
+}
+
+            if (name.includes('/social')) {
+return {
                     fetchDao: async () => ({ daos: [], proposals: [] }),
                     fetchProposal: async (id) => ({ id, status: 'open' }),
                     fetchMyVote: async () => ({ address: null, vote: null }),
@@ -69,10 +83,20 @@ function mountDao(
                     tally: () => ({ for: 0, against: 0, cast: 0 }),
                     ...social,
                 };
-            if (name.includes('/format')) return {};
-            if (name.includes('walletMessages')) return { walletMessages: {} };
-            if (name === '@/routes/dao')
-                return { store: { url: () => '/dao' } };
+}
+
+            if (name.includes('/format')) {
+return {};
+}
+
+            if (name.includes('walletMessages')) {
+return { walletMessages: {} };
+}
+
+            if (name === '@/routes/dao') {
+return { store: { url: () => '/dao' } };
+}
+
             throw new Error(`Unexpected import: ${name}`);
         },
     });
@@ -83,6 +107,7 @@ function mountDao(
         activeAccount: vue.ref({ kind: 'seed' }),
         signMessage: async (chain, message) => {
             signatures.push({ chain, message });
+
             return 'signature';
         },
     };
@@ -98,11 +123,13 @@ function mountDao(
         { wallet },
     );
     const instance = app.mount({});
+
     return { state: instance.$.setupState, wallet, calls, signatures, app };
 }
 
 test('DAO registration signs the site login challenge before posting the form', async () => {
     const panel = mountDao();
+
     try {
         await panel.state.createDao();
         assert.deepEqual(panel.signatures, [
@@ -119,6 +146,7 @@ test('DAO registration signs the site login challenge before posting the form', 
 
 test('watch-only accounts cannot create a DAO', async () => {
     const panel = mountDao();
+
     try {
         panel.wallet.activeAccount.value = { kind: 'watch' };
         await panel.state.createDao();
@@ -133,6 +161,7 @@ test('a failed login never registers a DAO', async () => {
     const panel = mountDao(async () => {
         throw new Error('Login failed');
     });
+
     try {
         await panel.state.createDao();
         assert.equal(panel.calls.length, 0);
@@ -151,6 +180,7 @@ test('switching account during login cannot register the previous account draft'
                 resume = resolve;
             }),
     );
+
     try {
         const pending = panel.state.createDao();
         panel.wallet.activeAccountId.value = 'another';
@@ -171,9 +201,11 @@ test('a vote with a session already open is cast without signing anything', asyn
     const panel = mountDao(undefined, {
         castVote: async (id, address, support) => {
             votes.push({ id, address, support });
+
             return { support, power: '42' };
         },
     });
+
     try {
         await panel.state.open({ id: 7, status: 'open' });
         await panel.state.vote(false);
@@ -194,10 +226,15 @@ for (const status of [401, 409, 419]) {
         const panel = mountDao(undefined, {
             castVote: async (_id, _address, support) => {
                 attempts += 1;
-                if (attempts === 1) throw refused(status);
+
+                if (attempts === 1) {
+throw refused(status);
+}
+
                 return { support, power: '1' };
             },
         });
+
         try {
             await panel.state.open({ id: 3, status: 'open' });
             await panel.state.vote(true);
@@ -218,6 +255,7 @@ test('any other refusal is shown and never turns into a login', async () => {
             throw refused(422);
         },
     });
+
     try {
         await panel.state.open({ id: 3, status: 'open' });
         await panel.state.vote(true);
@@ -234,9 +272,11 @@ test('a watch-only account cannot vote', async () => {
     const panel = mountDao(undefined, {
         castVote: async () => {
             called = true;
+
             return { support: true, power: '1' };
         },
     });
+
     try {
         panel.wallet.activeAccount.value = { kind: 'watch' };
         await panel.state.open({ id: 3, status: 'open' });
@@ -254,6 +294,7 @@ test('a vote read from a session for another key is not drawn as this one', asyn
             vote: { support: true, power: '9' },
         }),
     });
+
     try {
         await panel.state.open({ id: 3, status: 'open' });
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -273,11 +314,17 @@ test('a proposal is published as the active key, with a deadline, and then opene
         }),
         createProposal: async (proposal) => {
             attempts += 1;
-            if (attempts === 1) throw refused(401);
+
+            if (attempts === 1) {
+throw refused(401);
+}
+
             created.push(proposal);
+
             return 99;
         },
     });
+
     try {
         await new Promise((resolve) => setTimeout(resolve, 0));
         panel.state.startProposal();
@@ -310,9 +357,11 @@ test('a watch-only account cannot publish a proposal', async () => {
         }),
         createProposal: async () => {
             called = true;
+
             return 1;
         },
     });
+
     try {
         await new Promise((resolve) => setTimeout(resolve, 0));
         panel.wallet.activeAccount.value = { kind: 'watch' };

@@ -617,8 +617,16 @@ html[data-app-window]:has(.cw-frame) {
          * as 0, so the same rule adds nothing there. It was removed once, on
          * arithmetic rather than on looking, and the clock landed on top of the
          * account chip.
+         *
+         * Android's WebView under an edge-to-edge window (targetSdk 35+, which
+         * the Play build is) can report the inset as 0; Capacitor's SystemBars
+         * then hands it over as `--safe-area-inset-top` instead. Whichever is
+         * larger wins, so the clock stays off the logo and the title there.
          */
-        padding-top: env(safe-area-inset-top);
+        padding-top: max(
+            env(safe-area-inset-top, 0px),
+            var(--safe-area-inset-top, 0px)
+        );
     }
 
     /*
@@ -4688,4 +4696,58 @@ button.cw-ug-lot img {
 .cw-dm-toast-leave-to {
     opacity: 0;
     transform: translate(-50%, -16px) scale(0.96);
+}
+
+/* Liquidity: a signed deposit or withdrawal stays announced until dismissed. */
+.cw-pool-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    z-index: 60;
+    width: min(520px, calc(100vw - 32px));
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--cw-net-robinhood);
+    border-radius: 12px;
+    background: var(--cw-elevated);
+    color: var(--cw-text);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.cw-pool-toast span {
+    flex: 1;
+}
+
+.cw-pool-toast a {
+    color: var(--cw-net-robinhood);
+}
+
+.cw-pool-toast-close {
+    flex: none;
+    border: 0;
+    background: transparent;
+    color: var(--cw-muted);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* 24h price change: green up, red down, the muted colour when flat. */
+.cw-change {
+    font: 500 13px/1.4 var(--cw-mono);
+    color: var(--cw-dim);
+    white-space: nowrap;
+}
+
+.cw-change-up {
+    color: var(--cw-ok);
+}
+
+.cw-change-down {
+    color: var(--cw-bad);
 }

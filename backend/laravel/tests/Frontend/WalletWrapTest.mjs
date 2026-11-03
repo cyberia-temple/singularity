@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import { Interface } from 'ethers';
-import { quoteWrap, WRAP_GAS_CAP } from '@/lib/wallet/wrap';
 import { swapChainFor } from '@/lib/wallet/swap';
+import { quoteWrap, WRAP_GAS_CAP } from '@/lib/wallet/wrap';
 
 const abi = new Interface([
     'function deposit() payable',
@@ -14,10 +14,15 @@ const mockRpc = async (t, estimate) => {
     const calls = [];
     const server = createServer(async (request, response) => {
         let text = '';
-        for await (const chunk of request) text += chunk;
+
+        for await (const chunk of request) {
+text += chunk;
+}
+
         const messages = JSON.parse(text);
         const answer = (call) => {
             calls.push(call);
+
             if (call.method === 'eth_estimateGas') {
                 return estimate === null
                     ? {
@@ -31,6 +36,7 @@ const mockRpc = async (t, estimate) => {
                           result: `0x${estimate.toString(16)}`,
                       };
             }
+
             return { jsonrpc: '2.0', id: call.id, result: '0xc0fe' };
         };
         response.setHeader('Content-Type', 'application/json');
@@ -50,6 +56,7 @@ const mockRpc = async (t, estimate) => {
                 server.closeAllConnections();
             }),
     );
+
     return { calls, url: `http://127.0.0.1:${server.address().port}` };
 };
 
@@ -77,16 +84,20 @@ for (const direction of ['wrap', 'unwrap']) {
             decoded.name,
             direction === 'wrap' ? 'deposit' : 'withdraw',
         );
-        if (direction === 'wrap') assert.equal(BigInt(tx.value), amount);
-        else {
+
+        if (direction === 'wrap') {
+assert.equal(BigInt(tx.value), amount);
+} else {
             assert.equal(decoded.args[0], amount);
             assert.equal(tx.value, undefined);
         }
+
         assert.equal(quote.amount, amount);
         assert.equal(quote.gasLimit, 50000n);
         assert.equal(quote.fee, quote.gasLimit * quote.gasPrice);
     });
 }
+
 test('a failed estimate stays within the displayed gas cap', async (t) => {
     const rpc = await mockRpc(t, null);
     const quote = await quoteWrap({
@@ -116,8 +127,9 @@ test('a live estimate above the cap is refused before signing', async (t) => {
 });
 test('zero or negative amounts never query a node', async (t) => {
     const rpc = await mockRpc(t, 40000n);
-    for (const amount of [0n, -1n])
-        await assert.rejects(
+
+    for (const amount of [0n, -1n]) {
+await assert.rejects(
             quoteWrap({
                 chainId: 49406,
                 direction: 'wrap',
@@ -128,5 +140,7 @@ test('zero or negative amounts never query a node', async (t) => {
             }),
             /Enter an amount/,
         );
+}
+
     assert.equal(rpc.calls.length, 0);
 });

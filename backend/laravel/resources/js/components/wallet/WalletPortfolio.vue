@@ -20,6 +20,13 @@ import type {
 import { formatUsd, usdValue } from '@/lib/wallet/format';
 import { holdings } from '@/lib/wallet/holdings';
 import type { Holding } from '@/lib/wallet/holdings';
+import {
+    changeOf,
+    changeTone,
+    combinedChange,
+    formatChangePct,
+} from '@/lib/wallet/priceChange';
+import type { PriceChanges } from '@/lib/wallet/priceChange';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -41,6 +48,8 @@ const props = defineProps<{
     prices: Record<string, number | null>;
     /** Chain id → (lowercased contract → USD price). */
     tokenPrices: Record<string, Record<string, number>>;
+    /** 24h price changes in percent, where somebody measured one. */
+    priceChanges?: PriceChanges | null;
     online: boolean;
     /** A profile is signed in — sync can read and store its copy. */
     authenticated?: boolean;
@@ -111,6 +120,22 @@ const cards = computed(() =>
         const raw = balance?.value ?? null;
         const shown =
             raw === null ? null : formatUnits(raw, account.decimals, 4);
+        const usd = usdValue(balance?.value ?? null, account.decimals, price);
+        const tokenValues = priced.map((token) => ({
+            usd: usdValue(
+                token.balance,
+                token.decimals,
+                quotes[token.address.toLowerCase()],
+            ),
+            change: changeOf(props.priceChanges, account.chain, token.address),
+        }));
+        const values = [
+            {
+                usd: raw !== null && raw > 0n ? usd : null,
+                change: changeOf(props.priceChanges, account.chain),
+            },
+            ...tokenValues,
+        ];
 
         return {
             account,
@@ -123,7 +148,11 @@ const cards = computed(() =>
             // read "0" beside "Nothing here yet", which is two wrong answers.
             amount:
                 raw !== null && raw > 0n && shown === '0' ? '<0.0001' : shown,
-            usd: usdValue(balance?.value ?? null, account.decimals, price),
+            usd,
+            // The coin and every priced token, each with its 24h change: what
+            // the card's and the total's move are added up from.
+            values,
+            change: combinedChange(values),
             tokenCount: held.length,
             unpricedTokens: held.length - priced.length,
             tokenUsd: priced.reduce(
@@ -338,6 +367,7 @@ const held = computed(() =>
         ),
         prices: props.prices,
         tokenPrices: props.tokenPrices,
+        changes: props.priceChanges,
     }),
 );
 
@@ -348,6 +378,7 @@ const hiddenTokens = computed(() => held.value.hidden);
 const TAG_LABEL = {
     bridged: 'provBridged',
     wrapped: 'provWrapped',
+    partner: 'provPartner',
     unverified: 'provUnverified',
 } as const;
 
@@ -362,6 +393,19 @@ const openAsset = (row: Holding): void => {
 const total = computed(() =>
     cards.value.reduce((sum, card) => sum + (card.usd ?? 0) + card.tokenUsd, 0),
 );
+
+/**
+ * How the whole portfolio moved in 24 hours, from every holding whose price
+ * change is known. Same amounts, yesterday's prices: what changed is the
+ * market, not what was sent or received.
+ */
+const totalChange = computed(() =>
+    combinedChange(cards.value.flatMap((card) => card.values)),
+);
+
+/** "+$12.34 · +3.20%" — the amount first, because that is what was gained. */
+const changeLine = (change: { usd: number; pct: number }): string =>
+    `${change.usd > 0 ? '+' : change.usd < 0 ? '−' : ''}${formatUsd(Math.abs(change.usd), locale.value)} · ${formatChangePct(change.pct, locale.value)}`;
 
 const isEmpty = computed(() =>
     cards.value.every(
@@ -511,6 +555,20 @@ const recent = computed(() =>
                 >{{ totalUnknown ? '—' : formatUsd(total, locale) }}</span
             >
         </div>
+        <!--
+          How the total moved in a day, from the holdings whose price change is
+          known. Nothing at all when none is — a 0% would say the market held
+          still, and nobody measured that.
+        -->
+        <div
+            v-if="totalChange && !totalUnknown"
+            class="cw-change"
+            :class="`cw-change-${changeTone(totalChange.pct)}`"
+            style="margin-top: 6px; font-size: 14px"
+        >
+            {{ changeLine(totalChange) }}
+            <span style="color: var(--cw-dim)">· {{ t('change24h') }}</span>
+        </div>
         <div
             style="
                 display: flex;
@@ -643,9 +701,18 @@ const recent = computed(() =>
                         }}</span></span
                     >
                 </span>
-                <span class="cw-asset-usd">{{
-                    row.usd === null ? '—' : formatUsd(row.usd, locale)
-                }}</span>
+                <span style="flex: none; text-align: right">
+                    <span class="cw-asset-usd" style="display: block">{{
+                        row.usd === null ? '—' : formatUsd(row.usd, locale)
+                    }}</span>
+                    <span
+                        v-if="row.change !== null"
+                        class="cw-change"
+                        :class="`cw-change-${changeTone(row.change)}`"
+                        style="display: block; margin-top: 2px"
+                        >{{ formatChangePct(row.change, locale) }}</span
+                    >
+                </span>
             </button>
             <button
                 v-if="hiddenTokens > 0"
@@ -724,6 +791,13 @@ const recent = computed(() =>
                                         : t('noBalanceHere')
                                 }}
                             </span>
+                            <span
+                                v-if="card.change !== null"
+                                class="cw-change"
+                                :class="`cw-change-${changeTone(card.change.pct)}`"
+                                style="display: block; margin-top: 2px"
+                                >{{ changeLine(card.change) }}</span
+                            >
                         </span>
                     </div>
                     <!--

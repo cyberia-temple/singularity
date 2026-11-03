@@ -1,0 +1,81 @@
+{
+  "chainId": 49406,
+  "ServiceHub": "0x2D6D7bDd307E8d7229f71652ab440a7905E9C4C8",
+  "deployTx": "0x615dfdd6ba64209b2af3edd73c64673c7ffed2b65a1db911b7b07a600b4a2649",
+  "feeRecipient": "0x54BB8a86Fc001d5BB3e6C7ad2e2f153E5Fa6d7f6",
+  "protocolFeeBps": 100,
+  "holdersBps": 5000,
+  "operator": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "services": [
+    {
+      "symbol": "NFT",
+      "token": "0x8bb022060e4946B9498D11f3e87666dc7129CcbC",
+      "lockId": "12"
+    },
+    {
+      "symbol": "LEND",
+      "token": "0xba6BDDa1988E72e796032C1cEBFc4192aC5A8497",
+      "lockId": "13"
+    },
+    {
+      "symbol": "PRED",
+      "token": "0x0A2d855D70728fEA342C338f3668b91ECc330CB5",
+      "lockId": "14"
+    },
+    {
+      "symbol": "FARM",
+      "token": "0x9ba523B368Fd338D45594616b4515f6D421b21d2",
+      "lockId": "15"
+    },
+    {
+      "symbol": "STAKE",
+      "token": "0x0F5CEE1F315A84E109B5817839B5474E0ca7431d",
+      "lockId": "16"
+    },
+    {
+      "symbol": "LAUNCH",
+      "token": "0xE17f466E3501d80650F955C66a8AD4336BfD17C8",
+      "lockId": "17"
+    },
+    {
+      "symbol": "BRIDGE",
+      "token": "0x82708a8d873CA89F9F341307ccA949a4a5a240F3",
+      "lockId": "18"
+    },
+    {
+      "symbol": "WALLET",
+      "token": "0xBf763e079584a35d19968FD5e2D528087D9bc3FE",
+      "lockId": "19"
+    },
+    {
+      "symbol": "CLOUD",
+      "token": "0xdb003B50DD2f5E9dcD1D177cA07d85cf3E3c6b48",
+      "lockId": "20"
+    },
+    {
+      "symbol": "INFER",
+      "token": "0xdd390535a353317625bCD8c27582abcc5e151186",
+      "lockId": "21"
+    },
+    {
+      "symbol": "IPFS",
+      "token": "0x28084A351a87F20219EF04e596B6d3b84dd0Afd3",
+      "lockId": "22"
+    },
+    {
+      "symbol": "SEED",
+      "token": "0x7d01915b2ef0C5931f2520b7fa2523d1bD6B0CB5",
+      "lockId": "23"
+    },
+    {
+      "symbol": "SCAN",
+      "token": "0xDE99A012A910419736E4c33228DF6972fBcF0E72",
+      "lockId": "24"
+    },
+    {
+      "symbol": "GAS",
+      "token": "0x7911085dc26825349b0ce2518b72D49fF4a26Ee8",
+      "lockId": "25"
+    }
+  ]
+}

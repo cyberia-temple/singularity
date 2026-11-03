@@ -62,7 +62,11 @@ function photo(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
     form.avatar = file;
     form.remove_avatar = false;
-    if (preview.value) URL.revokeObjectURL(preview.value);
+
+    if (preview.value) {
+URL.revokeObjectURL(preview.value);
+}
+
     preview.value = file ? URL.createObjectURL(file) : null;
 }
 function save() {

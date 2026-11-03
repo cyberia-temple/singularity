@@ -191,6 +191,7 @@ onMounted(refreshWalletChoices);
                     <span
                         v-if="isAuthenticated"
                         class="hidden max-w-28 truncate sm:inline"
+                        data-replay-mask
                         >{{ displayName }}</span
                     >
                     <span v-else>Connect Wallet</span>
@@ -239,10 +240,13 @@ onMounted(refreshWalletChoices);
                 </template>
                 <template v-if="isAuthenticated">
                     <DropdownMenuItem disabled class="text-xs">
-                        <span class="truncate">{{ displayName }}</span>
+                        <span class="truncate" data-replay-mask>{{
+                            displayName
+                        }}</span>
                         <span
                             v-if="displayAddress"
                             class="ml-auto font-mono text-[10px] text-muted-foreground"
+                            data-replay-mask
                         >
                             {{ displayAddress }}
                         </span>

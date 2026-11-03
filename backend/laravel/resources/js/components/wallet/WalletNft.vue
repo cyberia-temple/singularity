@@ -34,6 +34,7 @@ const emit = defineEmits<{
     torrents: [];
     tracker: [];
     domains: [];
+    shop: [];
 }>();
 
 const { t } = useLocale(walletMessages);
@@ -227,6 +228,16 @@ watch(
                 @click="emit('mint')"
             >
                 {{ t('nftMint') }}
+            </button>
+
+            <button
+                v-if="!hiddenInStore('shop')"
+                type="button"
+                class="cw-btn cw-btn-secondary"
+                style="height: 44px; margin-top: 12px"
+                @click="emit('shop')"
+            >
+                {{ t('shopTitle') }} · {{ t('tileShopHint') }}
             </button>
 
             <!--

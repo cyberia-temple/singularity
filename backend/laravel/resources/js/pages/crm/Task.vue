@@ -137,19 +137,29 @@ function chooseFiles(event: Event) {
     upload.files = Array.from((event.target as HTMLInputElement).files ?? []);
 }
 function submitFiles() {
-    if (!upload.files.length || upload.processing) return;
+    if (!upload.files.length || upload.processing) {
+return;
+}
+
     upload.post(attachments.store.url(props.task.id), {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => {
             upload.reset();
-            if (fileInput.value) fileInput.value.value = '';
+
+            if (fileInput.value) {
+fileInput.value.value = '';
+}
         },
     });
 }
 function submitAttachmentComment(file: TaskAttachment) {
     const body = attachmentComments.value[file.id]?.trim();
-    if (!body) return;
+
+    if (!body) {
+return;
+}
+
     router.post(
         attachments.comments.store.url(file.id),
         { body },
@@ -162,14 +172,17 @@ function submitAttachmentComment(file: TaskAttachment) {
     );
 }
 function removeAttachment(file: TaskAttachment) {
-    if (window.confirm(t('task.files.deleteConfirm', { name: file.name })))
-        router.delete(attachments.destroy.url(file.id), {
+    if (window.confirm(t('task.files.deleteConfirm', { name: file.name }))) {
+router.delete(attachments.destroy.url(file.id), {
             preserveScroll: true,
         });
 }
+}
 function formatSize(bytes: number): string {
-    if (bytes < 1024 * 1024)
-        return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    if (bytes < 1024 * 1024) {
+return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 

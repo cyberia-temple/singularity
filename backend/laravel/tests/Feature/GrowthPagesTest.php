@@ -73,3 +73,22 @@ test('pioneer season renders the season and its checkpoints to guests', function
             ->has('checkpoints', 5)
             ->where('me', null));
 });
+
+test('the landing sends a visitor who holds a wallet straight into it', function () {
+    $landing = file_get_contents(resource_path('views/landing/index.html'));
+    $head = substr($landing, 0, (int) strpos($landing, '<script async'));
+
+    expect($head)
+        ->toContain("localStorage.getItem('cyberia.wallet.vault.v1')")
+        ->toContain("location.replace('/wallet'")
+        ->toContain('[?&]site');
+
+    expect(file_get_contents(resource_path('js/lib/wallet/vault.ts')))
+        ->toContain("'cyberia.wallet.vault.v1'");
+
+    foreach (['js/pages/Wallet.vue', 'js/components/wallet/WalletPreferences.vue'] as $file) {
+        expect(file_get_contents(resource_path($file)))
+            ->toContain('href="/?site"')
+            ->not->toContain('href="/"');
+    }
+});

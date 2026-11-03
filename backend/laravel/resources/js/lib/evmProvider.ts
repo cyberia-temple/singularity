@@ -58,7 +58,7 @@ const WALLETCONNECT_ICON =
     );
 
 const walletConnectProjectId = (): string | undefined => {
-    const value = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+    const value = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '5f52c65c603e72246272d8cb3984b7cc';
 
     return typeof value === 'string' && value !== '' ? value : undefined;
 };

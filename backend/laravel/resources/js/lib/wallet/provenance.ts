@@ -13,13 +13,20 @@
  *     these "bridged, mint/burn representations");
  *   - `wrapped` — a one-for-one wrapper of the chain's own coin;
  *   - `issued`  — native to this chain (launchpad, partner, community tokens);
- *   - `canonical` — the asset's own issuer's contract on that chain.
+ *   - `canonical` — the asset's own issuer's contract on that chain;
+ *   - `partner` — a partner project's token: we know which contract it is,
+ *     nobody has audited it, and the wallet says both.
  *
  * Anything absent from this registry is unverified, and is shown as such.
  * `tests/Frontend/WalletProvenanceTest.mjs` keeps the Cyberia half in step with
  * `config/tokens.php`.
  */
-export type ProvenanceKind = 'bridged' | 'wrapped' | 'issued' | 'canonical';
+export type ProvenanceKind =
+    | 'bridged'
+    | 'wrapped'
+    | 'issued'
+    | 'canonical'
+    | 'partner';
 
 export type Provenance = {
     kind: ProvenanceKind;
@@ -99,6 +106,12 @@ const registry: Record<number, Record<string, Provenance>> = {
         '0x621021f18b6404123f98b1395c418868418acf36': {
             kind: 'issued',
             symbol: 'HATCHER',
+        },
+        // CyberGuard: partner since 2026-11-02, bridged in from Solana. Known,
+        // not audited, so it carries the partner tag rather than none.
+        '0xf10d68fd358d5f5eb5fbf23376183d17a0684e43': {
+            kind: 'partner',
+            symbol: 'CYBERGUARD',
         },
         '0x19e92d8475522ff6c8f3660372b9dc6674d85cc8': {
             kind: 'issued',
@@ -217,6 +230,17 @@ export const provenanceOf = (
     chainId === undefined || !address
         ? undefined
         : registry[chainId]?.[address.toLowerCase()];
+
+/**
+ * Partner tokens on Solana, by mint (case-sensitive base58). Solana has no
+ * contract registry above, so this is the one claim the wallet makes there.
+ */
+const PARTNER_MINTS: Record<string, string> = {
+    VANMkCYNDJ5DLpw1s6Jz89Lg7TZxy8SFhuCaFKQpump: 'CYBERGUARD',
+};
+
+export const partnerMint = (mint: string | null | undefined): string | null =>
+    (mint && PARTNER_MINTS[mint]) || null;
 
 /** Every address the registry vouches for on one chain — for tests and pickers. */
 export const registeredAddresses = (chainId: number): string[] =>

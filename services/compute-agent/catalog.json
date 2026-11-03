@@ -109,6 +109,25 @@
       "notes": "Trusted because the TLS key for irc.cyberia.church lets whoever holds it impersonate the server."
     },
     {
+      "service": "vpn",
+      "wave": 2,
+      "tier": "trusted",
+      "treasury": "vpn",
+      "build": "services/vpn",
+      "image": "ghcr.io/cyberia-temple/vpn",
+      "secrets": ["VPN_REALITY_PRIVATE_KEY", "VPN_REALITY_SHORT_ID", "VPN_CLIENT_SECRET"],
+      "env": { "VPN_RPC_URL": "https://rpc.cyberia.church", "VPN_CHAIN_ID": "49406", "VPN_PORT": "443", "VPN_GATE_PORT": "8780" },
+      "resources": { "cpus": 1, "memoryMb": 256, "pids": 256 },
+      "ports": [
+        { "container": 443, "host": 443, "protocol": "tcp" },
+        { "container": 8780, "protocol": "tcp" }
+      ],
+      "volumes": [{ "name": "data", "path": "/data" }],
+      "health": { "port": 8780, "path": "/api/vpn/status" },
+      "readOnly": false,
+      "notes": "Paid by CyberiaVpnPass: 90% of every pass goes to the VPN treasury that pays the nodes, 10% to the protocol fee address. Trusted because the client secret turns any address into its link; a node holding it could hand out free access or log who connects."
+    },
+    {
       "service": "telegram-bot",
       "wave": 3,
       "tier": "trusted",

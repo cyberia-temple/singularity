@@ -40,7 +40,9 @@ import type {
     AnalyticsProperties,
 } from '@/lib/analytics/taxonomy';
 import { isNativeShell, nativeShell } from '@/lib/native';
+import { replayEvent } from '@/lib/sessionReplay';
 import { telegramStartParam } from '@/lib/telegram';
+import { statsEvent } from '@/lib/webStats';
 
 export type { AnalyticsEventName, AnalyticsProperties };
 export { errorCode } from '@/lib/analytics/errors';
@@ -520,7 +522,10 @@ export const analytics = {
      * tempted to branch on. Anything that happens inside a signing flow has to
      * be exactly this cheap or it does not belong there.
      */
-    track(event: AnalyticsEventName, properties: AnalyticsProperties = {}): void {
+    track(
+        event: AnalyticsEventName,
+        properties: AnalyticsProperties = {},
+    ): void {
         try {
             if (!collecting()) {
                 return;
@@ -546,6 +551,11 @@ export const analytics = {
 
             session();
             enqueue(event, properties);
+            // The name alone, so a recording can be found by what happened
+            // in it; the properties stay in our own tables.
+            replayEvent(event);
+            // And the dashboard's funnels, with what the allowlist kept.
+            statsEvent(event, sanitizeProperties(properties));
         } catch {
             /* Analytics is never the reason something failed. */
         }

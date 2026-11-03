@@ -114,7 +114,10 @@ const submit = (): void => {
  * single account.
  */
 const skipPassword = (): void => {
-    if (passwordRequired) return;
+    if (passwordRequired) {
+return;
+}
+
     adopt(null);
 };
 

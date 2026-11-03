@@ -49,12 +49,12 @@ export const GECKO_MIN = '140.0';
  *   read-only calls go straight to the chain's RPC, and a transaction it
  *   proposes goes there once the user approves it.
  *
- * Nothing goes to an analytics or crash service, because there is none; the
- * price request to cyberia.church carries no address and no identifier.
+ * `technicalAndInteraction` covers optional extension-open analytics. Firefox
+ * sends it only when the user has granted this data collection permission.
  */
 export const DATA_COLLECTION = {
     required: ['financialAndPaymentInfo', 'websiteActivity'],
-    optional: [],
+    optional: ['technicalAndInteraction'],
 };
 
 export const TARGETS = {

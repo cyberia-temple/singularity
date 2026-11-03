@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BRIDGE_TOKENS, tokenBySymbol } from '@/lib/bridgeTokens';
 import { computeFee, isFeeBearing } from '@/lib/bridgeFee';
+import { BRIDGE_TOKENS, tokenBySymbol } from '@/lib/bridgeTokens';
 
 test('USDG Solana signing uses the canonical Token-2022 mint', () => {
     const token = tokenBySymbol('usdg');

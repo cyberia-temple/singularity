@@ -33,6 +33,8 @@ use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\ConsoleMockupController;
 use App\Http\Controllers\ConsoleNumbersController;
 use App\Http\Controllers\ConsolePushController;
+use App\Http\Controllers\ConsoleReplayController;
+use App\Http\Controllers\ConsoleStatsController;
 use App\Http\Controllers\ConsoleStrategyController;
 use App\Http\Controllers\CrmContactController;
 use App\Http\Controllers\CrmController;
@@ -48,6 +50,7 @@ use App\Http\Controllers\DaoController;
 use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\FediverseController;
 use App\Http\Controllers\FujiController;
+use App\Http\Controllers\HeatmapController;
 use App\Http\Controllers\LainChatController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\LinkController;
@@ -83,6 +86,7 @@ use App\Services\LainChatService;
 use App\Services\SolanaRpcProxy;
 use App\Services\WalletPriceService;
 use App\Support\ProfileHandle;
+use App\Support\SessionReplay;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -122,8 +126,8 @@ Route::get('/{path?}', [LaunchpadController::class, 'showSubdomain'])
     ])
     ->name('launchpad.subdomain-site');
 
-Route::get('/', fn () => response()->file(resource_path('views/landing/index.html')))->name('home');
-Route::get('/thesis', fn () => response()->file(resource_path('views/landing/index1.html')))->name('thesis');
+Route::get('/', fn () => SessionReplay::page(resource_path('views/landing/index.html')))->name('home');
+Route::get('/thesis', fn () => SessionReplay::page(resource_path('views/landing/index1.html')))->name('thesis');
 Route::redirect('/underground', config('launchpad.underground_url'))->name('underground');
 Route::get('/robinhood-chain', function (BridgeConfigService $bridgeConfig) {
     $routes = array_values(array_filter(
@@ -226,6 +230,8 @@ Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics
 // Public token directory + per-token pages the analytics list links into.
 // {token} accepts a 0x address or a symbol (e.g. /token/CYBER.sol).
 Route::get('/tokens', [TokenController::class, 'index'])->name('tokens.index');
+// Market map: crypto by sector and Cyberia's own tokens, sized by market cap.
+Route::get('/heatmap', HeatmapController::class)->name('heatmap');
 Route::get('/token/{token}', [TokenController::class, 'show'])->name('tokens.show');
 // What the coin is for, with the contract behind every claim — and the list of
 // things it deliberately does not do yet. Cited by the token pages and the nav.
@@ -306,6 +312,8 @@ Route::prefix('board')->name('board.')->group(function () {
 Route::prefix('arena')->name('arena.')->group(function () {
     Route::get('/', [ArenaController::class, 'index'])->middleware('throttle:60,1')->name('index');
     Route::get('evidence', [ArenaController::class, 'evidence'])->middleware('throttle:20,1')->name('evidence');
+    Route::get('agents/{agent}', [ArenaController::class, 'agent'])->middleware('throttle:60,1')
+        ->where('agent', '[a-z0-9-]{1,40}')->name('agent');
     Route::get('seasons/{season:slug}/evidence', [ArenaController::class, 'archive'])->middleware('throttle:20,1')->name('archive');
     Route::middleware('auth')->group(function () {
         Route::post('comments', [ArenaController::class, 'comment'])->middleware('throttle:5,1')->name('comments.store');
@@ -710,6 +718,23 @@ Route::middleware(['auth'])->group(function () {
         // answer lived in a tinker session.
         Route::get('push', [ConsolePushController::class, 'index'])->name('push');
         Route::post('push', [ConsolePushController::class, 'store'])->name('push.send');
+
+        // Session recordings, kept on this server: where people click in rage
+        // or on nothing, the errors their browsers threw, a heat map per page
+        // and the player. Static addresses before {session}.
+        Route::get('replays', [ConsoleReplayController::class, 'index'])->name('replays');
+        Route::get('replays/heatmap', [ConsoleReplayController::class, 'heatmap'])->name('replays.heatmap');
+        Route::get('replays/{session}', [ConsoleReplayController::class, 'show'])
+            ->whereUuid('session')
+            ->name('replays.show');
+        Route::get('replays/{session}/events', [ConsoleReplayController::class, 'events'])
+            ->whereUuid('session')
+            ->name('replays.events');
+
+        // Web analytics (Umami on this host): traffic, sources, funnels,
+        // retention. Not a lens but a door — it signs the operator into the
+        // dashboard and leaves.
+        Route::get('stats', ConsoleStatsController::class)->name('stats');
 
         // The editable content plan is framed like the frozen mockup, but its
         // working copy lives on the private disk and changes on an operator action.

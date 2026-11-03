@@ -34,37 +34,55 @@ function launchpadForm() {
         URL,
         FormData,
         require(name) {
-            if (name === 'vue') return { ...vue, onMounted() {}, watch() {} };
-            if (name === 'ethers')
-                return { ...ethers, JsonRpcProvider: class {} };
-            if (name === '@/lib/launchpadChains') return launchpadChains;
-            if (name === '@/lib/launchpadMetadata')
-                return { launchpadWebsiteError, uploadLaunchpadMetadata };
-            if (name === '@/composables/useWallet')
-                return {
+            if (name === 'vue') {
+return { ...vue, onMounted() {}, watch() {} };
+}
+
+            if (name === 'ethers') {
+return { ...ethers, JsonRpcProvider: class {} };
+}
+
+            if (name === '@/lib/launchpadChains') {
+return launchpadChains;
+}
+
+            if (name === '@/lib/launchpadMetadata') {
+return { launchpadWebsiteError, uploadLaunchpadMetadata };
+}
+
+            if (name === '@/composables/useWallet') {
+return {
                     useWallet: () => ({
                         isConnected: vue.ref(true),
                         address: vue.ref('0xcreator'),
                     }),
                 };
-            if (name === '@/lib/evmChains')
-                return {
+}
+
+            if (name === '@/lib/evmChains') {
+return {
                     ensureEvmNetwork: async () => {
                         walletCalls++;
+
                         throw new Error('Wallet reached');
                     },
                 };
+}
+
             if (
                 name === '@inertiajs/vue3' ||
                 name === 'lucide-vue-next' ||
                 name.startsWith('@/components/') ||
                 name === '@/lib/dexFormat' ||
                 name === '@/lib/wallet/launchpad'
-            )
-                return {};
+            ) {
+return {};
+}
+
             throw new Error(`Unexpected import: ${name}`);
         },
     });
+
     return {
         state: exports.default.setup({}, { expose() {} }),
         walletCalls: () => walletCalls,
@@ -165,6 +183,7 @@ test('uploads selected HTML and a blank website as multipart data', async (t) =>
         assert.equal(options.body.get('website'), '');
         assert.equal(options.body.get('html').name, 'cvpn.html');
         assert.equal(await options.body.get('html').text(), '<h1>VPN</h1>');
+
         return new Response('{}');
     });
 

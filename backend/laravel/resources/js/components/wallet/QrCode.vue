@@ -26,7 +26,9 @@ const symbol = computed(() => {
 </script>
 
 <template>
+    <!-- A QR code is an address in another alphabet: recordings get a blank box. -->
     <svg
+        data-replay-block
         :viewBox="`0 0 ${symbol.extent} ${symbol.extent}`"
         :width="size"
         :height="size"

@@ -23,8 +23,12 @@ const valid = computed(
 );
 
 async function create(): Promise<void> {
-    if (!valid.value || wallet.busy.value) return;
+    if (!valid.value || wallet.busy.value) {
+return;
+}
+
     error.value = '';
+
     try {
         if (wallet.exists.value && wallet.protection.value === 'none') {
             await wallet.protect(password.value);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
+import WalletVpn from '@/components/wallet/WalletVpn.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import {
@@ -137,6 +138,12 @@ const rows = computed(() =>
             {{ t('proxyTitle') }}
         </h2>
         <p class="cw-prose">{{ t('proxyBody') }}</p>
+
+        <!--
+          A transport this page cannot switch on for itself, but can sell:
+          days of Cyberia VPN, and the link a VPN client imports.
+        -->
+        <WalletVpn :wallet="wallet" />
 
         <!-- What carries the requests, which is a different answer per shell. -->
         <div class="cw-label" style="margin-top: 26px">

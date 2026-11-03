@@ -19,6 +19,7 @@ import { permissionPattern } from '../shared/origins.js';
 import { formatFiat, formatUnits, initials, parseUnits, shortAddress, toDecimal } from '../shared/format.js';
 import { describeSignature, describeTypedData } from '../shared/tx.js';
 import { RELAY_MODES } from '../background/relay.js';
+import { trackExtensionOpen } from '../shared/analytics.js';
 
 const app = document.getElementById('app');
 const params = new URLSearchParams(location.search);
@@ -1152,5 +1153,6 @@ const readActiveTab = async () => {
     }
 };
 
+if (!isApprovalWindow) void trackExtensionOpen();
 await readActiveTab();
 await refresh();

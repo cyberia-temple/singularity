@@ -337,6 +337,7 @@ export const saveOpenVault = async (
     if (import.meta.env?.VITE_DESKTOP_WALLET === 'true') {
         throw new Error('The desktop wallet requires a vault password');
     }
+
     const contents = freshContents(validPhrase(phrase), backedUp);
 
     write(contents, storage);

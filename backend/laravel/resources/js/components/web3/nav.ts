@@ -6,6 +6,7 @@ import {
     download,
     farm,
     feed,
+    heatmap,
     fuji,
     launchpad,
     leaderboard,
@@ -75,6 +76,7 @@ export const navGroups: Web3NavGroup[] = [
             { title: 'Staking', href: staking().url },
             { title: 'Launchpad', href: launchpad().url },
             { title: 'Tokens', href: tokensIndex().url },
+            { title: 'Heatmap', href: heatmap().url },
         ],
     },
     {

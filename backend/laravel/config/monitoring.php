@@ -253,6 +253,16 @@ return [
             'usage' => null,
         ],
 
+        'stats' => [
+            'group' => 'web',
+            'label' => 'stats.cyberia.church',
+            'critical' => false,
+            'url' => 'https://stats.cyberia.church',
+            'note' => 'Web analytics (services/umami).',
+            'check' => ['type' => 'http', 'url' => 'https://stats.cyberia.church/api/heartbeat'],
+            'usage' => null,
+        ],
+
         'tls' => [
             'group' => 'web',
             'label' => 'TLS certificates',
@@ -266,6 +276,7 @@ return [
                     'explorer.cyberia.church',
                     'bridge.cyberia.church',
                     'swap.cyberia.church',
+                    'stats.cyberia.church',
                 ],
                 // Certbot renews at 30 days left; a cert that gets inside this
                 // window means renewal itself has stopped working.

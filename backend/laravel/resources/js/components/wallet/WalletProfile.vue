@@ -27,10 +27,13 @@ const props = defineProps<{
     wallet: MultiWallet;
     /** Whose profile to show. Defaults to the active account's EVM address. */
     address?: string | null;
+    /** False in a build that cannot send (the Play edition). */
+    canSend?: boolean;
 }>();
 
 const emit = defineEmits<{
     back: [];
+    send: [address: string];
 }>();
 
 const { t } = useLocale(walletMessages);
@@ -107,6 +110,16 @@ watch(address, load, { immediate: true });
                 :expand-label="t('expandAddress')"
                 @copy="clipboard.copy(address)"
             />
+
+            <button
+                v-if="canSend && !isOwn"
+                type="button"
+                class="cw-btn cw-btn-primary"
+                style="margin-top: 14px; align-self: flex-start"
+                @click="emit('send', address)"
+            >
+                {{ t('send') }}
+            </button>
 
             <p
                 v-if="failure"

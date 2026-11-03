@@ -41,7 +41,10 @@ function editorDocument(): Document | null {
 
 function onFrameLoad() {
     const doc = editorDocument();
-    if (!doc) return;
+
+    if (!doc) {
+return;
+}
 
     doc.designMode = 'on';
     doc.body.spellcheck = true;
@@ -55,7 +58,10 @@ function markDirty() {
 
 function run(command: string, value?: string) {
     const doc = editorDocument();
-    if (!doc) return;
+
+    if (!doc) {
+return;
+}
 
     frame.value?.contentWindow?.focus();
     doc.execCommand(command, false, value);
@@ -64,25 +70,38 @@ function run(command: string, value?: string) {
 
 function createLink() {
     const url = window.prompt(t('strategy.linkPrompt'), 'https://');
-    if (url) run('createLink', url);
+
+    if (url) {
+run('createLink', url);
+}
 }
 
 function insertImage(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
+
+    if (!file || !file.type.startsWith('image/')) {
+return;
+}
 
     const reader = new FileReader();
     reader.onload = () => {
-        if (typeof reader.result === 'string')
-            run('insertImage', reader.result);
-        if (imageInput.value) imageInput.value.value = '';
+        if (typeof reader.result === 'string') {
+run('insertImage', reader.result);
+}
+
+        if (imageInput.value) {
+imageInput.value.value = '';
+}
     };
     reader.readAsDataURL(file);
 }
 
 function save() {
     const doc = editorDocument();
-    if (!doc || saving.value) return;
+
+    if (!doc || saving.value) {
+return;
+}
 
     saveForm.html = `<!doctype html>\n${doc.documentElement.outerHTML}`;
     saving.value = true;
@@ -99,14 +118,19 @@ function save() {
 }
 
 function reset() {
-    if (!window.confirm(t('strategy.resetConfirm'))) return;
+    if (!window.confirm(t('strategy.resetConfirm'))) {
+return;
+}
 
     router.delete(strategy.reset.url(), {
         preserveScroll: true,
         onSuccess: () => {
             dirty.value = false;
             ready.value = false;
-            if (frame.value) frame.value.src = strategy.document.url();
+
+            if (frame.value) {
+frame.value.src = strategy.document.url();
+}
         },
     });
 }
@@ -133,8 +157,9 @@ function closeWindow() {
 }
 
 function startDrag(event: PointerEvent) {
-    if (!pinned.value || (event.target as HTMLElement).closest('button'))
-        return;
+    if (!pinned.value || (event.target as HTMLElement).closest('button')) {
+return;
+}
 
     event.preventDefault();
     const handle = event.currentTarget as HTMLElement;
@@ -175,7 +200,9 @@ function startDrag(event: PointerEvent) {
 }
 
 function startResize(event: PointerEvent, direction: string) {
-    if (!pinned.value) return;
+    if (!pinned.value) {
+return;
+}
 
     event.preventDefault();
     const handle = event.currentTarget as HTMLElement;
@@ -209,6 +236,7 @@ function startResize(event: PointerEvent, direction: string) {
                 ),
             );
         }
+
         if (direction.includes('s')) {
             bottom = Math.min(
                 window.innerHeight - viewportGap,
@@ -218,6 +246,7 @@ function startResize(event: PointerEvent, direction: string) {
                 ),
             );
         }
+
         if (direction.includes('w')) {
             left = Math.max(
                 viewportGap,
@@ -227,6 +256,7 @@ function startResize(event: PointerEvent, direction: string) {
                 ),
             );
         }
+
         if (direction.includes('n')) {
             top = Math.max(
                 viewportGap,
@@ -297,11 +327,15 @@ onMounted(() => {
 
     pinned.value =
         window.localStorage.getItem('crm-strategy-pinned') === 'true';
+
     try {
         const saved = JSON.parse(
             window.localStorage.getItem('crm-strategy-window') ?? 'null',
         ) as Partial<typeof floating.value> | null;
-        if (saved) floating.value = { ...floating.value, ...saved };
+
+        if (saved) {
+floating.value = { ...floating.value, ...saved };
+}
     } catch {
         window.localStorage.removeItem('crm-strategy-window');
     }
@@ -309,7 +343,9 @@ onMounted(() => {
     constrainWindow();
 });
 watch(onStrategy, (active) => {
-    if (active) visible.value = true;
+    if (active) {
+visible.value = true;
+}
 });
 onBeforeUnmount(() => {
     editorDocument()?.removeEventListener('input', markDirty);

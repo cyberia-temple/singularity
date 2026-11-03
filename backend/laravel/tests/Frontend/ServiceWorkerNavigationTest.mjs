@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 import test from 'node:test';
+import vm from 'node:vm';
 
 const source = readFileSync(
     new URL('../../public/sw.js', import.meta.url),
@@ -16,6 +16,7 @@ const run = async (target, existing) => {
         focus: async () => calls.push('focus'),
         navigate: async (url) => {
             calls.push(['navigate', url]);
+
             return client;
         },
     };
@@ -40,6 +41,7 @@ const run = async (target, existing) => {
         },
     });
     await completion;
+
     return calls;
 };
 

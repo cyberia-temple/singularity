@@ -1,0 +1,12 @@
+{
+  "chainId": 49407,
+  "rpc": "https://cyberia.church/api/fuji/rpc",
+  "CyberiaShop": "0xb0ac30907c04b61f1482e62ea66ef4562a690917",
+  "feeRecipient": "0x54BB8a86Fc001d5BB3e6C7ad2e2f153E5Fa6d7f6",
+  "feeBps": 200,
+  "owner": "0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393",
+  "deployer": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployTx": "0xe1cd2dbe27b2544f0ce29f032f25a6294415a2d123c1f971a3084b65567bf845",
+  "block": 139,
+  "timestamp": "2026-10-26T12:04:33.050Z"
+}

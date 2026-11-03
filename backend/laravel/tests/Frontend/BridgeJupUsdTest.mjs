@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { tokenBySymbol } from '@/lib/bridgeTokens';
 import { computeFee, isFeeBearing } from '@/lib/bridgeFee';
+import { tokenBySymbol } from '@/lib/bridgeTokens';
 
 test('JupUSD signing uses the canonical SPL mint and existing Cyberia wrapper', () => {
     const token = tokenBySymbol('JupUSD');

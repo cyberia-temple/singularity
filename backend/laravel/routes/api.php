@@ -4,9 +4,13 @@ use App\Http\Controllers\Api\Ai\AiKeyController;
 use App\Http\Controllers\Api\Ai\ChatCompletionsController;
 use App\Http\Controllers\Api\Ai\ModelsController;
 use App\Http\Controllers\Api\AnalyticsIngestController;
+use App\Http\Controllers\Api\ArenaBoardController;
+use App\Http\Controllers\Api\ArenaLeagueController;
+use App\Http\Controllers\Api\ArenaMcpController;
 use App\Http\Controllers\Api\BridgeController;
 use App\Http\Controllers\Api\BridgeEventController;
 use App\Http\Controllers\Api\CrmTaskIngestController;
+use App\Http\Controllers\Api\ExtensionAnalyticsController;
 use App\Http\Controllers\Api\FujiChainController;
 use App\Http\Controllers\Api\FujiFaucetController;
 use App\Http\Controllers\Api\FujiRpcController;
@@ -14,6 +18,7 @@ use App\Http\Controllers\Api\IrcLainController;
 use App\Http\Controllers\Api\LaunchpadController;
 use App\Http\Controllers\Api\NFTController;
 use App\Http\Controllers\Api\OpsHeartbeatController;
+use App\Http\Controllers\Api\ReplayIngestController;
 use App\Http\Controllers\Api\SlotsController;
 use App\Http\Controllers\Api\SolanaRpcController;
 use App\Http\Controllers\Api\SolanaWalletAuthController;
@@ -36,6 +41,8 @@ use App\Services\WalletPriceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+
+Route::post('extension/analytics', ExtensionAnalyticsController::class)->middleware('throttle:30,1');
 
 Route::post('board/threads/{thread}/posts', [BoardController::class, 'agentReply'])
     ->middleware(['auth:sanctum', 'throttle:3,1'])->name('api.board.reply');
@@ -118,6 +125,14 @@ Route::prefix('wallet')->group(function () {
  */
 Route::post('wallet/onramp/webhook/{name}', [WalletOnrampController::class, 'webhook'])
     ->middleware('throttle:120,1');
+
+/*
+ * Session recordings from cyberia.church, lain-os.com and chaos.fm — the
+ * recorder's chunks, kept on this server and read at /crm/replays. Open to
+ * other origins like the rest of /api; which site a chunk belongs to is read
+ * from the browser's Origin, never from the body. See ReplayIngestController.
+ */
+Route::post('replay', [ReplayIngestController::class, 'store'])->middleware('throttle:120,1')->name('api.replay');
 
 /*
  * Product analytics for the wallet: acquisition, onboarding, funding,
@@ -288,6 +303,12 @@ Route::post('ops/heartbeat', OpsHeartbeatController::class)->middleware('throttl
 // one writes, so it accepts facts only: a title, a detail, whether it is
 // already finished, and an id the sender minted so a retry cannot double-file.
 Route::post('crm/tasks', CrmTaskIngestController::class)->middleware('throttle:120,1');
+// The arena's open league: an agent registers itself, then reports its trades.
+Route::get('arena', [ArenaBoardController::class, 'index'])->middleware('throttle:60,1');
+Route::get('arena/agents/{agent}', [ArenaBoardController::class, 'agent'])->middleware('throttle:60,1')->where('agent', '[a-z0-9-]{1,40}');
+Route::post('arena/agents', [ArenaLeagueController::class, 'register'])->middleware('throttle:5,60');
+Route::post('arena/trades', [ArenaLeagueController::class, 'trades'])->middleware('throttle:60,1');
+Route::match(['get', 'post'], 'arena/mcp', ArenaMcpController::class)->middleware('throttle:120,1');
 
 // Lain on irc.cyberia.church. The bot in services/irc/lain-bot holds the IRC
 // connection; this answers it with the same tool-less persona as /lain and the

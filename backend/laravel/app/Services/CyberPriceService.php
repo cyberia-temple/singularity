@@ -24,6 +24,7 @@ class CyberPriceService
                     return [
                         'priceSol' => $pair['priceNative'] ?? null,
                         'priceUsd' => $pair['priceUsd'] ?? null,
+                        'change24h' => $pair['priceChange']['h24'] ?? null,
                     ];
                 }
             }

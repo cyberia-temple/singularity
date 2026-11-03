@@ -8,6 +8,7 @@ import {
     useSecureClipboard,
 } from '@/composables/useSecureClipboard';
 import { analytics } from '@/lib/analytics';
+import { setReplayEnabled } from '@/lib/sessionReplay';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -59,6 +60,8 @@ const analyticsBlocked = analytics.blockedByBrowser();
 
 const setAnalytics = (on: boolean): void => {
     analytics.setEnabled(on);
+    // One refusal covers the recordings too: the tag reads the same key.
+    setReplayEnabled(on);
     analyticsOn.value = analytics.enabled();
 };
 

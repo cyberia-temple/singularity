@@ -5,6 +5,7 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { useLocale } from '@/composables/useLocale';
 import { arenaMessages } from '@/lib/arenaMessages';
+import { PARTNER_CAMPAIGNS } from '@/lib/growthCampaigns';
 import { login } from '@/routes';
 import { archive, evidence, follow, unfollow } from '@/routes/arena';
 import { store, destroy, report } from '@/routes/arena/comments';
@@ -63,6 +64,18 @@ const props = defineProps<{
         slippage_bps: number;
         gas_micros: string;
         initial_cash_micros: string;
+        days?: number;
+        market?: string;
+        units?: { cash: string; asset: string; lot: number };
+        partner?: {
+            slug: string;
+            title: string;
+            name: string;
+            website: string;
+            x?: string;
+            telegram?: string;
+            chart?: string;
+        };
     };
     automation: {
         enabled: boolean;
@@ -113,6 +126,41 @@ const automationQuiet = computed(
             Date.now() - new Date(props.automation.lastTickAt).getTime() >
                 180000),
 );
+const units = computed(
+    () => props.rules.units ?? { cash: 'USDC', asset: 'WETH', lot: 1 },
+);
+const partner = computed(() => props.rules.partner ?? null);
+const campaign = computed(() =>
+    partner.value
+        ? (
+              PARTNER_CAMPAIGNS as Record<
+                  string,
+                  { logo: string; symbol: string }
+              >
+          )[partner.value.slug]
+        : undefined,
+);
+const lotLabel = computed(() =>
+    units.value.lot === 1
+        ? units.value.asset
+        : `${units.value.lot >= 1000000 ? `${units.value.lot / 1000000}M` : units.value.lot} ${units.value.asset}`,
+);
+const marketWords = computed(() => ({
+    asset: units.value.asset,
+    cash: units.value.cash,
+    market: props.rules.market ?? 'WETH / USDC',
+    days: props.rules.days ?? 14,
+    source: t(units.value.asset === 'HATCHER' ? 'sourceHatcher' : 'sourceBase'),
+}));
+function assetAmount(value: string | undefined): string {
+    return value === undefined
+        ? '—'
+        : money(
+              String(BigInt(value) * BigInt(units.value.lot)),
+              18,
+              units.value.lot === 1 ? 6 : 2,
+          );
+}
 const latest = computed(() => props.rounds.at(-1));
 const recent = computed(() => [...props.rounds].reverse().slice(0, 8));
 const actors: Actor[] = ['lain', 'challenger'];
@@ -145,7 +193,9 @@ function money(value: string | undefined, decimals = 6, precision = 2): string {
         .toString()
         .padStart(precision, '0');
 
-    return `${whole}${tag.value === 'ru-RU' ? ',' : '.'}${fraction}`;
+    return precision === 0
+        ? whole
+        : `${whole}${tag.value === 'ru-RU' ? ',' : '.'}${fraction}`;
 }
 function date(value: string): string {
     return new Intl.DateTimeFormat(tag.value, {
@@ -196,14 +246,18 @@ async function invite(): Promise<void> {
 </script>
 
 <template>
-    <Head :title="t('title')" />
+    <Head :title="partner?.title ?? t('title')" />
     <div class="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:py-12">
         <header class="space-y-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <p
                     class="font-mono text-xs tracking-widest text-primary uppercase"
                 >
-                    {{ t('eyebrow') }}
+                    {{
+                        partner
+                            ? t('partnerEyebrow', { partner: partner.name })
+                            : t('eyebrow')
+                    }}
                 </p>
                 <Button
                     variant="outline"
@@ -214,11 +268,62 @@ async function invite(): Promise<void> {
                 >
             </div>
             <h1 class="text-3xl font-semibold tracking-tight sm:text-5xl">
-                {{ t('title') }}
+                {{ partner?.title ?? t('title') }}
             </h1>
             <p class="max-w-2xl text-lg text-muted-foreground">
-                {{ t('intro') }}
+                {{
+                    partner
+                        ? t('partnerIntro', { symbol: units.asset })
+                        : t('intro')
+                }}
             </p>
+            <div
+                v-if="partner"
+                class="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4"
+            >
+                <img
+                    v-if="campaign"
+                    :src="campaign.logo"
+                    :alt="partner.name"
+                    class="size-10 rounded-full"
+                />
+                <a
+                    :href="partner.website"
+                    target="_blank"
+                    rel="noopener"
+                    class="font-medium underline underline-offset-4"
+                    >{{ t('partnerAbout', { partner: partner.name }) }}</a
+                >
+                <a
+                    v-if="partner.chart"
+                    :href="partner.chart"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-sm underline underline-offset-4"
+                    >{{ t('partnerChart', { symbol: units.asset }) }}</a
+                >
+                <Link
+                    :href="`/partners/${partner.slug}`"
+                    class="text-sm underline underline-offset-4"
+                    >{{ t('partnerPage', { symbol: units.asset }) }}</Link
+                >
+                <a
+                    v-if="partner.x"
+                    :href="partner.x"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-sm text-muted-foreground underline underline-offset-4"
+                    >X</a
+                >
+                <a
+                    v-if="partner.telegram"
+                    :href="partner.telegram"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-sm text-muted-foreground underline underline-offset-4"
+                    >Telegram</a
+                >
+            </div>
             <div class="flex flex-wrap items-center gap-3 text-sm">
                 <span
                     class="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-primary"
@@ -392,7 +497,9 @@ async function invite(): Promise<void> {
                     </p>
                     <p class="mt-1 font-mono text-3xl">
                         {{ money(latest?.result.actors[actor].equity) }}
-                        <span class="text-sm text-muted-foreground">USDC</span>
+                        <span class="text-sm text-muted-foreground">{{
+                            units.cash
+                        }}</span>
                     </p>
                 </div>
                 <dl
@@ -407,21 +514,21 @@ async function invite(): Promise<void> {
                         </dd>
                     </div>
                     <div>
-                        <dt class="text-muted-foreground">{{ t('asset') }}</dt>
+                        <dt class="text-muted-foreground">
+                            {{ t('asset', marketWords) }}
+                        </dt>
                         <dd class="mt-1 font-mono">
                             {{
-                                money(
+                                assetAmount(
                                     latest?.result.actors[actor].balance.asset,
-                                    18,
-                                    6,
                                 )
                             }}
                         </dd>
                     </div>
                 </dl>
                 <p class="text-xs text-muted-foreground">
-                    {{ t('initial') }}:
-                    {{ money(rules.initial_cash_micros) }} USDC
+                    {{ t('initial') }}: {{ money(rules.initial_cash_micros) }}
+                    {{ units.cash }}
                 </p>
             </article>
         </section>
@@ -432,13 +539,15 @@ async function invite(): Promise<void> {
             <p>
                 {{ t('benchmark') }}:
                 <strong class="font-mono"
-                    >{{ money(latest.result.benchmark.equity) }} USDC</strong
+                    >{{ money(latest.result.benchmark.equity) }}
+                    {{ units.cash }}</strong
                 >
             </p>
             <p>
                 {{ t('cashBenchmark') }}:
                 <strong class="font-mono"
-                    >{{ money(latest.result.cash_equity) }} USDC</strong
+                    >{{ money(latest.result.cash_equity) }}
+                    {{ units.cash }}</strong
                 >
             </p>
         </div>
@@ -506,8 +615,9 @@ async function invite(): Promise<void> {
                     </div>
                 </div>
                 <p class="text-xs text-muted-foreground">
-                    {{ t('price') }}:
-                    {{ money(round.evidence.price_micros) }} USDC/WETH
+                    {{ t('price') }}: {{ money(round.evidence.price_micros) }}
+                    {{ units.cash }} /
+                    {{ lotLabel }}
                 </p>
                 <details class="text-xs text-muted-foreground">
                     <summary class="cursor-pointer">
@@ -526,19 +636,27 @@ async function invite(): Promise<void> {
         >
             <h2 class="text-xl font-semibold">{{ t('rules') }}</h2>
             <ul class="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-                <li>{{ t('rule1') }}</li>
-                <li>{{ t('rule2') }}</li>
+                <li>{{ t('rule1', marketWords) }}</li>
+                <li>
+                    {{
+                        t('rule2', {
+                            ...marketWords,
+                            amount: money(rules.initial_cash_micros, 6, 0),
+                        })
+                    }}
+                </li>
                 <li>{{ t('rule3') }}</li>
                 <li>
                     {{
                         t('rule4', {
                             fee: rules.fee_bps / 100,
                             slippage: rules.slippage_bps / 100,
-                            gas: money(rules.gas_micros),
+                            gas: money(rules.gas_micros, 6, 3),
+                            cash: units.cash,
                         })
                     }}
                 </li>
-                <li>{{ t('rule5') }}</li>
+                <li>{{ t('rule5', marketWords) }}</li>
             </ul>
             <p class="text-xs leading-relaxed text-muted-foreground">
                 {{
@@ -546,6 +664,7 @@ async function invite(): Promise<void> {
                         rules.mode === 'automatic-paper'
                             ? 'automaticEvidenceNote'
                             : 'evidenceNote',
+                        marketWords,
                     )
                 }}
             </p>

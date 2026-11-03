@@ -18,18 +18,36 @@ class ArenaSeasonManager
     /** @return array<string, mixed> */
     public function rules(bool $automatic = false): array
     {
+        $market = (array) config('arena.markets.'.config('arena.market'), []);
+        if (! isset($market['name'], $market['cash'], $market['asset'], $market['lot'])) {
+            throw new DomainException('Unknown arena market.');
+        }
         $rules = [
             'version' => 1,
             'mode' => 'imported-paper',
-            'market' => 'WETH / USDC',
+            'market' => $market['name'],
             'days' => (int) config('arena.days'),
             'rounds_per_day' => (int) config('arena.rounds_per_day'),
-            'initial_cash_micros' => (string) config('arena.initial_cash_micros'),
-            'fee_bps' => (int) config('arena.fee_bps'),
-            'slippage_bps' => (int) config('arena.slippage_bps'),
-            'gas_micros' => (string) config('arena.gas_micros'),
+            'initial_cash_micros' => (string) ($market['initial_cash_micros'] ?? config('arena.initial_cash_micros')),
+            'fee_bps' => (int) ($market['fee_bps'] ?? config('arena.fee_bps')),
+            'slippage_bps' => (int) ($market['slippage_bps'] ?? config('arena.slippage_bps')),
+            'gas_micros' => (string) ($market['gas_micros'] ?? config('arena.gas_micros')),
             'agents' => config('arena.agents'),
         ];
+        // Seasons frozen before markets were configurable carry no units and
+        // render as WETH/USDC; adding the key only for other markets keeps
+        // their rules hash identical.
+        if (config('arena.market') !== 'base-weth-usdc') {
+            $rules['units'] = ['cash' => $market['cash'], 'asset' => $market['asset'], 'lot' => (int) $market['lot']];
+        }
+        $partner = config('arena.partner');
+        if (is_string($partner) && $partner !== '') {
+            $details = config('arena.partners.'.$partner);
+            if (! is_array($details)) {
+                throw new DomainException('Unknown arena partner.');
+            }
+            $rules['partner'] = ['slug' => $partner, ...$details];
+        }
         if ($automatic) {
             $settings = config('arena.automation');
             ArenaModelClient::assertFreeOnly($settings);
@@ -51,7 +69,7 @@ class ArenaSeasonManager
             $rules['mode'] = 'automatic-paper';
             $rules['automation'] = [...array_intersect_key($settings, $limits),
                 'pricing_policy' => 'free-only',
-                'models' => $settings['models'], 'prompt' => ArenaModelClient::PROMPT,
+                'models' => $settings['models'], 'prompt' => ArenaModelClient::prompt($rules['units'] ?? null),
                 'market_source' => app(ArenaMarketFeed::class)->specification(),
                 'runtime' => 'Isolated, tool-free paper personas; not the privileged LainOS daemon'];
         }
@@ -63,7 +81,7 @@ class ArenaSeasonManager
     {
         $rules = $this->rules($automatic);
         $season = ArenaSeason::query()->firstOrCreate(['slug' => $slug], [
-            'title' => 'Season Zero',
+            'title' => $rules['partner']['title'] ?? 'Season Zero',
             'starts_at' => $start,
             'ends_at' => $start?->addDays($rules['days']),
             'rules' => $rules,
@@ -105,7 +123,7 @@ class ArenaSeasonManager
             'source' => ['required', 'array:chain_id,block_number,block_hash,label'],
             'source.chain_id' => ['required', 'integer', 'min:1'],
             'source.block_number' => ['required', 'string', 'regex:/^[1-9][0-9]{0,19}$/D'],
-            'source.block_hash' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{64}$/D'],
+            'source.block_hash' => ['required', 'string', 'regex:/^(0x[a-fA-F0-9]{64}|[1-9A-HJ-NP-Za-km-z]{32,44})$/D'],
             'source.label' => ['required', 'string', 'max:100'],
             'decisions' => ['required', 'array:lain,challenger'],
             'decisions.lain' => ['required', 'array:action,bps,reason,model'],

@@ -27,6 +27,18 @@ test('forwards an allowed read only after verifying Cyberia Fuji chain identity'
     Http::assertSent(fn (Request $request) => $request->data() === $call);
 });
 
+test('relays the subnet-evm reads the Avalanche console needs', function (string $method) {
+    Http::fake(fn (Request $request) => Http::response([
+        'jsonrpc' => '2.0',
+        'id' => $request['id'],
+        'result' => $request['id'] === 'chain-check' ? '0xc0ff' : ['ok' => true],
+    ]));
+
+    $this->postJson(route('api.fuji.rpc'), [
+        'jsonrpc' => '2.0', 'id' => 3, 'method' => $method, 'params' => [],
+    ])->assertSuccessful()->assertJsonPath('result.ok', true);
+})->with(['eth_getChainConfig', 'eth_getActiveRulesAt', 'eth_feeConfig', 'eth_baseFee']);
+
 test('forwards a user signed raw transaction without signing or changing its bytes', function () {
     $call = ['jsonrpc' => '2.0', 'id' => 'send', 'method' => 'eth_sendRawTransaction', 'params' => ['0x02abcd']];
 

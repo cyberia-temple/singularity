@@ -36,7 +36,7 @@
 <body>
   <main>
     <h1>Cyberia Wallet extension: Privacy Policy</h1>
-    <p class="meta">Applies to the Cyberia Wallet browser extension for Chrome, Brave, Edge and Firefox. Last updated October 15, 2026.</p>
+    <p class="meta">Applies to the Cyberia Wallet browser extension for Chrome, Brave, Edge and Firefox. Last updated October 29, 2026.</p>
 
     <p>Cyberia Wallet is non-custodial. Your recovery phrase and private keys are created on your device, encrypted with your password, and stored only in your browser. They are never sent to Cyberia or to anyone else, and nobody, Cyberia included, can recover them for you.</p>
 
@@ -46,15 +46,16 @@
       <li><strong>Your public account address</strong> is sent to the network's RPC node and token index to read your balances and tokens: rpc.cyberia.church and explorer.cyberia.church (run by Cyberia) for Cyberia; the public RPC services of Robinhood Chain, BNB Chain and Base for those networks, and robinhoodchain.blockscout.com for Robinhood Chain tokens.</li>
       <li><strong>Transactions you approve</strong> are sent to that network's RPC node to be broadcast. Once on a blockchain, a transaction is public and permanent.</li>
       <li><strong>Requests from sites you connect.</strong> When you connect a website, its read-only requests to the blockchain (for example a token balance or a contract call) are passed to the network's RPC node. A site can ask you to sign something; nothing is signed or sent until you approve it in the wallet.</li>
+      <li><strong>Extension usage.</strong> When the wallet opens, a random installation identifier and an opening event are sent to Cyberia and forwarded to Google Analytics. No wallet address, browsing history, page contents, recovery phrase or password is included. On Firefox, this is sent only if you allow technical and interaction data in the add-on permissions.</li>
       <li><strong>Prices.</strong> The wallet asks https://cyberia.church/api/wallet/prices for USD prices. That request contains no address and no identifier.</li>
     </ul>
     <p>These services see your IP address, as any web request does. If you turn on the relay, the wallet's requests go through a SOCKS5, Tor or I2P service you run yourself instead of directly. In Firefox the relay carries only the wallet's own requests; Chrome lets an extension set one proxy for the whole browser, so there it carries every tab, and the wallet says so before you turn it on.</p>
 
     <h2>What is not collected</h2>
-    <p>No analytics, no telemetry, no crash reports, no advertising identifiers, no browsing history. The extension only runs on websites you connect, and it does not read their content. Nothing is sold or shared with anyone for any other purpose.</p>
+    <p>No crash reports, advertising identifiers or browsing history are collected. The extension only runs on websites you connect, and it does not read their content. Nothing is sold or shared with anyone for any other purpose.</p>
 
     <h2>What is stored on your device</h2>
-    <p>The encrypted vault, the list of sites you connected and the accounts each may see, your settings, and, while unlocked, the key that opens the vault (in session storage, cleared when the browser closes). Removing the extension deletes all of it. Keep your recovery phrase: it is the only way back.</p>
+    <p>The encrypted vault, the list of sites you connected and the accounts each may see, your settings, a random analytics installation identifier, and, while unlocked, the key that opens the vault (in session storage, cleared when the browser closes). Removing the extension deletes all of it. Keep your recovery phrase: it is the only way back.</p>
 
     <h2>Contact</h2>
     <p><a href="https://cyberia.church">https://cyberia.church</a></p>

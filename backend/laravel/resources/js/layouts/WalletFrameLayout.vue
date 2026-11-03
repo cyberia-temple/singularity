@@ -266,8 +266,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+    <!--
+        Session recordings see the wallet's layout, taps and pointer, never
+        its text: phrases, balances, addresses and chat are all in here. The
+        recorder masks every text node under this attribute before it sends.
+    -->
     <div
         class="cw-window flex h-dvh flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-foreground"
+        data-replay-mask
     >
         <main class="flex min-h-0 flex-1 flex-col">
             <slot />

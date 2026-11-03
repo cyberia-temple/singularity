@@ -1,6 +1,6 @@
 # Cyberia Wallet — privacy policy
 
-_Applies to the Cyberia Wallet browser extension. Last updated 2026-10-15._
+_Applies to the Cyberia Wallet browser extension. Last updated 2026-10-29._
 
 Cyberia Wallet is non-custodial. Your recovery phrase and private keys are
 created on your device, encrypted with your password, and stored only in your
@@ -23,6 +23,10 @@ the services that answer for each network:
   read-only requests to the blockchain (for example, a token balance or a
   contract call) are passed to the network's RPC node. A site can ask you to
   sign something; nothing is signed or sent until you approve it in the wallet.
+- **Extension usage**: when you allow technical and interaction data, opening
+  the wallet sends a random installation identifier and an opening event to
+  Cyberia, which forwards it to Google Analytics. No wallet address, browsing
+  history, page contents, recovery phrase or password is included.
 - **Prices**: the wallet asks https://cyberia.church/api/wallet/prices for USD
   prices. That request contains no address and no identifier.
 
@@ -34,14 +38,13 @@ there it carries every tab, and the wallet says so before you turn it on.
 
 ## What is not collected
 
-No analytics, no telemetry, no crash reports, no advertising identifiers, no
-browsing history. The extension only runs on websites you connect, and it does
+No crash reports, advertising identifiers or browsing history. The extension only runs on websites you connect, and it does
 not read their content.
 
 ## What is stored on your device
 
 The encrypted vault, the list of sites you connected and the accounts each may
-see, your settings, and while unlocked, the key that opens the vault (in
+see, your settings, a random analytics installation identifier, and while unlocked, the key that opens the vault (in
 session storage, cleared when the browser closes). Removing the extension
 deletes all of it — keep your recovery phrase, it is the only way back.
 

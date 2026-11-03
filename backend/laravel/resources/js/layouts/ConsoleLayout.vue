@@ -13,6 +13,7 @@ import {
     usd,
 } from '@/lib/console';
 import { consoleMessages } from '@/lib/consoleMessages';
+import crm from '@/routes/crm';
 import profile from '@/routes/crm/profile';
 
 /**
@@ -67,6 +68,7 @@ async function toggleTheme() {
     const previous = theme.value;
     theme.value = theme.value === 'cyberia' ? 'yotsuba' : 'cyberia';
     themeForm.theme = theme.value;
+
     try {
         await themeForm.submit(profile.theme());
     } catch {
@@ -148,6 +150,24 @@ const LENSES = [
         key: 'push',
         href: '/crm/push',
         label: 'nav.push',
+        badge: null,
+        phone: false,
+    },
+    // Why, after the numbers said what: recordings, heat maps, rage and dead
+    // clicks. A desk lens — nobody watches a replay on a phone.
+    {
+        key: 'replays',
+        href: '/crm/replays',
+        label: 'nav.replays',
+        badge: null,
+        phone: false,
+    },
+    // Traffic, sources, funnels, retention: the page counter's dashboard on
+    // this host. A door out of the console rather than a lens of it.
+    {
+        key: 'stats',
+        href: crm.stats().url,
+        label: 'nav.stats',
         badge: null,
         phone: false,
     },
@@ -485,6 +505,10 @@ const initials = computed(() =>
                         <template v-else-if="lens.key === 'keys'">
                             <circle cx="8" cy="12" r="3.5" />
                             <path d="M11.5 12H21M17 12v3M20 12v2" />
+                        </template>
+                        <template v-else-if="lens.key === 'stats'">
+                            <path d="M11 3.6a8.4 8.4 0 1 0 9.4 9.4H11z" />
+                            <path d="M14 3.5a7 7 0 0 1 6.5 6.5H14z" />
                         </template>
                         <template v-else-if="lens.key === 'strategy'">
                             <path d="M5 3.5h11l3 3v14H5z" />

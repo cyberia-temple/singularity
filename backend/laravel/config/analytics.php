@@ -37,6 +37,32 @@ return [
     'session_timeout_minutes' => (int) env('ANALYTICS_SESSION_TIMEOUT', 30),
 
     /*
+    |--------------------------------------------------------------------------
+    | Web analytics: Umami, on this host
+    |--------------------------------------------------------------------------
+    |
+    | Traffic — visits, pages, sources, countries, devices, funnels, retention,
+    | Web Vitals — for everybody who opens a page, wallet or not, which the
+    | product tables in this file deliberately do not count. Umami runs beside
+    | this app (services/umami) and nothing it collects leaves the host. The
+    | website id is fixed because services/umami/bootstrap.sh creates the site
+    | under it; lain-os.com and chaos.fm have their own in lain-labs/backend.
+    |
+    | `password` is the dashboard's admin password, which the bootstrap writes
+    | into .env so /crm/stats can sign an operator in. Unset, that page sends
+    | them to Umami's own login instead.
+    */
+
+    'umami' => [
+        'enabled' => (bool) env('UMAMI_ENABLED', true),
+        'url' => rtrim((string) env('UMAMI_URL', 'https://stats.cyberia.church'), '/'),
+        'internal_url' => rtrim((string) env('UMAMI_INTERNAL_URL', 'http://umami:3000'), '/'),
+        'website_id' => (string) env('UMAMI_WEBSITE_ID', '4955f251-c9ac-464b-adce-14c8ea75eaf2'),
+        'domains' => (string) env('UMAMI_DOMAINS', 'cyberia.church,www.cyberia.church'),
+        'password' => env('UMAMI_ADMIN_PASSWORD'),
+    ],
+
+    /*
     | Rows accepted in one ingest call. The client batches to keep the wallet
     | from making one request per tap; this bounds what one request can cost.
     */

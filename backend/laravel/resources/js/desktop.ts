@@ -17,6 +17,7 @@ configureAnalytics({ enabled: false });
 // Navigation to another website belongs to the browser, never the key-holding renderer.
 router.on('before', (event) => {
     const visit = new URL(event.detail.visit.url, window.location.href);
+
     if (visit.pathname !== '/wallet') {
         window.cyberiaNative?.openExternal?.(
             new URL(
@@ -24,6 +25,7 @@ router.on('before', (event) => {
                 'https://cyberia.church',
             ).href,
         );
+
         return false;
     }
 });
@@ -55,8 +57,10 @@ void createInertiaApp({
         rememberedState: {},
     },
     resolve: (name) => {
-        if (name !== 'Wallet')
-            throw new Error('This build contains only the local wallet.');
+        if (name !== 'Wallet') {
+throw new Error('This build contains only the local wallet.');
+}
+
         return LocalWallet;
     },
     layout: () => WalletFrameLayout,

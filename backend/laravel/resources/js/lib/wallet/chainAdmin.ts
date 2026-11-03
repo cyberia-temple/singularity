@@ -1,5 +1,8 @@
-import { Interface, JsonRpcProvider, getAddress } from 'ethers';
+import { BrowserProvider, Interface, JsonRpcProvider, getAddress } from 'ethers';
+import type { Signer } from 'ethers';
+import { CYBERIA_FUJI_CHAIN_ID as FUJI_ID, EVM_CHAINS, ensureEvmChain } from '@/lib/evmChains';
 import { CYBERIA_FUJI_CHAIN_ID } from '@/lib/evmChains';
+import { getSelectedEvmProvider } from '@/lib/evmProvider';
 import { evmSigner } from '@/lib/wallet/keys';
 import type { WalletKeySource } from '@/lib/wallet/keys';
 import { chain as chainStatusRoute } from '@/routes/api/fuji';
@@ -172,11 +175,10 @@ const signerOn = (source: WalletKeySource, rpcUrl: string) =>
  * blocks for transactions, none would come. So the panel makes that block
  * itself: an empty transfer to its own address, priced to clear.
  */
-export const submitFeeConfig = async (
-    source: WalletKeySource,
+const submitFeeConfigWithSigner = async (
+    signer: Signer,
     request: { config: FeeConfig; latestBaseFee: bigint; rpcUrl: string },
 ): Promise<{ hash: string; nudge: string | null }> => {
-    const signer = signerOn(source, request.rpcUrl);
     const minBaseFee = BigInt(request.config.minBaseFee);
 
     const tx = await signer.sendTransaction({
@@ -195,7 +197,7 @@ export const submitFeeConfig = async (
     }
 
     const nudge = await signer.sendTransaction({
-        to: signer.address,
+        to: await signer.getAddress(),
         value: 0n,
         gasLimit: TRANSFER_GAS,
         ...clearingFees(request.latestBaseFee, minBaseFee),
@@ -203,6 +205,40 @@ export const submitFeeConfig = async (
     await nudge.wait();
 
     return { hash: tx.hash, nudge: nudge.hash };
+};
+
+export const submitFeeConfig = async (
+    source: WalletKeySource,
+    request: { config: FeeConfig; latestBaseFee: bigint; rpcUrl: string },
+): Promise<{ hash: string; nudge: string | null }> =>
+    submitFeeConfigWithSigner(signerOn(source, request.rpcUrl), request);
+
+/** Use the connected wallet only after verifying both its network and account. */
+export const submitConnectedFeeConfig = async (
+    address: string,
+    request: { config: FeeConfig; latestBaseFee: bigint; rpcUrl: string },
+): Promise<{ hash: string; nudge: string | null }> => {
+    const provider = getSelectedEvmProvider();
+    const chain = EVM_CHAINS.find((item) => item.chainId === FUJI_ID);
+
+    if (!provider || !chain) {
+throw new Error('Connect an EVM wallet first');
+}
+
+    await ensureEvmChain(provider, chain);
+    const currentChain = await provider.request({ method: 'eth_chainId' });
+
+    if (parseInt(String(currentChain), 16) !== FUJI_ID) {
+        throw new Error('The wallet did not switch to Cyberia Fuji');
+    }
+
+    const signer = await new BrowserProvider(provider).getSigner();
+
+    if ((await signer.getAddress()).toLowerCase() !== address.toLowerCase()) {
+        throw new Error('The connected wallet account changed; refresh and review the transaction');
+    }
+
+    return submitFeeConfigWithSigner(signer, request);
 };
 
 /** Send every fee to one address, or back to each block's producer. */

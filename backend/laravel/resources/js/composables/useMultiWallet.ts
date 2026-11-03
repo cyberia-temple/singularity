@@ -126,8 +126,13 @@ import { mintNft as submitMint } from '@/lib/wallet/nft';
 import type { MintQuote } from '@/lib/wallet/nft';
 import { executeOtc } from '@/lib/wallet/otc';
 import type { OtcAction } from '@/lib/wallet/otc';
+import { executeShop } from '@/lib/wallet/shop';
+import type { ShopAction } from '@/lib/wallet/shop';
 import { executeSwap } from '@/lib/wallet/swap';
 import type { SwapQuote, SwapReceipt } from '@/lib/wallet/swap';
+import type { AdminRequest } from '@/lib/wallet/tokenAdmin';
+import { submitOperation } from '@/lib/wallet/tokenAdmin';
+import { buyVpnPass } from '@/lib/wallet/vpn';
 import { executeWrap } from '@/lib/wallet/wrap';
 import type { WrapQuote } from '@/lib/wallet/wrap';
 
@@ -1641,6 +1646,28 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
     };
 
+    /** Buy days of Cyberia VPN for this account, at the price it was shown. */
+    const vpnBuy = async (
+        days: number,
+        pricePerDay: bigint,
+    ): Promise<string> => {
+        const chainId: WalletChainId = 'cyberia';
+        const source = sourceFor(chainId);
+
+        busy.value = true;
+
+        try {
+            return await buyVpnPass(source, {
+                days,
+                pricePerDay,
+                gasPrice: await gasPrice(chainId),
+                rpcUrl: rpcFor(chainId),
+            });
+        } finally {
+            busy.value = false;
+        }
+    };
+
     /** One OTC offer action, on the network the desk lives on (49407). */
     const otc = async (action: OtcAction): Promise<string> => {
         const chainId: WalletChainId = 'cyberia_fuji';
@@ -1650,6 +1677,24 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
 
         try {
             return await executeOtc(source, {
+                action,
+                gasPrice: await gasPrice(chainId),
+                rpcUrl: rpcFor(chainId),
+            });
+        } finally {
+            busy.value = false;
+        }
+    };
+
+    /** One shop action, on the network the shop lives on (49407). */
+    const shop = async (action: ShopAction): Promise<string> => {
+        const chainId: WalletChainId = 'cyberia_fuji';
+        const source = sourceFor(chainId);
+
+        busy.value = true;
+
+        try {
+            return await executeShop(source, {
                 action,
                 gasPrice: await gasPrice(chainId),
                 rpcUrl: rpcFor(chainId),
@@ -1749,6 +1794,8 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
     };
 
     const chainAdmin = {
+        tokenOperation: (request: AdminRequest): Promise<string> =>
+            chainWrite((source, rpcUrl) => submitOperation(source, request, rpcUrl)),
         setFeeConfig: (
             config: FeeConfig,
             latestBaseFee: bigint,
@@ -2176,7 +2223,9 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         pool,
         bridgeDeposit,
         wrap,
+        vpnBuy,
         otc,
+        shop,
         launchToken,
         domains,
         chainAdmin,

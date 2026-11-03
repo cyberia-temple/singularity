@@ -91,7 +91,7 @@
       "symbol": "TMON",
       "contract": "TMON",
       "artifact": "contracts/TMON.sol/TMON.json",
-      "address": null,
+      "address": "0x0984f50dDeb07fAc74d432A56982be1675b4692F",
       "burnable": true
     },
     {
@@ -169,6 +169,13 @@
       "contract": "Hatcher",
       "artifact": "contracts/Hatcher.sol/Hatcher.json",
       "address": "0x621021F18b6404123f98b1395c418868418ACF36",
+      "burnable": true
+    },
+    {
+      "symbol": "CYBERGUARD",
+      "contract": "CyberGuard",
+      "artifact": "contracts/CyberGuard.sol/CyberGuard.json",
+      "address": "0xf10D68fD358D5F5Eb5FBF23376183D17a0684E43",
       "burnable": true
     },
     {

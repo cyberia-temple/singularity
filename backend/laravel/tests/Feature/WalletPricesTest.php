@@ -267,3 +267,47 @@ it('exposes quotes to the browser without requiring a session', function () {
         ->assertOk()
         ->assertJsonPath('prices.monero', 312.25);
 });
+
+it('passes on the 24h change the outside feeds report', function () {
+    fakePriceFeeds([
+        DEXSCREENER_URL => Http::response(['pairs' => [['priceUsd' => '0.0742', 'priceChange' => ['h24' => -12.5]]]]),
+        COINGECKO_URL => Http::response([
+            'solana' => ['usd' => 148.5, 'usd_24h_change' => 3.25],
+            'ethereum' => ['usd' => 2410.0],
+        ]),
+    ]);
+
+    $changes = app(WalletPriceService::class)->quotes()['changes'];
+
+    expect($changes['prices'])->toBe(['solana' => 3.25])
+        ->and($changes['tokens']['solana'][strtolower('E67WWiQY4s9SZbCyFVTh2CEjorEYbhuVJQUZb3Mbpump')])->toBe(-12.5);
+});
+
+it('measures the 24h change of CYBER and Cyberia tokens against yesterday\'s snapshot', function () {
+    fakePriceFeeds();
+    indexerTables();
+    nativeCyberPool();
+
+    // Yesterday CYBER was worth half its $0.0000126, and nothing was written about USDC.
+    // A half-hour-later snapshot (23.5h) at another price must not win over it.
+    DB::table('wallet_price_snapshots')->insert([
+        ['chain' => 'cyberia', 'asset' => '', 'usd' => 0.0000063, 'captured_at' => now()->subHours(24)->subMinute()],
+        ['chain' => 'cyberia', 'asset' => '', 'usd' => 0.0000126, 'captured_at' => now()->subMinutes(23 * 60 + 30)],
+    ]);
+
+    $changes = app(WalletPriceService::class)->quotes()['changes'];
+
+    expect($changes['prices']['cyberia'])->toEqualWithDelta(100.0, 0.0001)
+        ->and($changes['tokens']['cyberia'] ?? [])->not->toHaveKey('0xdc25597b19799010047f17e9591efe08efd40077');
+});
+
+it('reports no change at all until a day of snapshots exists, never 0%', function () {
+    fakePriceFeeds();
+    indexerTables();
+    nativeCyberPool();
+
+    $service = app(WalletPriceService::class);
+
+    expect($service->snapshot())->toBeGreaterThan(0)
+        ->and($service->quotes()['changes']['prices'])->not->toHaveKey('cyberia');
+});

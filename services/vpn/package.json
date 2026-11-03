@@ -1,0 +1,19 @@
+{
+  "name": "cyberia-vpn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cyberia VPN node: VLESS + Reality (Xray) for every address holding a CyberiaVpnPass.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/main.mjs",
+    "keygen": "node src/keygen.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0"
+  }
+}

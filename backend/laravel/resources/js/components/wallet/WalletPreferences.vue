@@ -20,7 +20,8 @@ import {
     refreshNativeStartup,
     setNativeStartup,
 } from '@/lib/native';
-import { storeEdition } from '@/lib/storeEdition';
+import { socialOnly, storeEdition } from '@/lib/storeEdition';
+import { tokenAdminMessages } from '@/lib/tokenAdminMessages';
 import {
     enableWalletNotifications,
     playWalletSound,
@@ -57,11 +58,13 @@ defineEmits<{
     accounts: [];
     networks: [];
     chain: [];
+    tokenAdmin: [];
     proxy: [];
     developer: [];
 }>();
 
 const { t, locale, available, setLocale } = useLocale(walletMessages);
+const { t: tokenAdminText } = useLocale(tokenAdminMessages);
 
 /*
  * Appearance, which used to be two controls bolted to other people's chrome:
@@ -170,6 +173,9 @@ const modeLabel = (option: (typeof WALLET_MODES)[number]): string =>
 
 const themeLabel = (option: (typeof WALLET_THEMES)[number]): string =>
     t(`theme${option.charAt(0).toUpperCase()}${option.slice(1)}Short`);
+/** The Google Play build has no accounts, networks or token screens. */
+const social = socialOnly();
+
 const preferences = ref(readWalletPreferences());
 const permission = ref(walletNotificationPermission());
 const startup = ref(nativeStartup());
@@ -386,6 +392,7 @@ onBeforeUnmount(unsubscribe);
 
         <div class="cw-stack" style="gap: 0; margin-bottom: 24px">
             <button
+                v-if="!social"
                 type="button"
                 class="cw-line-row"
                 @click="$emit('accounts')"
@@ -400,6 +407,7 @@ onBeforeUnmount(unsubscribe);
                 {{ t('navSecurity') }} →
             </button>
             <button
+                v-if="!social"
                 type="button"
                 class="cw-line-row"
                 @click="$emit('networks')"
@@ -407,6 +415,7 @@ onBeforeUnmount(unsubscribe);
                 {{ t('networksSection') }} →
             </button>
             <button
+                v-if="!social"
                 type="button"
                 class="cw-line-row"
                 data-test="chain-door"
@@ -414,9 +423,30 @@ onBeforeUnmount(unsubscribe);
             >
                 {{ t('chainDoor') }} →
             </button>
-            <button type="button" class="cw-line-row" @click="$emit('proxy')">
+            <button
+                v-if="!social"
+                type="button"
+                class="cw-line-row"
+                @click="$emit('tokenAdmin')"
+            >
+                {{ tokenAdminText('door') }} →
+            </button>
+            <button
+                v-if="!social"
+                type="button"
+                class="cw-line-row"
+                @click="$emit('proxy')"
+            >
                 {{ t('proxyTitle') }} →
             </button>
+            <a
+                class="cw-line-row"
+                href="https://cyberia.church/privacy/cyberia-wallet-app.html"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                {{ t('privacyPolicy') }} ↗
+            </a>
         </div>
 
         <WalletSync
@@ -779,7 +809,7 @@ onBeforeUnmount(unsubscribe);
         -->
         <a
             v-if="!storeBuild"
-            href="/"
+            href="/?site"
             class="cw-btn cw-btn-secondary"
             style="height: 48px; margin-top: 8px; text-decoration: none"
         >
@@ -792,6 +822,7 @@ onBeforeUnmount(unsubscribe);
           anything behind it, and whoever opens it already wanted more.
         -->
         <button
+            v-if="!social"
             type="button"
             class="cw-line-row"
             style="margin-top: 28px"

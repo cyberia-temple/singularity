@@ -10,6 +10,7 @@ import {
     MessageCircle,
     MoreHorizontal,
     Newspaper,
+    Settings,
     WalletCards,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
@@ -63,13 +64,16 @@ import WalletProxy from '@/components/wallet/WalletProxy.vue';
 import WalletReceive from '@/components/wallet/WalletReceive.vue';
 import WalletSecurity from '@/components/wallet/WalletSecurity.vue';
 import WalletSend from '@/components/wallet/WalletSend.vue';
+import WalletShop from '@/components/wallet/WalletShop.vue';
 import WalletStocks from '@/components/wallet/WalletStocks.vue';
 import WalletSwap from '@/components/wallet/WalletSwap.vue';
 import WalletToken from '@/components/wallet/WalletToken.vue';
+import WalletTokenAdmin from '@/components/wallet/WalletTokenAdmin.vue';
 import WalletTokens from '@/components/wallet/WalletTokens.vue';
 import WalletTorrent from '@/components/wallet/WalletTorrent.vue';
 import WalletTracker from '@/components/wallet/WalletTracker.vue';
 import WalletTrackerPublish from '@/components/wallet/WalletTrackerPublish.vue';
+import WalletTradingArena from '@/components/wallet/WalletTradingArena.vue';
 import WalletUnderground from '@/components/wallet/WalletUnderground.vue';
 import WalletWorkshop from '@/components/wallet/WalletWorkshop.vue';
 import { useLocale } from '@/composables/useLocale';
@@ -82,14 +86,20 @@ import { useWalletMode } from '@/composables/useWalletMode';
 import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { arcadeMessages } from '@/lib/arcadeMessages';
-import { isNativeShell, nativeShell } from '@/lib/native';
-import { hiddenInStore, storeEdition } from '@/lib/storeEdition';
+import { isNativeShell, nativeShell, onHardwareBack } from '@/lib/native';
+import {
+    hiddenInStore,
+    homeScreen,
+    socialOnly,
+    storeEdition,
+} from '@/lib/storeEdition';
 import {
     hideMainButton,
     setBackButton,
     setMainButton,
     telegramHaptic,
 } from '@/lib/telegram';
+import { tradingArenaMessages } from '@/lib/tradingArenaMessages';
 import {
     createMnemonic,
     formatUnits,
@@ -106,6 +116,8 @@ import {
     playWalletSound,
 } from '@/lib/wallet/notifications';
 import type { PlayerTrack } from '@/lib/wallet/player';
+import { NO_CHANGES } from '@/lib/wallet/priceChange';
+import type { PriceChanges } from '@/lib/wallet/priceChange';
 import type { SwipeIntent } from '@/lib/wallet/swipe';
 import { signInWithTelegram } from '@/lib/wallet/sync';
 import { canStream, torrentBridge } from '@/lib/wallet/torrent';
@@ -135,6 +147,8 @@ const props = defineProps<{
         prices: Record<string, number | null>;
         /** Chain id → (lowercased contract → USD price). */
         tokens: Record<string, Record<string, number>>;
+        /** 24h price changes in percent, only where one was measured. */
+        changes?: PriceChanges;
         fetchedAt: string;
     };
     /** Which contract the holders' room counts, and how much of it it wants. */
@@ -161,6 +175,7 @@ const props = defineProps<{
 
 const { t } = useLocale(walletMessages);
 const { t: arenaT } = useLocale(arcadeMessages);
+const { t: agentsT } = useLocale(tradingArenaMessages);
 
 // Only Solana takes an override: the server picks that endpoint, while every
 // other chain carries its own public default in the registry.
@@ -238,11 +253,14 @@ type Section =
     | 'buy'
     | 'crosschain'
     | 'arena'
+    | 'agents'
     | 'daily'
     | 'browse'
     | 'domains'
+    | 'shop'
     | 'developer'
     | 'chain'
+    | 'tokenAdmin'
     | 'experiments'
     | 'gallery'
     | 'underground'
@@ -256,12 +274,20 @@ const requestedScreen = new URLSearchParams(window.location.search).get(
 const section = ref<Section>(
     requestedScreen === 'arena' && !hiddenInStore('arena')
         ? 'arena'
-        : 'portfolio',
+        : (homeScreen() as Section),
 );
 const overlay = ref<Overlay | null>(null);
+
+// The Google Play build has no send, receive, swap or network screens.
+watch(overlay, (next) => {
+    if (next !== null && socialOnly()) {
+        overlay.value = null;
+    }
+});
 const chain = ref<WalletChainId>('cyberia');
 const prices = ref(props.quotes.prices);
 const tokenPrices = ref(props.quotes.tokens ?? {});
+const priceChanges = ref<PriceChanges>(props.quotes.changes ?? NO_CHANGES);
 const online = ref(true);
 const error = ref<string | null>(null);
 const payoutSaved = ref(false);
@@ -358,6 +384,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'crosschain', label: () => t('crossTile') },
             { id: 'earn', label: () => t('earnTitle') },
             { id: 'liquidity', label: () => t('poolTitle') },
+            { id: 'agents', label: () => agentsT('nav') },
             { id: 'arena', label: () => arenaT('nav') },
             { id: 'otc', label: () => t('otcTitle') },
             { id: 'daily', label: () => t('dailyTitle') },
@@ -377,6 +404,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'launchpad', label: () => t('launchpad') },
             { id: 'nft', label: () => t('nftTitle') },
             { id: 'domains', label: () => t('domainsTitle') },
+            { id: 'shop', label: () => t('shopTitle') },
             { id: 'tracker', label: () => t('trackerTitle') },
             { id: 'dao', label: () => t('dao') },
             // Listed even for wallets that hold no $LAIN: the room says what it
@@ -421,6 +449,13 @@ const TABS: { id: Section; label: () => string; icon: Component }[] = [
     { id: 'lain', label: () => t('navLain'), icon: Bot },
 ];
 
+/** The Google Play build: the feed, messages and settings, no balance. */
+const PLAY_TABS: { id: Section; label: () => string; icon: Component }[] = [
+    { id: 'feed', label: () => t('feed'), icon: Newspaper },
+    { id: 'chat', label: () => t('tabChat'), icon: MessageCircle },
+    { id: 'preferences', label: () => t('navPreferences'), icon: Settings },
+];
+
 /** Which tab a screen lives under, for the bar's active state. */
 const TAB_OF: Record<Section, Section> = {
     portfolio: 'portfolio',
@@ -447,10 +482,12 @@ const TAB_OF: Record<Section, Section> = {
     buy: 'portfolio',
     crosschain: 'portfolio',
     arena: 'portfolio',
+    agents: 'portfolio',
     daily: 'portfolio',
     browse: 'portfolio',
     developer: 'portfolio',
     chain: 'portfolio',
+    tokenAdmin: 'portfolio',
     experiments: 'portfolio',
     gallery: 'portfolio',
     underground: 'portfolio',
@@ -464,6 +501,7 @@ const TAB_OF: Record<Section, Section> = {
     nft: 'nft',
     nftMint: 'nft',
     domains: 'nft',
+    shop: 'nft',
     ipfs: 'nft',
     torrent: 'nft',
     tracker: 'nft',
@@ -518,7 +556,7 @@ const rail = computed(() =>
     })),
 );
 const tabs = computed(() =>
-    (simple.value ? SIMPLE_TABS : TABS).filter(
+    (socialOnly() ? PLAY_TABS : simple.value ? SIMPLE_TABS : TABS).filter(
         (entry) => !hiddenInStore(entry.id),
     ),
 );
@@ -530,6 +568,14 @@ const inSimpleTabs = (id: Section): boolean =>
     SIMPLE_TABS.some((entry) => entry.id === id);
 
 const activeTab = computed<Section>(() => {
+    if (socialOnly()) {
+        return ['feed', 'chat'].includes(section.value)
+            ? section.value
+            : section.value === 'profile'
+              ? 'feed'
+              : 'preferences';
+    }
+
     if (!simple.value) {
         return TAB_OF[section.value];
     }
@@ -688,7 +734,7 @@ const showNetworkBar = computed(
 );
 
 const openSection = (next: Section): void => {
-    section.value = hiddenInStore(next) ? 'portfolio' : next;
+    section.value = hiddenInStore(next) ? (homeScreen() as Section) : next;
     overlay.value = null;
 };
 
@@ -744,6 +790,7 @@ const PARENTS: Partial<Record<Section, Section>> = {
     accounts: 'preferences',
     developer: 'preferences',
     chain: 'preferences',
+    tokenAdmin: 'preferences',
     experiments: 'preferences',
     gallery: 'preferences',
     underground: 'preferences',
@@ -751,6 +798,7 @@ const PARENTS: Partial<Record<Section, Section>> = {
     doctrine: 'preferences',
     profile: 'feed',
     nftMint: 'nft',
+    shop: 'nft',
     ipfs: 'nft',
     torrent: 'nft',
     trackerPublish: 'tracker',
@@ -775,7 +823,13 @@ const current = computed<Section | null>(() => {
     const page = PARENTS[section.value] ?? section.value;
 
     if (!simple.value) {
-        return page;
+        // A screen the rail lists is its own item. PARENTS is where back
+        // goes, not what is lit: following it lit Портфель for stocks, the
+        // bridge, earn and settings, and nothing at all for the gas station
+        // and buy, whose parent (More) the full rail does not list.
+        return SECTIONS.some((entry) => entry.id === section.value)
+            ? section.value
+            : page;
     }
 
     const listed = (id: Section): boolean =>
@@ -809,8 +863,27 @@ const openChart = (market: Market): void => {
     section.value = 'chart';
 };
 
+/** The recipient the send screen opens with, when one was already chosen. */
+const sendRecipient = ref<string | null>(null);
+
 const openSend = (token?: WalletTokenBalance): void => {
     sendToken.value = token ?? null;
+    sendRecipient.value = null;
+    overlay.value = 'send';
+};
+
+/**
+ * Paying somebody whose profile is on screen. A profile is an EVM address, so
+ * a network that is not EVM is swapped for Cyberia's rather than handing a
+ * Solana form a 0x recipient.
+ */
+const openSendTo = (address: string): void => {
+    if (walletChain(chain.value).family !== 'evm') {
+        chain.value = 'cyberia';
+    }
+
+    sendToken.value = null;
+    sendRecipient.value = address;
     overlay.value = 'send';
 };
 
@@ -1324,6 +1397,72 @@ if (telegram) {
 }
 
 /**
+ * The screens this visit passed through, for the phone's own back button.
+ *
+ * `goBack` knows only the map (a screen and the one it hangs off), so a
+ * person who tapped an author in the feed and landed in their chat had no way
+ * back to the feed: chat is a top-level tab. The hardware button retraces
+ * what the person actually did, then falls back to the map, then puts the app
+ * away.
+ */
+const visited: Section[] = [];
+let retracing = false;
+
+watch(section, (next, previous) => {
+    if (retracing) {
+        retracing = false;
+
+        return;
+    }
+
+    if (previous !== undefined && previous !== next) {
+        visited.push(previous);
+
+        if (visited.length > 40) {
+            visited.shift();
+        }
+    }
+});
+
+if (nativeShell() === 'mobile') {
+    const release = onHardwareBack(() => {
+        if (overlay.value !== null) {
+            overlay.value = null;
+
+            return true;
+        }
+
+        while (visited.length > 0) {
+            const previous = visited.pop() as Section;
+
+            if (previous !== section.value) {
+                const before = section.value;
+
+                retracing = true;
+                openSection(previous);
+                // A screen the store build leaves out lands on home instead;
+                // if that is where we already were, nothing will be watched.
+                retracing = section.value !== before;
+
+                return true;
+            }
+        }
+
+        const back = goBack.value;
+
+        if (back !== null) {
+            back();
+
+            return true;
+        }
+
+        return false;
+    });
+
+    onBeforeUnmount(release);
+}
+
+/**
  * A swipe across the screen, which on a phone is what "back" and "next" are.
  *
  * Two rules and no more. Going *back* means whatever the back arrow at the top
@@ -1466,10 +1605,12 @@ const refreshPrices = async (): Promise<void> => {
             const quotes = (await response.json()) as {
                 prices: Record<string, number | null>;
                 tokens?: Record<string, Record<string, number>>;
+                changes?: PriceChanges;
             };
 
             prices.value = quotes.prices;
             tokenPrices.value = quotes.tokens ?? {};
+            priceChanges.value = quotes.changes ?? NO_CHANGES;
         }
     } catch {
         // Quotes are a nicety; the balances underneath them are the product.
@@ -1894,7 +2035,7 @@ watch(
             -->
             <a
                 v-if="!storeBuild"
-                href="/"
+                href="/?site"
                 class="cw-ghost"
                 style="text-decoration: none"
             >
@@ -2185,6 +2326,7 @@ watch(
                         :prices="prices"
                         :token-prices="tokenPrices"
                         :token="sendToken"
+                        :recipient="sendRecipient"
                         @back="overlay = null"
                         @pick="chain = $event"
                         @sent="load()"
@@ -2254,6 +2396,7 @@ watch(
                             :wallet="wallet"
                             :prices="prices"
                             :token-prices="tokenPrices"
+                            :price-changes="priceChanges"
                             :online="online"
                             :authenticated="authenticated"
                             :profile-address="signedInAddress"
@@ -2275,6 +2418,11 @@ watch(
                         :open-with="chatPeer"
                         :open-with-draft="chatDraft"
                         @opened="chatPeer = null"
+                    />
+
+                    <WalletTradingArena
+                        v-else-if="section === 'agents'"
+                        @back="openSection('portfolio')"
                     />
 
                     <WalletArena
@@ -2555,7 +2703,9 @@ watch(
                         v-else-if="section === 'profile'"
                         :wallet="wallet"
                         :address="profileAddress"
+                        :can-send="!socialOnly()"
                         @back="openSection('feed')"
+                        @send="openSendTo"
                     />
 
                     <WalletLaunchpad
@@ -2583,6 +2733,16 @@ watch(
                         @torrents="openNftPlace('torrent', 'nft')"
                         @tracker="openNftPlace('tracker', 'nft')"
                         @domains="openDomains(null)"
+                        @shop="openSection('shop')"
+                    />
+
+                    <!--
+                      Digital goods through escrow: keys, subscriptions,
+                      accounts, domains, hosting, AI credits.
+                    -->
+                    <WalletShop
+                        v-else-if="section === 'shop' && !hiddenInStore('shop')"
+                        :wallet="wallet"
                     />
 
                     <!--
@@ -2738,6 +2898,12 @@ watch(
                         @back="openSection('preferences')"
                     />
 
+                    <WalletTokenAdmin
+                        v-else-if="section === 'tokenAdmin'"
+                        :wallet="wallet"
+                        @back="openSection('preferences')"
+                    />
+
                     <WalletPreferences
                         v-else-if="section === 'preferences'"
                         :wallet="wallet"
@@ -2748,6 +2914,7 @@ watch(
                         @accounts="openSection('accounts')"
                         @networks="openSection('networks')"
                         @chain="openSection('chain')"
+                        @token-admin="openSection('tokenAdmin')"
                         @proxy="openSection('proxy')"
                         @developer="openSection('developer')"
                         @back="openSection('portfolio')"
@@ -2811,6 +2978,7 @@ watch(
                     :prices="prices"
                     :token-prices="tokenPrices"
                     :token="sendToken"
+                    :recipient="sendRecipient"
                     @back="overlay = null"
                     @pick="chain = $event"
                     @sent="load()"

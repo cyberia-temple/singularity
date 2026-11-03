@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Keypair } from '@solana/web3.js';
 import { knownChain, walletChains } from '@/lib/wallet';
-import { encodeBase58 } from '@/lib/wallet/base58check';
 import { accountBackupPhrase, accountDisplayName } from '@/lib/wallet/accounts';
+import { encodeBase58 } from '@/lib/wallet/base58check';
 
 test('backup follows the selected account and never substitutes the vault phrase', () => {
     const seed = { id: 'seed-0', kind: 'seed', index: 0, label: null };
@@ -23,6 +23,7 @@ test('backup follows the selected account and never substitutes the vault phrase
         accountBackupPhrase('vault backup', { ...seed, index: 1 }),
         'vault backup',
     );
+
     for (const kind of ['key', 'watch']) {
         assert.throws(
             () =>
@@ -34,6 +35,7 @@ test('backup follows the selected account and never substitutes the vault phrase
             /no seed phrase/,
         );
     }
+
     assert.throws(
         () => accountBackupPhrase('vault backup', null),
         /no seed phrase/,

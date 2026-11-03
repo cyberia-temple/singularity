@@ -98,6 +98,7 @@ export const walletMessages: Messages = {
 
         // Local app preferences
         preferencesTitle: 'Settings',
+        privacyPolicy: 'Privacy policy',
         preferencesBody:
             'Accounts, security, networks and proxies, plus appearance and notifications — all wallet settings in one place.',
         preferencesNotifications: 'System notifications',
@@ -314,6 +315,7 @@ export const walletMessages: Messages = {
         totalPortfolio: 'Total portfolio',
         priceSource: 'Prices: DexScreener · CoinGecko',
         pricePartial: 'Partial',
+        change24h: '24h',
         priceMissing: '{count} of {total} networks unpriced',
         balanceMissing: '{count} of {total} networks couldn’t be read',
         tokensUnpriced: '{count} tokens have no price and aren’t in the total',
@@ -409,6 +411,38 @@ export const walletMessages: Messages = {
         proxyTransport: 'Transport',
         proxyModeSystem: 'System settings',
         proxyModeDirect: 'Direct',
+        vpnTitle: 'Cyberia VPN',
+        vpnBody:
+            'VLESS + Reality: to a filter it looks like an ordinary visit to a big website, which is why it keeps working where WireGuard is throttled. Paid in CYBER by the day; the nodes are paid out of it.',
+        vpnNotDeployed:
+            'The pass contract is not deployed yet, so nothing can be bought here.',
+        vpnUnreadable:
+            'The pass contract could not be read. Try again in a minute.',
+        vpnNoNodes:
+            'No node is listed yet. Passes go on sale with the first one, so no day is paid for before it can be used.',
+        vpnActiveUntil: 'Active until {date} · {days} d left',
+        vpnInactive: 'No running pass',
+        vpnPlanDays: '{days} days',
+        vpnTotal: '{amount} CYBER · until {date}',
+        vpnPriceNote:
+            '{price} CYBER a day. Days are added to what is left. {fee}% of each payment goes to the protocol, the rest to the nodes.',
+        vpnPaused: 'Sales are paused. Passes already bought keep working.',
+        vpnWatchOnly: 'A watch-only account cannot buy or sign.',
+        vpnNotEnough: 'Not enough CYBER for this plan and its fee.',
+        vpnBought: 'Paid. Your days are on the chain.',
+        vpnSignNote:
+            'The node asks you to sign a sentence that spends nothing: that is how it knows this address is yours.',
+        vpnGetLink: 'Get my link',
+        vpnLinkReady:
+            'Import it into Hiddify, v2rayN, v2rayNG or Streisand. It is your key: anyone holding it rides on your pass.',
+        vpnCopy: 'Copy link',
+        vpnError_noPass:
+            'The node does not see a running pass for this address yet. Try again in half a minute.',
+        vpnError_badSignature: 'The node did not accept the signature.',
+        vpnError_staleChallenge: 'The request expired. Press again.',
+        vpnError_unreachable: 'The node did not answer.',
+        vpnError_failed:
+            'The transaction did not go through. Nothing was charged except, possibly, gas.',
         proxyDesktopRouted:
             'The app is sending its requests through this relay. If it stops answering, requests fail rather than quietly falling back to your own line.',
         proxyDesktopDirect:
@@ -537,6 +571,7 @@ export const walletMessages: Messages = {
         tokenByHand: 'Added by hand',
         provBridged: 'Bridged via Cyberia',
         provWrapped: 'Wrapped',
+        provPartner: 'Partner · not audited',
         provUnverified: 'Unverified',
         tokensScreenBody:
             'Every token this vault holds, network by network. They share the address and the gas of the network they sit on — a token is not a chain of its own.',
@@ -776,7 +811,8 @@ export const walletMessages: Messages = {
 
         gasStation: 'Gas station',
         otcTitle: 'OTC desk',
-        otcIntro: 'Trades at a price somebody names, wallet to wallet, on Cyberia Fuji. The seller puts the asset in escrow and states the price for all of it; a buyer pays exactly that. No pool, so no slippage, and no platform fee: the seller gets the whole payment, and gas is the only cost.',
+        otcIntro:
+            'Trades at a price somebody names, wallet to wallet, on Cyberia Fuji. The seller puts the asset in escrow and states the price for all of it; a buyer pays exactly that. No pool, so no slippage, and no platform fee: the seller gets the whole payment, and gas is the only cost.',
         otcNotDeployed: 'The OTC contract is not deployed on Cyberia Fuji yet.',
         otcBook: 'Offers',
         otcNew: 'New offer',
@@ -801,7 +837,8 @@ export const walletMessages: Messages = {
         otcExpiry: 'Expires',
         otcNever: 'Never',
         otcDays: '{days} d',
-        otcEscrowNote: 'What you sell leaves this wallet into the contract now and stays there until it is bought, you take it back, or it expires and is returned to you. No platform fee — only gas.',
+        otcEscrowNote:
+            'What you sell leaves this wallet into the contract now and stays there until it is bought, you take it back, or it expires and is returned to you. No platform fee — only gas.',
         otcYou: 'you',
         otcMinFill: 'Part from {amount}',
         otcExpired: 'expired',
@@ -1332,9 +1369,9 @@ export const walletMessages: Messages = {
         notificationsUnsupported: 'This browser cannot receive notifications.',
         notificationsUnavailable:
             'Needs anonymous statistics on: there is nothing to attach a subscription to without it.',
-        analyticsRow: 'Anonymous usage statistics',
+        analyticsRow: 'Usage statistics and session recordings',
         analyticsHint:
-            'Which screens are used and whether actions succeed. Never your seed phrase, keys, password, addresses or amounts.',
+            "Which screens are used, whether actions succeed, and recordings of taps and pointer movement with the wallet's text hidden. Never your seed phrase, keys, password, addresses or amounts.",
         analyticsBlocked: 'Off — your browser asks sites not to track you',
         networksSection: 'Networks',
         vettedEndpoints: 'Endpoints we checked',
@@ -2283,6 +2320,111 @@ export const walletMessages: Messages = {
         torrentError: 'stopped',
         torrentLawNote:
             'What you download and share is yours to answer for. The client makes no distinction between a Linux image and anything else.',
+        shopTitle: 'Shop',
+        tileShopHint: 'Keys, subscriptions, hosting',
+        shopBody:
+            "Keys, subscriptions, accounts, gift cards, domains, hosting and AI credits. The payment waits in escrow until the buyer confirms; the key or login is sealed so only the buyer's wallet can read it.",
+        shopNotDeployed: 'The shop contract is not deployed yet.',
+        shopSell: 'Sell something',
+        shopAll: 'All',
+        shopMine: 'My lots',
+        shopOrders: 'My orders',
+        shopOrder: 'Order #{id}',
+        shopState_none: '—',
+        shopState_paid: 'Paid, awaiting delivery',
+        shopState_delivered: 'Delivered',
+        shopState_disputed: 'Disputed',
+        shopState_released: 'Completed',
+        shopState_refunded: 'Refunded',
+        shopState_resolved: 'Decided by a moderator',
+        shopUnreadable: 'Could not read the shop.',
+        shopLoading: 'Reading the shop…',
+        shopEmpty: 'Nothing for sale here yet.',
+        shopLots: 'For sale',
+        shopStockLeft: '{n} left',
+        shopOff: 'off sale',
+        shopPrice: 'Price',
+        shopDelivers: 'You get',
+        shopStock: 'In stock',
+        shopSold: '{n} sold',
+        shopReports: 'Reports',
+        shopEscrowNote:
+            'The payment is held by the contract. The seller has {delivery} h to deliver or you get it all back; after delivery you have {dispute} h to check and dispute. The seller pays {fee}% on completion; a refund costs nothing but gas.',
+        shopNeedsKey:
+            'This account cannot receive a sealed delivery: turn on encryption in Chat first.',
+        shopWorking: 'Signing…',
+        shopBuyHold: 'Hold to pay {price}',
+        shopClose: 'Take off sale',
+        shopClosed: 'Taken off sale.',
+        shopBought: 'Paid. The seller now has to deliver.',
+        shopDeliverBy: 'The seller must deliver by {at}.',
+        shopDisputeBy:
+            'Check it and dispute by {at}; after that the seller is paid.',
+        shopYouGet: 'You receive {amount} {symbol} after the fee.',
+        shopSecretPlaceholder:
+            'The key, login or instructions — only the buyer will be able to read this',
+        shopSealNote:
+            "Sealed in this browser to the buyer's key. The chain stores only ciphertext.",
+        shopDeliverHold: 'Hold to deliver',
+        shopReveal: 'Show what I bought',
+        shopRevealFailed:
+            'This delivery does not open with your key. Dispute it.',
+        shopNoDelivery: 'No delivery found yet.',
+        shopCheckNote:
+            'Check the key or login now. If it does not work, dispute before the window closes: a moderator decides.',
+        shopAct_confirm: 'It works — pay the seller',
+        shopAct_dispute: 'Dispute',
+        shopAct_refund: 'Get my money back',
+        shopAct_release: 'Pay the seller',
+        shopAct_sellerRefund: 'Refund the buyer',
+        shopReport: 'Report this lot',
+        shopReportPlaceholder: 'Stolen, does not work, forbidden…',
+        shopReportSend: 'Report',
+        shopReported:
+            'Reported. Three reports from buyers take a lot off sale.',
+        shopDelivered: 'Delivered.',
+        shopDone: 'Done.',
+        shopListed: 'Listed.',
+        shopPinFailed:
+            'Could not save the description. Try again or make it shorter.',
+        shopRulesTitle: 'Not allowed here',
+        shopForbid_stolen: 'stolen, hacked or phished accounts and keys',
+        shopForbid_cracked: 'cracked software, keygens, leaked licences',
+        shopForbid_personalData:
+            'personal data, documents, verified (KYC) accounts',
+        shopForbid_banned:
+            'accounts of services that forbid transfer, if you would be selling access you cannot hand over',
+        shopForbid_illegal: 'anything illegal where you or the buyer live',
+        shopAccountRule:
+            'An account is sold only by the person who created it, with its email or recovery handed over. Moderators take lots off sale and ban sellers; three buyer reports hide a lot automatically.',
+        shopCat_key: 'Keys',
+        shopCat_subscription: 'Subscriptions',
+        shopCat_account: 'Accounts',
+        shopCat_giftCard: 'Gift cards',
+        shopCat_domain: 'Domains',
+        shopCat_hosting: 'Hosting',
+        shopCat_aiCredits: 'AI credits',
+        shopCat_other: 'Other',
+        shopFormTitle: 'Title',
+        shopFormDelivers:
+            'What the buyer gets (region, term, how it is handed over)',
+        shopFormDescription: 'Description',
+        shopFormTokenPlaceholder:
+            'Paid in: 0x000…000 = CYBER, or a token address',
+        shopFormTokenHint:
+            'Cyberia Fuji (49407). Leave the zero address for CYBER.',
+        shopFormNftContract: 'NFT contract (optional)',
+        shopFormNftHint:
+            'An NFT on 49407 goes into escrow and moves to the buyer with the payment.',
+        shopFormAgree:
+            'I own what I am selling and it is not on the list above.',
+        shopFormIncomplete: 'Add a title and what the buyer gets.',
+        shopFormPrice: 'Enter a price.',
+        shopFormStock: 'Stock is a whole number from 1.',
+        shopFormToken: 'That is not a token address.',
+        shopFormNft: 'An NFT needs a contract, an id and stock 1.',
+        shopFormRules: 'Confirm the rules.',
+        shopListHold: 'Hold to list',
         domainsTitle: 'Domains',
         domainsBody:
             "Names on Cyberia that you own as NFTs. A domain opens a site — a link, an IPFS page or a server — in the wallet's browser and for anyone using Cyberia DNS. Holding the NFT is owning the name: send or sell it and its records go with it.",
@@ -2466,9 +2608,11 @@ export const walletMessages: Messages = {
         chainMinterAllowed: 'allowed',
         chainMinterNot: 'not allowed',
         chainMintersNote: 'Nobody else can create CYBER on this chain.',
+        chainConnectPhone: 'Connect phone wallet (WalletConnect)',
+        chainConnectedPhone: 'Connected wallet: {address}',
         chainAdmin: 'Admin controls',
         chainAdminNone:
-            'Only an account the chain lists as its admin can change the rules (now {address}). Import that key into this wallet and the controls appear here.',
+            'Only an account the chain lists as its admin can change the rules (now {address}). Connect that account to reveal the controls.',
         chainAdminYou:
             'This account is the chain’s admin. Every change is a transaction it signs, and the chain applies it in the next block.',
         chainSetFee: 'Transfer price',
@@ -2575,6 +2719,7 @@ export const walletMessages: Messages = {
 
         // Локальные настройки приложения
         preferencesTitle: 'Настройки',
+        privacyPolicy: 'Политика конфиденциальности',
         preferencesBody:
             'Счета, безопасность, сети и прокси, а также внешний вид и уведомления — все настройки кошелька в одном месте.',
         preferencesNotifications: 'Системные уведомления',
@@ -2777,6 +2922,7 @@ export const walletMessages: Messages = {
         totalPortfolio: 'Портфель целиком',
         priceSource: 'Цены: DexScreener · CoinGecko',
         pricePartial: 'Частично',
+        change24h: 'за 24 ч',
         priceMissing: 'без цены сетей: {count} из {total}',
         balanceMissing: 'не прочитано сетей: {count} из {total}',
         tokensUnpriced: 'токенов без цены: {count} — в итог не входят',
@@ -2864,6 +3010,38 @@ export const walletMessages: Messages = {
         proxyTransport: 'Транспорт',
         proxyModeSystem: 'Системные настройки',
         proxyModeDirect: 'Напрямую',
+        vpnTitle: 'Cyberia VPN',
+        vpnBody:
+            'VLESS + Reality: для фильтра это выглядит как обычный заход на большой сайт, поэтому работает там, где WireGuard режут. Оплата в CYBER по дням, из неё платят нодам.',
+        vpnNotDeployed:
+            'Контракт подписки ещё не развёрнут, купить пока нельзя.',
+        vpnUnreadable:
+            'Не удалось прочитать контракт подписки. Попробуйте через минуту.',
+        vpnNoNodes:
+            'Пока нет ни одной ноды. Продажи откроются вместе с первой, чтобы не платить за дни, которыми нельзя воспользоваться.',
+        vpnActiveUntil: 'Активна до {date} · осталось {days} дн.',
+        vpnInactive: 'Подписки нет',
+        vpnPlanDays: '{days} дн.',
+        vpnTotal: '{amount} CYBER · до {date}',
+        vpnPriceNote:
+            '{price} CYBER в день. Дни добавляются к оставшимся. {fee}% каждого платежа идёт протоколу, остальное нодам.',
+        vpnPaused: 'Продажи на паузе. Купленные подписки работают.',
+        vpnWatchOnly:
+            'Аккаунт только для просмотра не может покупать и подписывать.',
+        vpnNotEnough: 'Не хватает CYBER на этот срок и комиссию сети.',
+        vpnBought: 'Оплачено. Дни записаны в блокчейн.',
+        vpnSignNote:
+            'Нода попросит подписать фразу, которая ничего не тратит: так она узнаёт, что адрес ваш.',
+        vpnGetLink: 'Получить ссылку',
+        vpnLinkReady:
+            'Импортируйте её в Hiddify, v2rayN, v2rayNG или Streisand. Это ваш ключ: у кого он есть, тот пользуется вашей подпиской.',
+        vpnCopy: 'Скопировать ссылку',
+        vpnError_noPass:
+            'Нода пока не видит подписку этого адреса. Повторите через полминуты.',
+        vpnError_badSignature: 'Нода не приняла подпись.',
+        vpnError_staleChallenge: 'Запрос устарел. Нажмите ещё раз.',
+        vpnError_unreachable: 'Нода не отвечает.',
+        vpnError_failed: 'Транзакция не прошла. Списаться мог только газ.',
         proxyDesktopRouted:
             'Приложение отправляет запросы через этот релей. Если он перестанет отвечать, запросы будут падать с ошибкой, а не тихо уходить по вашей собственной линии.',
         proxyDesktopDirect:
@@ -2983,6 +3161,7 @@ export const walletMessages: Messages = {
         tokenByHand: 'Добавлен вручную',
         provBridged: 'Через мост Cyberia',
         provWrapped: 'Обёрнутый',
+        provPartner: 'Партнёр · без аудита',
         provUnverified: 'Не проверен',
         tokensScreenBody:
             'Все токены этого хранилища, по сетям. Они живут на адресе своей сети и оплачиваются её газом — токен не отдельная сеть.',
@@ -3212,7 +3391,8 @@ export const walletMessages: Messages = {
 
         gasStation: 'Газовая станция',
         otcTitle: 'OTC-биржа',
-        otcIntro: 'Сделки по цене, которую назвал человек, из кошелька в кошелёк, в сети Cyberia Fuji. Продавец кладёт актив в эскроу и называет цену за весь объём, покупатель платит ровно её. Пула нет, поэтому нет проскальзывания, и нет комиссии площадки: продавец получает всю оплату, платится только газ.',
+        otcIntro:
+            'Сделки по цене, которую назвал человек, из кошелька в кошелёк, в сети Cyberia Fuji. Продавец кладёт актив в эскроу и называет цену за весь объём, покупатель платит ровно её. Пула нет, поэтому нет проскальзывания, и нет комиссии площадки: продавец получает всю оплату, платится только газ.',
         otcNotDeployed: 'Контракт OTC ещё не развёрнут в Cyberia Fuji.',
         otcBook: 'Предложения',
         otcNew: 'Новое предложение',
@@ -3237,7 +3417,8 @@ export const walletMessages: Messages = {
         otcExpiry: 'Срок',
         otcNever: 'Бессрочно',
         otcDays: '{days} дн.',
-        otcEscrowNote: 'То, что вы продаёте, сразу уходит из кошелька в контракт и лежит там, пока его не купят, вы его не заберёте или срок не выйдет и оно не вернётся к вам. Комиссии площадки нет, только газ.',
+        otcEscrowNote:
+            'То, что вы продаёте, сразу уходит из кошелька в контракт и лежит там, пока его не купят, вы его не заберёте или срок не выйдет и оно не вернётся к вам. Комиссии площадки нет, только газ.',
         otcYou: 'вы',
         otcMinFill: 'Частями от {amount}',
         otcExpired: 'срок вышел',
@@ -3747,9 +3928,9 @@ export const walletMessages: Messages = {
         notificationsUnsupported: 'Этот браузер не умеет получать уведомления.',
         notificationsUnavailable:
             'Нужна включённая анонимная статистика: без неё подписку не к чему привязать.',
-        analyticsRow: 'Анонимная статистика использования',
+        analyticsRow: 'Статистика и записи сессий',
         analyticsHint:
-            'Какими экранами пользуются и удаются ли действия. Никогда — сид-фраза, ключи, пароль, адреса и суммы.',
+            'Какими экранами пользуются, удаются ли действия, и записи нажатий и движений мыши со скрытым текстом кошелька. Никогда — сид-фраза, ключи, пароль, адреса и суммы.',
         analyticsBlocked: 'Выключено — браузер просит сайты не отслеживать вас',
         networksSection: 'Сети',
         vettedEndpoints: 'Эндпоинты, которые мы проверили',
@@ -4662,6 +4843,112 @@ export const walletMessages: Messages = {
         torrentError: 'остановлен',
         torrentLawNote:
             'За то, что вы качаете и раздаёте, отвечаете вы. Клиент не отличает образ Linux от чего угодно другого.',
+        shopTitle: 'Магазин',
+        tileShopHint: 'Ключи, подписки, хостинг',
+        shopBody:
+            'Ключи, подписки, аккаунты, подарочные карты, домены, хостинг и AI-кредиты. Оплата ждёт в эскроу, пока покупатель не подтвердит; ключ или логин запечатан так, что прочитать его может только кошелёк покупателя.',
+        shopNotDeployed: 'Контракт магазина ещё не развёрнут.',
+        shopSell: 'Продать',
+        shopAll: 'Все',
+        shopMine: 'Мои лоты',
+        shopOrders: 'Мои заказы',
+        shopOrder: 'Заказ #{id}',
+        shopState_none: '—',
+        shopState_paid: 'Оплачен, ждёт выдачи',
+        shopState_delivered: 'Выдан',
+        shopState_disputed: 'Спор',
+        shopState_released: 'Завершён',
+        shopState_refunded: 'Возврат',
+        shopState_resolved: 'Решён модератором',
+        shopUnreadable: 'Не удалось прочитать магазин.',
+        shopLoading: 'Читаю магазин…',
+        shopEmpty: 'Здесь пока ничего не продают.',
+        shopLots: 'В продаже',
+        shopStockLeft: 'осталось {n}',
+        shopOff: 'снят',
+        shopPrice: 'Цена',
+        shopDelivers: 'Что получите',
+        shopStock: 'В наличии',
+        shopSold: 'продано {n}',
+        shopReports: 'Жалобы',
+        shopEscrowNote:
+            'Оплату держит контракт. У продавца {delivery} ч на выдачу, иначе вы получаете всё назад; после выдачи у вас {dispute} ч, чтобы проверить и открыть спор. Продавец платит {fee}% при завершении; возврат стоит только газ.',
+        shopNeedsKey:
+            'Этот аккаунт не может принять запечатанную выдачу: сначала включите шифрование в чате.',
+        shopWorking: 'Подписываю…',
+        shopBuyHold: 'Удерживайте, чтобы оплатить {price}',
+        shopClose: 'Снять с продажи',
+        shopClosed: 'Снято с продажи.',
+        shopBought: 'Оплачено. Теперь продавец должен выдать товар.',
+        shopDeliverBy: 'Продавец должен выдать до {at}.',
+        shopDisputeBy:
+            'Проверьте и откройте спор до {at}, после этого продавец получит оплату.',
+        shopYouGet: 'Вы получите {amount} {symbol} за вычетом комиссии.',
+        shopSecretPlaceholder:
+            'Ключ, логин или инструкция: прочитать сможет только покупатель',
+        shopSealNote:
+            'Запечатывается в этом браузере ключом покупателя. В чейне лежит только шифротекст.',
+        shopDeliverHold: 'Удерживайте, чтобы выдать',
+        shopReveal: 'Показать купленное',
+        shopRevealFailed: 'Выдача не открывается вашим ключом. Откройте спор.',
+        shopNoDelivery: 'Выдача пока не найдена.',
+        shopCheckNote:
+            'Проверьте ключ или логин сейчас. Если не работает, откройте спор до конца срока: решит модератор.',
+        shopAct_confirm: 'Работает, заплатить продавцу',
+        shopAct_dispute: 'Открыть спор',
+        shopAct_refund: 'Вернуть деньги',
+        shopAct_release: 'Выплатить продавцу',
+        shopAct_sellerRefund: 'Вернуть деньги покупателю',
+        shopReport: 'Пожаловаться на лот',
+        shopReportPlaceholder: 'Краденое, не работает, запрещено…',
+        shopReportSend: 'Пожаловаться',
+        shopReported:
+            'Жалоба отправлена. Три жалобы покупателей снимают лот с продажи.',
+        shopDelivered: 'Выдано.',
+        shopDone: 'Готово.',
+        shopListed: 'Выставлено.',
+        shopPinFailed:
+            'Не удалось сохранить описание. Повторите или сократите его.',
+        shopRulesTitle: 'Здесь нельзя продавать',
+        shopForbid_stolen:
+            'краденые, взломанные и угнанные фишингом аккаунты и ключи',
+        shopForbid_cracked: 'взломанный софт, кейгены, слитые лицензии',
+        shopForbid_personalData:
+            'персональные данные, документы, верифицированные (KYC) аккаунты',
+        shopForbid_banned:
+            'аккаунты сервисов, запрещающих передачу, если вы продаёте доступ, который не можете передать',
+        shopForbid_illegal:
+            'всё, что незаконно там, где живёте вы или покупатель',
+        shopAccountRule:
+            'Аккаунт продаёт только тот, кто его создал, вместе с почтой или способом восстановления. Модераторы снимают лоты и банят продавцов; три жалобы покупателей скрывают лот автоматически.',
+        shopCat_key: 'Ключи',
+        shopCat_subscription: 'Подписки',
+        shopCat_account: 'Аккаунты',
+        shopCat_giftCard: 'Подарочные карты',
+        shopCat_domain: 'Домены',
+        shopCat_hosting: 'Хостинг',
+        shopCat_aiCredits: 'AI-кредиты',
+        shopCat_other: 'Другое',
+        shopFormTitle: 'Название',
+        shopFormDelivers:
+            'Что получит покупатель (регион, срок, как передаётся)',
+        shopFormDescription: 'Описание',
+        shopFormTokenPlaceholder:
+            'Оплата в: 0x000…000 = CYBER или адрес токена',
+        shopFormTokenHint:
+            'Cyberia Fuji (49407). Нулевой адрес означает CYBER.',
+        shopFormNftContract: 'Контракт NFT (необязательно)',
+        shopFormNftHint:
+            'NFT в сети 49407 уходит в эскроу и переходит покупателю вместе с оплатой.',
+        shopFormAgree:
+            'То, что я продаю, принадлежит мне и не входит в список выше.',
+        shopFormIncomplete: 'Добавьте название и что получит покупатель.',
+        shopFormPrice: 'Укажите цену.',
+        shopFormStock: 'Наличие: целое число от 1.',
+        shopFormToken: 'Это не адрес токена.',
+        shopFormNft: 'Для NFT нужны контракт, id и наличие 1.',
+        shopFormRules: 'Подтвердите правила.',
+        shopListHold: 'Удерживайте, чтобы выставить',
         domainsTitle: 'Домены',
         domainsBody:
             'Имена на Cyberia, которыми вы владеете как NFT. Домен открывает сайт — ссылку, страницу в IPFS или сервер — в браузере кошелька и у всех, кто пользуется Cyberia DNS. Владеть NFT — значит владеть именем: отправьте или продайте его, и записи уйдут вместе с ним.',
@@ -4845,9 +5132,11 @@ export const walletMessages: Messages = {
         chainMinterAllowed: 'разрешено',
         chainMinterNot: 'не разрешено',
         chainMintersNote: 'Больше никто не может создавать CYBER в этой сети.',
+        chainConnectPhone: 'Подключить кошелёк на телефоне (WalletConnect)',
+        chainConnectedPhone: 'Подключённый кошелёк: {address}',
         chainAdmin: 'Управление',
         chainAdminNone:
-            'Менять правила может только аккаунт, который сеть записала админом (сейчас {address}). Импортируйте его ключ в этот кошелёк, и здесь появятся кнопки.',
+            'Менять правила может только аккаунт, который сеть записала админом (сейчас {address}). Подключите этот аккаунт, чтобы увидеть кнопки.',
         chainAdminYou:
             'Этот аккаунт — админ сети. Каждое изменение — транзакция, которую он подписывает; сеть применяет её в следующем блоке.',
         chainSetFee: 'Цена перевода',
@@ -4953,6 +5242,7 @@ export const walletMessages: Messages = {
 
         // 本地应用设置
         preferencesTitle: '设置',
+        privacyPolicy: '隐私政策',
         preferencesBody:
             '账户、安全、网络和代理，以及外观与通知 — 所有钱包设置集中在这里。',
         preferencesNotifications: '系统通知',
@@ -5143,6 +5433,7 @@ export const walletMessages: Messages = {
         totalPortfolio: '资产总值',
         priceSource: '价格：DexScreener · CoinGecko',
         pricePartial: '不完整',
+        change24h: '24 小时',
         priceMissing: '{total} 个网络中有 {count} 个没有价格',
         balanceMissing: '{total} 个网络中有 {count} 个读不到余额',
         tokensUnpriced: '{count} 个代币没有价格，未计入总额',
@@ -5226,6 +5517,34 @@ export const walletMessages: Messages = {
         proxyTransport: '传输',
         proxyModeSystem: '系统设置',
         proxyModeDirect: '直连',
+        vpnTitle: 'Cyberia VPN',
+        vpnBody:
+            'VLESS + Reality：在过滤器看来只是访问一个大型网站，因此在 WireGuard 被限速的地方依然可用。按天以 CYBER 付费，节点从中获得报酬。',
+        vpnNotDeployed: '通行证合约尚未部署，暂时无法购买。',
+        vpnUnreadable: '无法读取通行证合约，请稍后再试。',
+        vpnNoNodes:
+            '尚无节点。第一个节点上线时开始销售，避免为无法使用的天数付费。',
+        vpnActiveUntil: '有效期至 {date} · 剩余 {days} 天',
+        vpnInactive: '没有有效的通行证',
+        vpnPlanDays: '{days} 天',
+        vpnTotal: '{amount} CYBER · 至 {date}',
+        vpnPriceNote:
+            '每天 {price} CYBER。天数累加到剩余时间上。每笔付款的 {fee}% 归协议，其余归节点。',
+        vpnPaused: '销售已暂停。已购买的通行证继续有效。',
+        vpnWatchOnly: '仅观察账户无法购买或签名。',
+        vpnNotEnough: 'CYBER 不足以支付此套餐和网络费用。',
+        vpnBought: '已支付。天数已记录在链上。',
+        vpnSignNote:
+            '节点会请你签署一句不花费任何东西的话：这样它才知道这个地址属于你。',
+        vpnGetLink: '获取我的链接',
+        vpnLinkReady:
+            '导入到 Hiddify、v2rayN、v2rayNG 或 Streisand。这是你的密钥：持有它的人可以使用你的通行证。',
+        vpnCopy: '复制链接',
+        vpnError_noPass: '节点还没有看到此地址的通行证，请半分钟后重试。',
+        vpnError_badSignature: '节点不接受该签名。',
+        vpnError_staleChallenge: '请求已过期，请再按一次。',
+        vpnError_unreachable: '节点没有响应。',
+        vpnError_failed: '交易未成功。最多只消耗了 gas。',
         proxyDesktopRouted:
             '应用正通过这个中继发送请求。中继一旦不再应答，请求会直接失败，而不会悄悄退回你自己的线路。',
         proxyDesktopDirect:
@@ -5344,6 +5663,7 @@ export const walletMessages: Messages = {
         tokenByHand: '手动添加',
         provBridged: '经 Cyberia 跨链桥',
         provWrapped: '封装',
+        provPartner: '合作伙伴 · 未审计',
         provUnverified: '未验证',
         tokensScreenBody:
             '这个保险库持有的所有代币，按网络分开。它们和所在网络共用同一个地址、同一份 gas — 代币不是一条自己的链。',
@@ -5555,7 +5875,8 @@ export const walletMessages: Messages = {
 
         gasStation: '加油站',
         otcTitle: '场外交易',
-        otcIntro: '在 Cyberia Fuji 上，钱包对钱包、按对方报价成交。卖方将资产托管并为全部数量定价，买方按价支付。没有资金池，因此没有滑点；也没有平台手续费：卖方收到全部款项，只需支付 Gas。',
+        otcIntro:
+            '在 Cyberia Fuji 上，钱包对钱包、按对方报价成交。卖方将资产托管并为全部数量定价，买方按价支付。没有资金池，因此没有滑点；也没有平台手续费：卖方收到全部款项，只需支付 Gas。',
         otcNotDeployed: 'OTC 合约尚未部署到 Cyberia Fuji。',
         otcBook: '报价',
         otcNew: '新报价',
@@ -5580,7 +5901,8 @@ export const walletMessages: Messages = {
         otcExpiry: '有效期',
         otcNever: '永久',
         otcDays: '{days} 天',
-        otcEscrowNote: '您出售的资产会立即转入合约，直到被购买、您取回，或到期后退还给您。没有平台手续费，只有 Gas。',
+        otcEscrowNote:
+            '您出售的资产会立即转入合约，直到被购买、您取回，或到期后退还给您。没有平台手续费，只有 Gas。',
         otcYou: '您',
         otcMinFill: '最少购买 {amount}',
         otcExpired: '已过期',
@@ -6057,9 +6379,9 @@ export const walletMessages: Messages = {
         notificationsDenied: '已在浏览器中屏蔽 — 请在设置中允许本站发送通知。',
         notificationsUnsupported: '此浏览器无法接收通知。',
         notificationsUnavailable: '需要开启匿名统计：否则订阅无处可依。',
-        analyticsRow: '匿名使用统计',
+        analyticsRow: '使用统计与会话录制',
         analyticsHint:
-            '记录使用了哪些界面以及操作是否成功。绝不包含助记词、私钥、密码、地址或金额。',
+            '记录使用了哪些界面、操作是否成功，以及隐藏钱包文字后的点击和指针移动录制。绝不包含助记词、私钥、密码、地址或金额。',
         analyticsBlocked: '已关闭 — 你的浏览器要求网站不要追踪你',
         networksSection: '网络',
         vettedEndpoints: '我们核验过的端点',
@@ -6933,6 +7255,97 @@ export const walletMessages: Messages = {
         torrentError: '已停止',
         torrentLawNote:
             '你下载和分享什么，由你自己负责。客户端分不清 Linux 镜像和别的任何东西。',
+        shopTitle: '商店',
+        tileShopHint: '密钥、订阅、主机',
+        shopBody:
+            '密钥、订阅、账户、礼品卡、域名、主机和 AI 额度。付款在托管中等待买家确认；密钥或登录信息被加密，只有买家的钱包能读取。',
+        shopNotDeployed: '商店合约尚未部署。',
+        shopSell: '出售',
+        shopAll: '全部',
+        shopMine: '我的商品',
+        shopOrders: '我的订单',
+        shopOrder: '订单 #{id}',
+        shopState_none: '—',
+        shopState_paid: '已付款，等待交付',
+        shopState_delivered: '已交付',
+        shopState_disputed: '争议中',
+        shopState_released: '已完成',
+        shopState_refunded: '已退款',
+        shopState_resolved: '由版主裁决',
+        shopUnreadable: '无法读取商店。',
+        shopLoading: '正在读取商店…',
+        shopEmpty: '这里还没有商品。',
+        shopLots: '在售',
+        shopStockLeft: '剩余 {n}',
+        shopOff: '已下架',
+        shopPrice: '价格',
+        shopDelivers: '您将获得',
+        shopStock: '库存',
+        shopSold: '已售 {n}',
+        shopReports: '举报',
+        shopEscrowNote:
+            '付款由合约托管。卖家有 {delivery} 小时交付，否则全额退还；交付后您有 {dispute} 小时检查并发起争议。完成时卖家支付 {fee}%；退款只需燃气费。',
+        shopNeedsKey: '此账户无法接收加密交付：请先在聊天中开启加密。',
+        shopWorking: '正在签名…',
+        shopBuyHold: '按住支付 {price}',
+        shopClose: '下架',
+        shopClosed: '已下架。',
+        shopBought: '已付款。现在等待卖家交付。',
+        shopDeliverBy: '卖家须在 {at} 前交付。',
+        shopDisputeBy: '请在 {at} 前检查并发起争议，之后卖家将收到付款。',
+        shopYouGet: '扣除手续费后您将收到 {amount} {symbol}。',
+        shopSecretPlaceholder: '密钥、登录信息或说明——只有买家能读取',
+        shopSealNote: '在此浏览器中用买家的密钥加密。链上只存储密文。',
+        shopDeliverHold: '按住交付',
+        shopReveal: '显示我购买的内容',
+        shopRevealFailed: '此交付无法用您的密钥打开。请发起争议。',
+        shopNoDelivery: '尚未找到交付。',
+        shopCheckNote:
+            '请立即检查密钥或登录信息。如果无效，请在期限内发起争议：由版主裁决。',
+        shopAct_confirm: '可用——付款给卖家',
+        shopAct_dispute: '发起争议',
+        shopAct_refund: '退回我的钱',
+        shopAct_release: '付款给卖家',
+        shopAct_sellerRefund: '退款给买家',
+        shopReport: '举报此商品',
+        shopReportPlaceholder: '被盗、无效、违禁…',
+        shopReportSend: '举报',
+        shopReported: '已举报。三位买家的举报会使商品下架。',
+        shopDelivered: '已交付。',
+        shopDone: '完成。',
+        shopListed: '已上架。',
+        shopPinFailed: '无法保存描述。请重试或缩短。',
+        shopRulesTitle: '禁止出售',
+        shopForbid_stolen: '被盗、被黑或被钓鱼的账户和密钥',
+        shopForbid_cracked: '破解软件、注册机、泄露的许可证',
+        shopForbid_personalData: '个人数据、证件、已实名（KYC）的账户',
+        shopForbid_banned: '禁止转让的服务账户，若您出售的是无法移交的访问权',
+        shopForbid_illegal: '在您或买家所在地违法的任何东西',
+        shopAccountRule:
+            '账户只能由其创建者出售，并移交邮箱或恢复方式。版主可下架商品并封禁卖家；三位买家举报会自动隐藏商品。',
+        shopCat_key: '密钥',
+        shopCat_subscription: '订阅',
+        shopCat_account: '账户',
+        shopCat_giftCard: '礼品卡',
+        shopCat_domain: '域名',
+        shopCat_hosting: '主机',
+        shopCat_aiCredits: 'AI 额度',
+        shopCat_other: '其他',
+        shopFormTitle: '标题',
+        shopFormDelivers: '买家将获得什么（地区、期限、交付方式）',
+        shopFormDescription: '描述',
+        shopFormTokenPlaceholder: '支付币种：0x000…000 = CYBER，或代币地址',
+        shopFormTokenHint: 'Cyberia Fuji (49407)。零地址表示 CYBER。',
+        shopFormNftContract: 'NFT 合约（可选）',
+        shopFormNftHint: '49407 上的 NFT 进入托管，并随付款转给买家。',
+        shopFormAgree: '我出售的东西归我所有，且不在上述清单中。',
+        shopFormIncomplete: '请添加标题和买家将获得的内容。',
+        shopFormPrice: '请输入价格。',
+        shopFormStock: '库存为不小于 1 的整数。',
+        shopFormToken: '这不是代币地址。',
+        shopFormNft: 'NFT 需要合约、id 且库存为 1。',
+        shopFormRules: '请确认规则。',
+        shopListHold: '按住上架',
         domainsTitle: '域名',
         domainsBody:
             '你以 NFT 形式拥有的 Cyberia 名称。域名可以打开一个站点——链接、IPFS 页面或服务器——在钱包浏览器里，也对所有使用 Cyberia DNS 的人生效。持有 NFT 就是拥有名称：转让或出售它，记录随之转移。',
@@ -7107,9 +7520,11 @@ export const walletMessages: Messages = {
         chainMinterAllowed: '允许',
         chainMinterNot: '不允许',
         chainMintersNote: '在这条链上没有其他人可以创造 CYBER。',
+        chainConnectPhone: '连接手机钱包（WalletConnect）',
+        chainConnectedPhone: '已连接钱包：{address}',
         chainAdmin: '管理',
         chainAdminNone:
-            '只有链上登记为管理员的账户可以修改规则（当前为 {address}）。把该密钥导入这个钱包，按钮就会出现在这里。',
+            '只有链上登记为管理员的账户可以修改规则（当前为 {address}）。连接该账户后即可显示按钮。',
         chainAdminYou:
             '这个账户是链的管理员。每次修改都是它签名的一笔交易，链会在下一个区块生效。',
         chainSetFee: '转账价格',

@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureCrmAdmin;
 use App\Http\Requests\StoreArenaCommentRequest;
 use App\Models\ArenaComment;
 use App\Models\ArenaSeason;
+use App\Services\Arena\ArenaBoard;
 use App\Services\Arena\ArenaSeasonManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,9 @@ class ArenaController extends Controller
     {
         abort_unless(config('arena.enabled'), 404);
         $season = ArenaSeason::query()->where('slug', config('arena.slug'))->first();
+        if ($season && $season->rules['mode'] === 'automatic-multi') {
+            return Inertia::render('ArenaBoard', ['board' => app(ArenaBoard::class)->overview(), 'agent' => null, 'detail' => null]);
+        }
         $user = $request->user();
         $moderator = EnsureCrmAdmin::allows($user);
         $comments = $season?->comments()->with('user:id,name')->latest('id')->paginate(30);
@@ -71,6 +75,15 @@ class ArenaController extends Controller
             'saves' => $season?->followers()->count() ?? 0,
             'signedIn' => $user !== null,
         ]);
+    }
+
+    public function agent(string $agent, ArenaBoard $board): Response
+    {
+        abort_unless(config('arena.enabled'), 404);
+        $detail = $board->agent($agent);
+        abort_if($detail === null, 404);
+
+        return Inertia::render('ArenaBoard', ['board' => $board->overview(), 'agent' => $agent, 'detail' => $detail]);
     }
 
     public function comment(StoreArenaCommentRequest $request): RedirectResponse
@@ -133,7 +146,11 @@ class ArenaController extends Controller
     private function exportEvidence(ArenaSeason $season): JsonResponse
     {
         return response()->json([
-            'format' => $season->rules['mode'] === 'automatic-paper' ? 'cyberia-arena-automatic-paper-v2' : 'cyberia-arena-imported-paper-v1',
+            'format' => match ($season->rules['mode']) {
+                'automatic-multi' => 'cyberia-arena-automatic-multi-v'.($season->rules['version'] ?? 3),
+                'automatic-paper' => 'cyberia-arena-automatic-paper-v2',
+                default => 'cyberia-arena-imported-paper-v1',
+            },
             'integrity' => 'Server-attested records, not independently verified results. Paper fills use modeled costs, not executable order quotes. Hashes are not onchain commitments.',
             'rules' => $season->rules, 'rules_hash' => $season->rules_hash,
             'cycles' => $season->cycles()->orderBy('slot')->get(['slot', 'decision_at', 'fill_due_at', 'status', 'error_code', 'record', 'commit_hash', 'reserved_cents', 'reserved_calls']),

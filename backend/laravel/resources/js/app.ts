@@ -13,11 +13,13 @@ import SettingsLayout from '@/layouts/settings/Layout.vue';
 import WalletFrameLayout from '@/layouts/WalletFrameLayout.vue';
 import Web3Layout from '@/layouts/Web3Layout.vue';
 import {
+    analytics,
     configureAnalytics,
     initializeAnalytics,
     rememberAttribution,
 } from '@/lib/analytics';
 import { initializeNativeShell, isNativeShell } from '@/lib/native';
+import { onReplayRefused } from '@/lib/sessionReplay';
 import { initializeTelegram } from '@/lib/telegram';
 import { track } from '@/lib/track';
 
@@ -45,6 +47,9 @@ createInertiaApp({
             // of that was a second navigation for something else.
             case name === 'Wallet':
                 return WalletFrameLayout;
+            // /arena is the wallet's arena screen drawn alone: no site chrome.
+            case name === 'ArenaBoard':
+                return null;
             case name === 'Analytics':
             case name === 'Changelog':
             case name === 'Cyber':
@@ -135,6 +140,10 @@ const hasVault = (): boolean => {
 
 const isWalletSurface = (component: string): boolean =>
     WALLET_COMPONENTS.includes(component) || isNativeShell() || hasVault();
+
+// "Don't record" on the recording notice is the same refusal as Wallet →
+// Security's statistics switch, so it also forgets the installation id.
+onReplayRefused(() => analytics.setEnabled(false));
 
 // Funnel: one page_view per Inertia navigation (initial load included).
 router.on('navigate', (event) => {

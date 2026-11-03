@@ -1,0 +1,57 @@
+# One Cyberia VPN node.
+#
+#   cp .env.example .env && docker compose run --rm --entrypoint node vpn src/keygen.mjs >> .env
+#   # fill in VPN_PASS_ADDRESS, VPN_PASS_FROM_BLOCK, VPN_PUBLIC_HOST, VPN_NODE_ID
+#   docker compose up -d                      # Xray on :443, gate on 127.0.0.1:8780
+#   docker compose --profile tls up -d        # + Caddy: the gate over HTTPS on :8443
+#
+# The wallet is an https page, so it can only reach the gate over HTTPS. On a
+# host that already runs nginx/certbot, proxy https://<host>/api/vpn/ to
+# 127.0.0.1:8780 instead of using the `tls` profile.
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "3"
+    compress: "true"
+
+services:
+  vpn:
+    build: .
+    container_name: cyberia-vpn
+    logging: *logging
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: true
+    # Xray's port must be the client's port, with no NAT in between.
+    ports:
+      - "${VPN_PORT:-443}:${VPN_PORT:-443}/tcp"
+      - "127.0.0.1:${VPN_GATE_PORT:-8780}:${VPN_GATE_PORT:-8780}/tcp"
+    volumes:
+      - vpn-data:/data
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: cyberia-vpn-caddy
+    profiles: ["tls"]
+    logging: *logging
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      VPN_PUBLIC_HOST: ${VPN_PUBLIC_HOST}
+      VPN_GATE_PORT: ${VPN_GATE_PORT:-8780}
+    command:
+      - caddy
+      - reverse-proxy
+      - --from
+      - "https://${VPN_PUBLIC_HOST}:8443"
+      - --to
+      - "127.0.0.1:${VPN_GATE_PORT:-8780}"
+    volumes:
+      - caddy-data:/data
+
+volumes:
+  vpn-data:
+  caddy-data:

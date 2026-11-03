@@ -306,6 +306,39 @@ The User Explorer shows a **count** of linked addresses, never the addresses.
 queue and forgets the installation id, so opting back in starts a new anonymous
 user rather than resuming a profile.
 
+### Session recordings
+
+Replays, click heat maps and rage/dead clicks are a different system with a
+different promise: they record *how* screens are used, these tables record
+*what* happened. They are recorded by rrweb in the browser and kept on this
+server (`/api/replay` → `replay_*` tables and gzip chunks on the private disk,
+read at `/crm/replays`); nothing is sent to a third party, which is why this is
+not a hosted tool. The two systems share one refusal — the recorder's notice
+and the switch above both write `cyberia.analytics.optout`, and the recorder
+records nothing while it is set — and recordings hear the event *names* from
+this client, never their properties. Who is never sent the recorder is decided
+in `App\Support\SessionReplay` (operators, store builds, the desktop shell,
+DNT/GPC). What leaves a recorded page: every input masked, text under
+`data-replay-mask` as asterisks, `data-replay-block` as an empty box, no query
+string, and every string scrubbed of address-, hash- and key-shaped values
+before it is sent. Settings and the console are paused. Recordings are kept
+`replay.keep_days` (30) and then deleted with their rows by `replay:prune`.
+
+### Web analytics (Umami)
+
+Traffic — visits, sources and campaigns, countries, devices, funnels,
+retention, journeys, Web Vitals — is counted for every visitor by Umami
+(`services/umami/`, dashboard `stats.cyberia.church`, opened signed in from
+`/crm/stats`), on this host and nowhere else. It answers a question these
+tables refuse by design: they count installations of the wallet, while Umami
+counts browsers reading pages. It is skipped for exactly the people the recorder
+skips. It honours the same refusal and passes the installation id as its
+distinct id. It keeps only `utm_*` and `ref` from a query string and drops the
+referrer's query. Each event this client records is mirrored there by name,
+with the properties the allowlist kept, so a funnel can be built from wallet
+milestones. Its numbers are not this document's numbers. A Umami "visitor" is a
+browser, and nothing there knows whether a wallet was funded.
+
 ### Referrers and landing paths
 
 Referrers are reduced to `scheme://host` before storage; landing paths have

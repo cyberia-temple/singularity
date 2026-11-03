@@ -42,7 +42,7 @@ Sites see the wallet only when you say so. The wallet does not appear on any web
 
 Every signature is yours. Transactions and messages open in a separate window that shows what you are signing — an unlimited token approval is labelled as unlimited — and you hold the button to sign.
 
-Private by design. No account, no email, no analytics. The wallet talks only to the blockchain networks themselves. An optional relay can route its requests through Tor, I2P or your own SOCKS5 proxy; Chrome applies it to the whole browser, and the wallet tells you so before you turn it on.
+Private by design. No account or email. Extension openings are measured with Google Analytics; the privacy policy explains what is sent. An optional relay can route its requests through Tor, I2P or your own SOCKS5 proxy; Chrome applies it to the whole browser, and the wallet tells you so before you turn it on.
 
 **Category:** Tools (Productivity)
 
@@ -80,7 +80,7 @@ Cyberia Wallet хранит ключи в вашем браузере и бол�
 
 Каждая подпись — ваша. Транзакции и сообщения открываются в отдельном окне, где видно, что именно вы подписываете (безлимитное разрешение на токен так и подписано), и подпись ставится удержанием кнопки.
 
-Приватность по устройству. Ни аккаунта, ни почты, ни аналитики. Кошелёк общается только с самими блокчейн-сетями. По желанию запросы можно пустить через Tor, I2P или свой SOCKS5-прокси; Chrome применяет его ко всему браузеру, и кошелёк предупреждает об этом до включения.
+Приватность по устройству. Без аккаунта и почты. Открытия расширения измеряются с помощью Google Analytics; состав данных описан в политике конфиденциальности. По желанию запросы можно пустить через Tor, I2P или свой SOCKS5-прокси; Chrome применяет его ко всему браузеру, и кошелёк предупреждает об этом до включения.
 
 ## Privacy practices
 
@@ -110,9 +110,11 @@ never executed.
 - [x] **Financial and payment information** — the user's public wallet address goes
   to the blockchain RPC nodes and token index to read balances, and transactions the
   user approves are broadcast to them.
-- Everything else unticked. The recovery phrase, keys and password never leave the
-  device (Authentication information is handled locally only); no browsing history,
-  page content, location or personal communications are read or sent.
+- **Extension usage:** a random installation identifier and an extension-open event
+  are sent to Cyberia and forwarded to Google Analytics. Review the current Chrome
+  Web Store data-use categories and update the dashboard before publishing.
+- The recovery phrase, keys and password never leave the device. No browsing
+  history, page content or personal communications are sent.
 
 Certify all three: not sold or transferred to third parties outside the approved use
 cases; not used or transferred for purposes unrelated to the single purpose; not used

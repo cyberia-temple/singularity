@@ -11,12 +11,16 @@ import StatusPill from '@/components/wallet/StatusPill.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useSecureClipboard } from '@/composables/useSecureClipboard';
+import { useWallet } from '@/composables/useWallet';
+import { CYBERIA_FUJI_PUBLIC_RPC } from '@/lib/evmChains';
+import { WALLETCONNECT_WALLET_ID } from '@/lib/evmProvider';
 import { formatUnits } from '@/lib/wallet';
 import {
     FEE_FIELDS,
     canManage,
     fetchChainStatus,
     minBaseFeeForTransfer,
+    submitConnectedFeeConfig,
     transferCost,
     transfersLeft,
 } from '@/lib/wallet/chainAdmin';
@@ -47,6 +51,21 @@ const emit = defineEmits<{ back: [] }>();
 
 const { locale, t } = useLocale(walletMessages);
 const clipboard = useSecureClipboard();
+const externalWallet = useWallet();
+const connectedAdmin = ref(false);
+const connectError = ref<string | null>(null);
+const connectAdmin = async (): Promise<void> => {
+    connectError.value = null;
+    const address = await externalWallet.connect(WALLETCONNECT_WALLET_ID);
+
+    if (!address) {
+        connectError.value = externalWallet.error.value ?? 'WalletConnect unavailable';
+
+        return;
+    }
+
+    connectedAdmin.value = true;
+};
 
 const CHAIN = 'cyberia_fuji' as const;
 
@@ -63,12 +82,13 @@ const account = computed(
         null,
 );
 
+const adminAddress = computed(() => connectedAdmin.value ? externalWallet.address.value : account.value?.address);
 const status = ref<ChainStatus | null>(null);
 const loading = ref(true);
 const now = ref(Date.now());
 
 const load = async (): Promise<void> => {
-    status.value = await fetchChainStatus(account.value?.address);
+    status.value = await fetchChainStatus(adminAddress.value ?? undefined);
     loading.value = false;
     now.value = Date.now();
 };
@@ -88,7 +108,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-    () => account.value?.address,
+    () => adminAddress.value,
     () => void load(),
 );
 
@@ -191,7 +211,7 @@ const walletTransfers = (balance: string | null): bigint | null =>
 
 const canFees = computed(() => canManage(status.value?.roles?.feeManager));
 const canRewards = computed(() =>
-    canManage(status.value?.roles?.rewardManager),
+    !connectedAdmin.value && canManage(status.value?.roles?.rewardManager),
 );
 const isAdmin = computed(() => canFees.value || canRewards.value);
 
@@ -296,10 +316,14 @@ const applyFees = async (): Promise<void> => {
 
     try {
         const next = { ...config, ...draft } as FeeConfig;
-        const result = await props.wallet.chainAdmin.setFeeConfig(
-            next,
-            baseFee.value,
-        );
+        const address = adminAddress.value;
+        const result = connectedAdmin.value && address
+            ? await submitConnectedFeeConfig(address, {
+                  config: next,
+                  latestBaseFee: baseFee.value,
+                  rpcUrl: CYBERIA_FUJI_PUBLIC_RPC,
+              })
+            : await props.wallet.chainAdmin.setFeeConfig(next, baseFee.value);
 
         feeResult.value =
             t('chainApplied', { hash: short(result.hash) }) +
@@ -719,6 +743,11 @@ const topUp = async (address: string): Promise<void> => {
                 {{ t('chainAdmin') }}
             </div>
 
+            <button type="button" class="chain-link" style="margin-top: 8px" :disabled="externalWallet.isConnecting.value || feePhase !== 'idle'" @click="connectAdmin">
+                {{ t('chainConnectPhone') }}
+            </button>
+            <p v-if="connectedAdmin && adminAddress" class="cw-hint">{{ t('chainConnectedPhone', { address: adminAddress }) }}</p>
+            <p v-if="connectError" class="cw-hint">{{ connectError }}</p>
             <p
                 v-if="!isAdmin"
                 class="cw-prose"

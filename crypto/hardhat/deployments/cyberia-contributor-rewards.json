@@ -1,0 +1,9 @@
+{
+  "chainId": 49406,
+  "_doc": "Claim contract of the open-source reward engine. Roots are built by `php artisan contributions:epoch build` and published with scripts/contributions-publish-epoch.ts.",
+  "address": "0xeE3e3c03e05e2B5Ff1d5655842c1DEDE18470500",
+  "asset": "0x0000000000000000000000000000000000000000",
+  "claimWindowDays": 365,
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "deployedAt": "2026-10-26T12:04:30.994Z"
+}

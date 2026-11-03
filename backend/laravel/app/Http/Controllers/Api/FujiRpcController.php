@@ -22,6 +22,9 @@ class FujiRpcController extends Controller
         'eth_getTransactionByHash', 'eth_getTransactionByBlockHashAndIndex',
         'eth_getTransactionByBlockNumberAndIndex', 'eth_getTransactionReceipt',
         'eth_getLogs', 'eth_sendRawTransaction',
+        // subnet-evm reads the Avalanche Builder Console uses to show the
+        // chain's precompiles and fee configuration; all read-only.
+        'eth_getChainConfig', 'eth_getActiveRulesAt', 'eth_feeConfig', 'eth_baseFee',
     ];
 
     public function __invoke(Request $request): JsonResponse

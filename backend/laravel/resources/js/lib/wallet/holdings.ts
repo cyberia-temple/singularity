@@ -6,7 +6,9 @@ import type {
     WalletTokenBalance,
 } from '@/lib/wallet';
 import { usdValue } from '@/lib/wallet/format';
-import { provenanceOf } from '@/lib/wallet/provenance';
+import { changeOf } from '@/lib/wallet/priceChange';
+import type { PriceChanges } from '@/lib/wallet/priceChange';
+import { partnerMint, provenanceOf } from '@/lib/wallet/provenance';
 
 /**
  * What a person holds, one asset a row, across every network — the list the
@@ -17,7 +19,7 @@ import { provenanceOf } from '@/lib/wallet/provenance';
  * sometimes bait named after a real coin), so they are left out unless asked
  * for, and counted, so a list that hides them can say how many it hid.
  */
-export type HoldingTag = 'bridged' | 'wrapped' | 'unverified';
+export type HoldingTag = 'bridged' | 'wrapped' | 'partner' | 'unverified';
 
 export type Holding = {
     key: string;
@@ -29,6 +31,8 @@ export type Holding = {
     /** The balance at four decimals; `<0.0001` rather than a false zero. */
     amount: string;
     usd: number | null;
+    /** The price's 24h change in percent; null when nobody measured it. */
+    change: number | null;
     logo?: string;
     tag: HoldingTag | null;
 };
@@ -42,6 +46,8 @@ export type HoldingsInput = {
     prices: Partial<Record<WalletChainId, number | null>>;
     /** Chain → lowercased contract → USD price. */
     tokenPrices: Partial<Record<WalletChainId, Record<string, number>>>;
+    /** The 24h price changes, where known. */
+    changes?: PriceChanges | null;
 };
 
 export type HoldingsOptions = {
@@ -84,6 +90,7 @@ export const holdings = (
                     account.decimals,
                     input.prices[account.chain] ?? null,
                 ),
+                change: changeOf(input.changes, account.chain),
                 logo: logoForToken(chainId, null, account.symbol),
                 tag: null,
             });
@@ -116,13 +123,21 @@ export const holdings = (
                 symbol: token.symbol,
                 amount: shown(token.balance, token.decimals),
                 usd: usdValue(token.balance, token.decimals, price),
+                change:
+                    price === null
+                        ? null
+                        : changeOf(input.changes, account.chain, token.address),
                 logo: logoForToken(chainId, token.address, token.symbol),
                 tag:
-                    known?.kind === 'bridged' || known?.kind === 'wrapped'
+                    known?.kind === 'bridged' ||
+                    known?.kind === 'wrapped' ||
+                    known?.kind === 'partner'
                         ? known.kind
-                        : unverified
-                          ? 'unverified'
-                          : null,
+                        : chainId === undefined && partnerMint(token.address)
+                          ? 'partner'
+                          : unverified
+                            ? 'unverified'
+                            : null,
             });
         }
     }

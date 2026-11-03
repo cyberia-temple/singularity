@@ -25,6 +25,7 @@ registerHooks({
         const localModule =
             specifier.startsWith('.') &&
             context.parentURL?.startsWith(ROOT.href);
+
         if (!alias && !localModule) {
             return nextResolve(specifier, context);
         }

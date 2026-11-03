@@ -86,6 +86,15 @@ if changed backend/laravel/database/migrations; then
     in_container php artisan migrate --force
 fi
 
+# Web analytics (services/umami). Before the config cache, because it writes
+# the console's sign-in password into .env; before the proxy, because it issues
+# stats.cyberia.church's certificate. Never allowed to fail the site's deploy.
+if changed services/umami; then
+    echo "==> umami"
+    bash "$REPO_DIR/services/umami/bootstrap.sh" \
+        || echo "umami bootstrap failed; the site deploys regardless" >&2
+fi
+
 # Config is cached on prod: a stale bootstrap/cache/config.php makes Laravel
 # ignore config/*.php AND .env entirely. Always refresh it. Routes are cached
 # too, so rebuild that cache as well or new routes 404.
@@ -119,6 +128,11 @@ in_container php artisan route:cache
 
 echo "==> queue restart"
 in_container php artisan queue:restart
+
+# Static sites carry their own webroot certificates (the wildcard is renewed
+# by hand). Cheap when they exist; never fails the deploy.
+echo "==> site certificates"
+bash "$REPO_DIR/scripts/ops/site-certs.sh" docs.cyberia.church blog.cyberia.church
 
 # nginx templates are expanded only when the container starts. Recreate just
 # the proxy when its template or mounts changed; application-only deploys do

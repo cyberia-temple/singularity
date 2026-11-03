@@ -1,0 +1,11 @@
+{
+  "chainId": 49406,
+  "address": "0x3a7b1aF57EbF55a607344333E6Ba9023C405BeC7",
+  "deployBlock": 21933692,
+  "tx": "0xd3c216c040c93991e62af69f2eefcdf52f9eb8b38f4d174dce0ac57eafdc1533",
+  "owner": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "treasury": "0x54BB8a86Fc001d5BB3e6C7ad2e2f153E5Fa6d7f6",
+  "feeRecipient": "0x54BB8a86Fc001d5BB3e6C7ad2e2f153E5Fa6d7f6",
+  "feeBps": 1000,
+  "pricePerDayWei": "5000000000000000000"
+}

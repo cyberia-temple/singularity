@@ -37,6 +37,13 @@ Schedule::command('launchpad:pin-sites')->hourly()->withoutOverlapping();
 // answer can drift from the question; cheap because a run with nothing to
 // settle is one eth_call and a cached quote, and signs nothing.
 Schedule::command('predictions:resolve')->everyFiveMinutes()->withoutOverlapping();
+// The market map on /heatmap: CoinGecko's market plus a price snapshot of
+// every Cyberia launch, from which the 24h change is read.
+Schedule::command('heatmap:snapshot')->everyTenMinutes()->withoutOverlapping()->runInBackground();
+// The wallet's 24h price change: nothing on chain remembers yesterday's price,
+// so the wallet's own quotes are written down every half hour and the change is
+// read against the snapshot taken a day earlier.
+Schedule::command('wallet:price-snapshot')->everyThirtyMinutes()->withoutOverlapping();
 // Deposits that land on an address instead of arriving as a signed
 // transaction: nothing notifies this server, so it looks. Every two minutes
 // because that is a Monero block — polling faster asks the same question
@@ -62,6 +69,9 @@ Schedule::command('crm:chat-prune')->daily()->withoutOverlapping();
 // The inference API's metering log is a quota and an invoice, not an archive
 // of who asked what — drop rows once they are past the retention window.
 Schedule::command('ai:prune-usage')->daily()->withoutOverlapping();
+// Session recordings are for finding what is broken this month: a month of
+// everybody's pointer is kept, then the files and their rows go together.
+Schedule::command('replay:prune')->dailyAt('04:30')->withoutOverlapping();
 // Sponsored fees fail silently: when the tank or the operator key runs dry the
 // button simply stops working, and nobody reports a wallet that never offered
 // them anything. Reads only, and it shouts at most once every six hours.
