@@ -176,6 +176,8 @@ docker compose config
 
 Be careful with production-host paths such as `/root/singularity/...`.
 
+The explorer's `backend` reads its environment only when its container is created; `scripts/deploy-prod.sh` runs `docker compose up -d --no-deps backend` on every deploy so a merged setting actually reaches it. Its internal-transactions fetcher is off (`INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER`): polygon-edge answers `debug_traceTransaction` on a reverted transaction with an error, and the fetcher retried those forever at ~80/s — most of the host's load until 2026-11-03.
+
 ## Architecture Notes
 
 - Laravel bridge logic is under `backend/laravel/app/Services/BridgeService.php`, `BridgeRelayerService.php`, `BridgeFeeService.php`, and `ProcessBridgeRequest.php`.
