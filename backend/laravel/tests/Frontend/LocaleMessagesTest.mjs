@@ -8,6 +8,7 @@ import { contributeMessages } from '@/lib/contributeMessages';
 import { downloadMessages } from '@/lib/downloadMessages';
 import { progressMessages } from '@/lib/progressMessages';
 import { trackerMessages } from '@/lib/trackerMessages';
+import { tradingArenaMessages } from '@/lib/tradingArenaMessages';
 import { walletMessages } from '@/lib/walletMessages';
 
 /**
@@ -28,6 +29,7 @@ const DICTS = {
     progressMessages,
     trackerMessages,
     contributeMessages,
+    tradingArenaMessages,
     // Operator-facing and therefore en/ru only, but the failure mode is the
     // same one: a Russian console with an English cell in the middle of it.
     consoleMessages,

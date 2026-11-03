@@ -51,7 +51,7 @@ it('keeps the pilot disabled by default configuration', function () {
 
 it('lets a guest read an honest empty preview without creating a season or results', function () {
     $this->get('/arena')->assertSuccessful()->assertInertia(fn (Assert $page) => $page
-        ->component('Arena')->where('season', null)->has('rounds', 0)->where('signedIn', false)->where('saves', 0));
+        ->component('ArenaBoard')->where('board.season', null)->has('board.agents', 0)->where('agent', null));
     expect(ArenaSeason::query()->count())->toBe(0);
     Http::assertNothingSent();
 });

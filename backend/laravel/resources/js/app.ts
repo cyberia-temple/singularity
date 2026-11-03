@@ -47,6 +47,10 @@ createInertiaApp({
             // of that was a second navigation for something else.
             case name === 'Wallet':
                 return WalletFrameLayout;
+            // The arena is the wallet's arena screen on its own address: one
+            // column in the wallet's look, painted by the page itself.
+            case name === 'ArenaBoard':
+                return undefined;
             case name === 'Analytics':
             case name === 'Changelog':
             case name === 'Cyber':

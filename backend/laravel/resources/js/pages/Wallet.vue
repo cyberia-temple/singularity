@@ -15,6 +15,7 @@ import {
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import TradingArena from '@/components/arena/TradingArena.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import WalletAccounts from '@/components/wallet/WalletAccounts.vue';
 import WalletAddNetwork from '@/components/wallet/WalletAddNetwork.vue';
@@ -98,6 +99,7 @@ import {
     setMainButton,
     telegramHaptic,
 } from '@/lib/telegram';
+import { tradingArenaMessages } from '@/lib/tradingArenaMessages';
 import {
     createMnemonic,
     formatUnits,
@@ -169,6 +171,7 @@ const props = defineProps<{
 
 const { t } = useLocale(walletMessages);
 const { t: arenaT } = useLocale(arcadeMessages);
+const { t: tradingArenaT } = useLocale(tradingArenaMessages);
 
 // Only Solana takes an override: the server picks that endpoint, while every
 // other chain carries its own public default in the registry.
@@ -246,6 +249,7 @@ type Section =
     | 'buy'
     | 'crosschain'
     | 'arena'
+    | 'aiArena'
     | 'daily'
     | 'browse'
     | 'domains'
@@ -266,7 +270,9 @@ const requestedScreen = new URLSearchParams(window.location.search).get(
 const section = ref<Section>(
     requestedScreen === 'arena' && !hiddenInStore('arena')
         ? 'arena'
-        : (homeScreen() as Section),
+        : requestedScreen === 'aiArena'
+          ? 'aiArena'
+          : (homeScreen() as Section),
 );
 const overlay = ref<Overlay | null>(null);
 
@@ -376,6 +382,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'earn', label: () => t('earnTitle') },
             { id: 'liquidity', label: () => t('poolTitle') },
             { id: 'arena', label: () => arenaT('nav') },
+            { id: 'aiArena', label: () => tradingArenaT('nav') },
             { id: 'otc', label: () => t('otcTitle') },
             { id: 'daily', label: () => t('dailyTitle') },
             { id: 'browse', label: () => t('browseTitle') },
@@ -472,6 +479,7 @@ const TAB_OF: Record<Section, Section> = {
     buy: 'portfolio',
     crosschain: 'portfolio',
     arena: 'portfolio',
+    aiArena: 'portfolio',
     daily: 'portfolio',
     browse: 'portfolio',
     developer: 'portfolio',
@@ -2404,6 +2412,12 @@ watch(
                         :open-with="chatPeer"
                         :open-with-draft="chatDraft"
                         @opened="chatPeer = null"
+                    />
+
+                    <TradingArena
+                        v-else-if="section === 'aiArena'"
+                        embedded
+                        @back="openSection('portfolio')"
                     />
 
                     <WalletArena

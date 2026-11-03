@@ -43,13 +43,17 @@ it('records trades once, computes the basis and renders the agent page', functio
         ->assertOk()->assertJson(['accepted' => 0, 'duplicates' => 1]);
 
     $this->get('/arena/agents/lain-2')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-        ->component('ArenaLeagueAgent')
-        ->where('book.counts.trades', 2)
-        ->where('book.realized.SOL', '0.250000000000000000')
-        ->where('book.realized_usd', '50.000000000000000000')
-        ->where('book.positions.0.qty', '50000.000000000000000000')
-        ->where('book.positions.0.mark_usd', '0.00003')
-        ->where('book.trades.0.tx_url', 'https://solscan.io/tx/sig2'));
+        ->component('ArenaBoard')
+        ->where('agent.trades', 2)
+        ->where('agent.house', false)
+        ->where('agent.history.0.txUrl', 'https://solscan.io/tx/sig2')
+        ->where('agent.positions.0.qty', 50000)
+        ->where('agent.positions.0.valueUsd', 1.5));
+    // 50 USD realized on the half sold, the other half marked at 1.5 USD against
+    // its 100 USD basis: one profit figure, the way the list ranks every agent.
+    $this->getJson('/arena/board')->assertOk()->assertJsonPath('agents.0.slug', 'lain-2')
+        ->assertJsonPath('agents.0.pnlUsd', -48.5)->assertJsonPath('agents.0.pnlOther.SOL', 0.25)
+        ->assertJsonPath('join.mcp', url('/api/arena/mcp'));
 });
 
 it('refuses an unknown key and an unsupported chain', function () {
@@ -70,7 +74,7 @@ it('takes raw units the way a LainOS journal stores them', function () {
 
     expect(ArenaAgent::query()->sole()->trades()->sole())
         ->qty->toBe('2.5')->quote_amount->toBe('0.01')->chain->toBe('robinhood')->token->toBe('0x2b79a071a75dd40f1aca68146d7978204efd156a')
-        ->and($this->get('/arena/agents/lain-2')->inertiaProps('book.realized.ETH'))->toBe('-0.002000000000000000');
+        ->and($this->getJson('/arena/board')->json('agents.0.pnlOther.ETH'))->toBe(-0.002);
 });
 
 it('lets an agent register and report trades over MCP', function () {

@@ -99,12 +99,24 @@ it('sells against the cost basis and reports realized profit', function () {
     $ledger->apply($state, ['action' => 'sell', 'token' => 'JUP', 'bps' => 2500], ['JUP' => '1'], $costs);
 })->throws(DomainException::class, 'insufficient_position');
 
-it('renders the leaderboard and an agent page', function () {
-    multiArena();
-    $this->get('/arena')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaMulti')
-        ->where('agent', null)->where('rules.partner.slug', 'hatcher')->where('rules.universe', 'any')->has('rules.anchors', 2));
-    $this->get('/arena/agents/lain')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaMulti')->where('agent', 'lain'));
+it('renders one list of every agent and an agent page', function () {
+    $season = multiArena();
+    fakeMultiMarket();
+    app(ArenaAutomation::class)->tick();
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-03T00:04:30Z'));
+    fakeMultiMarket('0.000025');
+    app(ArenaAutomation::class)->tick();
+
+    $this->get('/arena')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaBoard')
+        ->where('agent', null)->where('board.season.title', 'Hatcher Cup')->where('board.season.partner.name', 'HatcherLabs')
+        ->has('board.agents', 2)->where('board.agents.0.house', true));
+    $this->get('/arena/agents/lain')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('ArenaBoard')
+        ->where('agent.slug', 'lain')->where('agent.trades', 1)->where('agent.history.0.side', 'buy')
+        ->where('agent.history.0.symbol', 'HATCHER')->where('agent.history.0.reason', 'Partner token, half size.')
+        ->has('agent.positions', 1));
+    $this->getJson('/arena/board/challenger')->assertOk()->assertJsonPath('trades', 0)->assertJsonPath('house', true);
     $this->get('/arena/agents/nobody')->assertNotFound();
+    $this->getJson('/arena/board/nobody')->assertNotFound();
 });
 
 it('takes any mint, but refuses a ticker that is not on the board', function () {
