@@ -35,7 +35,14 @@ return [
     // partner's token); DexScreener's most promoted mints fill the rest.
     'anchors' => [
         ['symbol' => 'SOL', 'mint' => 'So11111111111111111111111111111111111111112'],
+        // Wormhole-wrapped BTC and ETH: the deepest Solana pools for either.
+        ['symbol' => 'BTC', 'mint' => '3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh'],
+        ['symbol' => 'ETH', 'mint' => '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs'],
+        ['symbol' => 'CYBER.sol', 'mint' => 'E67WWiQY4s9SZbCyFVTh2CEjorEYbhuVJQUZb3Mbpump'],
         ['symbol' => 'HATCHER', 'mint' => 'Cntmo5DJNQkB2vYyS4mUx2UoTW4mPrHgWefz8miZpump'],
+        // Robinhood Chain tokens are keyed `robinhood:<lowercase address>`.
+        ['symbol' => 'EQUI', 'mint' => 'robinhood:0x9d783133a3ff9ba27fa1605547368cf9a316341e'],
+        ['symbol' => 'LAIN', 'mint' => 'robinhood:0x2b79a071a75dd40f1aca68146d7978204efd156a'],
     ],
     'candidates' => 12,
     'multi' => [

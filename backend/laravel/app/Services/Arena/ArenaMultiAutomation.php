@@ -28,7 +28,7 @@ class ArenaMultiAutomation
         ArenaModelClient::assertFreeOnly($settings);
         $multi = config('arena.multi');
         $rules = [
-            'version' => 4, 'mode' => 'automatic-multi', 'market' => 'Any Solana token / USD',
+            'version' => 5, 'mode' => 'automatic-multi', 'market' => 'Any Solana token, plus Robinhood Chain anchors / USD',
             'days' => (int) config('arena.days'), 'rounds_per_day' => (int) config('arena.rounds_per_day'),
             'initial_cash_usd' => (string) $multi['initial_cash_usd'],
             'fee_bps' => (int) $multi['fee_bps'], 'slippage_bps' => (int) $multi['slippage_bps'],
@@ -140,7 +140,8 @@ class ArenaMultiAutomation
         $previous = $season->rounds()->orderByDesc('sequence')->first();
         try {
             $mints = [...$this->held($rules, $previous), ...$this->board->candidates($rules['candidates']['limit'])];
-            $board = $this->board->read(array_slice(array_values(array_unique($mints)), 0, 30), $rules['min_liquidity_usd']);
+            $board = $this->board->read(array_slice(array_values(array_unique($mints)), 0, 30), $rules['min_liquidity_usd'],
+                array_column($rules['anchors'], 'symbol', 'mint'));
         } catch (Throwable) {
             $season->update(['automation_error' => 'market_unavailable']);
 
@@ -206,7 +207,7 @@ class ArenaMultiAutomation
         try {
             $decided = collect($cycle->record['decisions'] ?? [])->pluck('token')->filter()->all();
             $held = $this->held($rules, $season->rounds()->orderByDesc('sequence')->first());
-            $board = $this->board->read([...$held, ...$decided], $rules['min_liquidity_usd']);
+            $board = $this->board->read([...$held, ...$decided], $rules['min_liquidity_usd'], array_column($rules['anchors'], 'symbol', 'mint'));
         } catch (Throwable) {
             $season->update(['automation_error' => 'fill_unavailable']);
 

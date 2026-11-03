@@ -114,8 +114,8 @@ class ArenaBoard
             $decision = $round->evidence['decisions'][$slug] ?? [];
             $trade = $actor['trade'];
             $moves[] = ['at' => $round->filled_at->toIso8601String(), 'side' => $trade['action'] ?? 'hold',
-                'symbol' => $trade['symbol'] ?? null, 'token' => $trade['token'] ?? ($decision['token'] ?? null),
-                'chain' => 'solana', 'valueUsd' => $trade ? round((float) $trade['value'], 2) : null,
+                'symbol' => $trade['symbol'] ?? null, 'token' => ($key = $trade['token'] ?? ($decision['token'] ?? null)) && str_contains($key, ':') ? explode(':', $key, 2)[1] : $key,
+                'chain' => ArenaQuoteBoard::chain((string) ($trade['token'] ?? 'solana')), 'valueUsd' => $trade ? round((float) $trade['value'], 2) : null,
                 'priceUsd' => $trade ? (float) $trade['price'] : null,
                 'pnlUsd' => isset($trade['realized']) ? round((float) $trade['realized'], 2) : null,
                 'reason' => $decision['reason'] ?? null, 'refused' => $actor['execution'] !== 'accepted', 'paper' => true, 'txUrl' => null];
@@ -127,7 +127,8 @@ class ArenaBoard
         $positions = [];
         foreach ($state['positions'] as $token => $position) {
             $value = isset($prices[$token]) ? (float) $position['qty'] * (float) $prices[$token] : null;
-            $positions[] = ['symbol' => $symbols[$token] ?? null, 'token' => $token, 'chain' => 'solana', 'qty' => (float) $position['qty'],
+            $positions[] = ['symbol' => $symbols[$token] ?? null, 'token' => str_contains($token, ':') ? explode(':', $token, 2)[1] : $token,
+                'chain' => ArenaQuoteBoard::chain($token), 'qty' => (float) $position['qty'],
                 'valueUsd' => $value !== null ? round($value, 2) : null,
                 'pnlUsd' => $value !== null ? round($value - (float) $position['cost'], 2) : null];
         }
