@@ -131,7 +131,7 @@ it('records why a model call failed and accepts the dated slug OpenRouter serves
             return Http::response(['error' => ['message' => 'No endpoints found']], 404);
         }
 
-        return Http::response(['model' => 'fixture/lain-20261015', 'choices' => [['finish_reason' => 'stop',
+        return Http::response(['model' => 'Fixture-AI/LAIN-20261015', 'choices' => [['finish_reason' => 'stop',
             'message' => ['content' => json_encode(['action' => 'hold', 'token' => null, 'bps' => 0, 'reason' => 'Waiting.'])]]]]);
     });
     app(ArenaAutomation::class)->tick();
@@ -139,6 +139,22 @@ it('records why a model call failed and accepts the dated slug OpenRouter serves
     $attempts = $season->cycles()->sole()->record['attempts'];
     expect($attempts['lain']['status'])->toBe('ok')
         ->and($attempts['challenger']['error_detail'])->toBe('model_http_404');
+});
+
+it('refuses a model it was not asked for and records what was served', function () {
+    $season = multiArena();
+    Http::fake(function (Request $request) {
+        if (str_starts_with($request->url(), 'https://api.dexscreener.com/')) {
+            return Http::response($request->url() === 'https://api.dexscreener.com/token-boosts/top/v1' ? [] : [['chainId' => 'solana',
+                'baseToken' => ['address' => 'So11111111111111111111111111111111111111112', 'symbol' => 'SOL'], 'priceUsd' => '150', 'liquidity' => ['usd' => 9000000]]]);
+        }
+
+        return Http::response(['model' => 'other/model <x>', 'choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => json_encode(['action' => 'hold', 'token' => null, 'bps' => 0, 'reason' => 'Waiting.'])]]]]);
+    });
+    app(ArenaAutomation::class)->tick();
+
+    expect($season->cycles()->sole()->record['attempts']['lain']['error_detail'])->toBe('model_served_mismatch:other/modelx');
 });
 
 it('retries a per-minute 429 and names the daily free allowance when it runs out', function () {

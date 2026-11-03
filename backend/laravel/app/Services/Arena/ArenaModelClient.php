@@ -102,11 +102,17 @@ class ArenaModelClient
         if (! $response->successful()) {
             throw new DomainException('model_http_'.$response->status());
         }
-        // OpenRouter answers with the model's canonical, dated slug
-        // (xing4.0-29b-a4b-20261015) as often as with the id that was asked.
-        if (strlen($response->body()) > 32768 || ! is_string($served)
-            || ! preg_match('/^'.preg_quote($expected, '/').'(-[0-9]{8})?(:free)?$/D', $served)) {
+        if (strlen($response->body()) > 32768 || ! is_string($served)) {
             throw new DomainException('model_served_mismatch');
+        }
+        // OpenRouter answers with a canonical slug as often as with the id that
+        // was asked: dated, under another vendor prefix or in other case. The
+        // model's own name has to be in it, punctuation aside; anything else
+        // is refused with what was served written into the record.
+        $squash = fn (string $slug): string => (string) preg_replace('/[^a-z0-9]/', '', strtolower($slug));
+        $name = $squash(substr((string) strrchr('/'.$expected, '/'), 1));
+        if ($name === '' || ! str_contains($squash($served), $name)) {
+            throw new DomainException('model_served_mismatch:'.substr((string) preg_replace('/[^A-Za-z0-9._:\/-]/', '', $served), 0, 36));
         }
         if ($response->json('choices.0.finish_reason') !== 'stop' || $response->json('choices.0.message.tool_calls')) {
             throw new DomainException('model_unfinished');

@@ -70,7 +70,7 @@ return [
         'api_key' => env('ARENA_OPENROUTER_API_KEY'),
         'models' => [
             'lain' => env('ARENA_LAIN_MODEL', 'xingchen-agi/xing4.0-29b-a4b:free'),
-            'challenger' => env('ARENA_CHALLENGER_MODEL', 'google/gemma-4-31b-it:free'),
+            'challenger' => env('ARENA_CHALLENGER_MODEL', 'nvidia/nemotron-3.5-super-vl:free'),
         ],
         'pricing_policy' => 'free-only',
         'budget_cents' => 0,
