@@ -65,6 +65,15 @@ services:
         ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:8545/
         ETHEREUM_JSONRPC_WS_URL: ws://host.docker.internal:8545/
         CHAIN_ID: '49406'
+        # 2026-11-03: this fetcher was most of the host's load. polygon-edge
+        # answers debug_traceTransaction on a reverted or out-of-gas
+        # transaction with an error instead of a trace, so the same 416
+        # blocks failed forever: ~87 rejected traces a second, backend at
+        # 150% CPU, the node and the docker-proxy on :8545 another core
+        # between them, load 10 on 4 cores and a 4-5 s site whenever anything
+        # spiked. Internal transactions already indexed stay; new ones are
+        # not fetched until a node can trace a revert.
+        INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: 'true'
 
   # nft_media_handler: removed 2026-08-22.
   #
