@@ -1,0 +1,48 @@
+{
+  "log-level": "info",
+  "info-api": { "base-url": "http://127.0.0.1:9650" },
+  "p-chain-api": { "base-url": "http://127.0.0.1:9650" },
+  "storage-location": "/var/lib/icm-relayer",
+  "api-port": 8082,
+  "metrics-port": 9090,
+  "source-blockchains": [
+    {
+      "subnet-id": "11111111111111111111111111111111LpoYY",
+      "blockchain-id": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
+      "rpc-endpoint": { "base-url": "https://api.avax-test.network/ext/bc/C/rpc" },
+      "ws-endpoint": { "base-url": "wss://api.avax-test.network/ext/bc/C/ws" },
+      "message-contracts": {
+        "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf": {
+          "message-format": "teleporter",
+          "settings": { "reward-address": "0xEc2D561301e9A9cfd07DAB3524Aa6be6a5988480" }
+        }
+      },
+      "supported-destinations": [{ "blockchain-id": "Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7" }]
+    },
+    {
+      "subnet-id": "UVRXcqMkQM9X8Wv6BmXXEbFbAcbKoW1t8vde5Lds35SLQSVn3",
+      "blockchain-id": "Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7",
+      "rpc-endpoint": { "base-url": "http://127.0.0.1:9650/ext/bc/Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7/rpc" },
+      "ws-endpoint": { "base-url": "ws://127.0.0.1:9650/ext/bc/Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7/ws" },
+      "message-contracts": {
+        "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf": {
+          "message-format": "teleporter",
+          "settings": { "reward-address": "0xEc2D561301e9A9cfd07DAB3524Aa6be6a5988480" }
+        }
+      },
+      "supported-destinations": [{ "blockchain-id": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp" }]
+    }
+  ],
+  "destination-blockchains": [
+    {
+      "subnet-id": "11111111111111111111111111111111LpoYY",
+      "blockchain-id": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
+      "rpc-endpoint": { "base-url": "https://api.avax-test.network/ext/bc/C/rpc" }
+    },
+    {
+      "subnet-id": "UVRXcqMkQM9X8Wv6BmXXEbFbAcbKoW1t8vde5Lds35SLQSVn3",
+      "blockchain-id": "Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7",
+      "rpc-endpoint": { "base-url": "http://127.0.0.1:9650/ext/bc/Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7/rpc" }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "log-level": "info",
+  "info-api": { "base-url": "http://127.0.0.1:9650" },
+  "p-chain-api": { "base-url": "http://127.0.0.1:9650" },
+  "api-port": 8080,
+  "metrics-port": 8081,
+  "tracked-subnet-ids": ["UVRXcqMkQM9X8Wv6BmXXEbFbAcbKoW1t8vde5Lds35SLQSVn3"]
+}
