@@ -7,6 +7,8 @@ import {
     crossFeeShareBps,
     crossSourceProblem,
     parseCrossQuote,
+    fetchCrosschainConfig,
+    nativeCurrencyOf,
     preferredDestination,
 } from '@/lib/wallet/crosschain';
 
@@ -235,4 +237,21 @@ test('a cross-chain swap opens on bitcoin when the wallet holds a bitcoin accoun
     assert.equal(preferredDestination([base, solana]), solana);
     assert.equal(preferredDestination([base]), base);
     assert.equal(preferredDestination([]), undefined);
+});
+
+test('a network’s own coin is named the way the router names it', () => {
+    assert.equal(nativeCurrencyOf({ vm: 'bvm', native: 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8' }), 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8');
+    assert.equal(nativeCurrencyOf({ vm: 'svm' }), '11111111111111111111111111111111');
+    assert.equal(nativeCurrencyOf({ vm: 'evm', native: '' }), '0x0000000000000000000000000000000000000000');
+});
+
+test('the wallet keeps the router’s id for each network’s own coin', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ enabled: true, fee: { address: null, bps: 0 }, chains: [{ id: 8253038, name: 'Bitcoin', symbol: 'BTC', decimals: 8, vm: 'bvm', native: 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    try {
+        const config = await fetchCrosschainConfig();
+        assert.equal(nativeCurrencyOf(config.chains[0]), 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8');
+    } finally {
+        globalThis.fetch = original;
+    }
 });

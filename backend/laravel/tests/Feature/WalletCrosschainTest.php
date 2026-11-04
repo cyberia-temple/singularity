@@ -49,7 +49,7 @@ function crossChains(): array
             [
                 'id' => 8253038,
                 'displayName' => 'Bitcoin',
-                'currency' => ['symbol' => 'BTC', 'decimals' => 8],
+                'currency' => ['symbol' => 'BTC', 'decimals' => 8, 'address' => 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8'],
                 'vmType' => 'bvm',
                 'explorerUrl' => 'https://mempool.space',
                 'tokenSupport' => 'Limited',
@@ -186,6 +186,15 @@ it('drops a chain the router has switched off', function () {
 
     expect(collect($body)->pluck('id')->all())->not->toContain(99999)
         ->and(collect($body)->pluck('id')->all())->toContain(8453, 792703809);
+});
+
+it('names each network’s own coin the way the router does', function () {
+    $chains = collect($this->getJson('/api/wallet/crosschain')->json('chains'))->keyBy('id');
+
+    // The wallet sends this as the currency: the EVM zero address for bitcoin
+    // is refused as "Invalid output currency".
+    expect($chains[8253038]['native'])->toBe('bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8')
+        ->and($chains[8453]['native'])->toBe('');
 });
 
 it('puts Cyberia’s fee into every quote it asks for', function () {

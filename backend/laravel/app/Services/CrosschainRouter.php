@@ -119,7 +119,7 @@ class CrosschainRouter
         }
 
         return Cache::remember(
-            'crosschain.chains.v1',
+            'crosschain.chains.v2',
             (int) config('crosschain.cache_seconds', 600),
             function (): array {
                 $response = Http::timeout($this->timeout())
@@ -157,6 +157,9 @@ class CrosschainRouter
                         'name' => (string) ($chain['displayName'] ?? $chain['name'] ?? $chain['id']),
                         'symbol' => (string) ($currency['symbol'] ?? ''),
                         'decimals' => (int) ($currency['decimals'] ?? 18),
+                        // How the router names this chain's own coin: 0x0… on EVM, the
+                        // system program on Solana, a bc1… id on Bitcoin.
+                        'native' => (string) ($currency['address'] ?? ''),
                         'vm' => (string) ($chain['vmType'] ?? 'evm'),
                         'explorer' => (string) ($chain['explorerUrl'] ?? ''),
                         // "Limited" means only some tokens cross; the wallet

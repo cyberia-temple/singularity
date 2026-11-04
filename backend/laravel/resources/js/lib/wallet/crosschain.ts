@@ -55,6 +55,8 @@ export type CrossChainRow = {
     /** `All` or `Limited` — whether every token on it can cross. */
     tokens: string;
     deposits: boolean;
+    /** The router's id for this network's own coin (empty when it gave none). */
+    native?: string;
 };
 
 export type CrossToken = {
@@ -243,6 +245,20 @@ export const preferredDestination = <T extends { vm: CrossVm }>(
     own.find((chain) => chain.vm === 'bvm') ??
     own.find((chain) => chain.vm !== 'evm') ??
     own[0];
+
+/**
+ * The router's id for a network's own coin, from its chain row: 0x0… on EVM,
+ * the system program on Solana, a bc1… id on Bitcoin. Sending the EVM zero
+ * address for bitcoin is "Invalid output currency".
+ */
+export const nativeCurrencyOf = (
+    chain: Pick<CrossChainRow, 'vm'> & { native?: string },
+): string =>
+    chain.native && chain.native !== ''
+        ? chain.native
+        : chain.vm === 'svm'
+          ? SOLANA_NATIVE
+          : CROSS_NATIVE;
 
 export const crossDestinationValidator = (
     chain: CrossChainRow,
@@ -494,6 +510,7 @@ export const fetchCrosschainConfig = async (): Promise<CrosschainConfig> => {
                 explorer: String(chain.explorer ?? ''),
                 tokens: String(chain.tokens ?? 'All'),
                 deposits: chain.deposits !== false,
+                native: String(chain.native ?? ''),
             }),
         ),
     };

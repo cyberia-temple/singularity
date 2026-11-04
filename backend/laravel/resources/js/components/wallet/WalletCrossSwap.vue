@@ -15,6 +15,7 @@ import {
     crossSwapStatus,
     fetchCrossTokens,
     fetchCrosschainConfig,
+    nativeCurrencyOf,
     preferredDestination,
     quoteCrossSwap,
 } from '@/lib/wallet/crosschain';
@@ -218,7 +219,7 @@ const sourceWalletChain = computed<WalletChainId | null>(() =>
 /** The chain's own coin as a token row, which is what "no token picked" means. */
 const nativeToken = (chain: CrossChainRow): CrossToken => ({
     chainId: chain.id,
-    address: CROSS_NATIVE,
+    address: nativeCurrencyOf(chain),
     symbol: chain.symbol,
     name: chain.symbol,
     decimals: chain.decimals,
@@ -251,7 +252,10 @@ const balance = computed<bigint | null>(() => {
         return null;
     }
 
-    if (token.address === CROSS_NATIVE) {
+    if (
+        token.address === CROSS_NATIVE ||
+        (source.value && token.address === nativeCurrencyOf(source.value))
+    ) {
         return props.wallet.balances.value[id]?.value ?? null;
     }
 
@@ -468,14 +472,108 @@ const reset = (): void => {
 
 /* ----------------------------------------------------------------- tokens -- */
 
+/** The network the picker is showing tokens for (not yet the swap's until a token is picked). */
+const pickerChainId = ref<number | null>(null);
+const chainQuery = ref('');
+const pickerChain = computed(() => chainRow(pickerChainId.value));
+
+/** Networks a side can use: sources (and the ones a tap switches on) or destinations. */
+const pickerChains = computed<CrossChainRow[]>(() => {
+    const list =
+        picker.value === 'dest'
+            ? destinations.value
+            : [...sources.value, ...enableableSources.value];
+    const q = chainQuery.value.trim().toLowerCase();
+
+    return q === ''
+        ? list
+        : list.filter((chain) => chain.name.toLowerCase().includes(q));
+});
+
+const STARRED = [4663, 8253038, 1, 8453, 792703809];
+const starredChains = computed(() =>
+    STARRED.map((id) =>
+        pickerChains.value.find((chain) => chain.id === id),
+    ).filter((c): c is CrossChainRow => Boolean(c)),
+);
+const otherChains = computed(() =>
+    pickerChains.value.filter((chain) => !STARRED.includes(chain.id)),
+);
+
+const chainNeedsEnabling = (chainId: number): boolean =>
+    picker.value === 'source' && walletChainOf(chainId) === null;
+
+/** What this wallet holds on the picker's network: its coin and its tokens, with balances. */
+const ownTokens = computed(() => {
+    const chain = pickerChain.value;
+    const id = chain ? walletChainOf(chain.id) : null;
+
+    if (!chain || !id || chain.vm !== 'evm') {
+        return [];
+    }
+
+    const rows: (CrossToken & { balanceText: string })[] = [];
+    const coin = props.wallet.balances.value[id]?.value ?? null;
+
+    if (coin !== null && coin > 0n) {
+        rows.push({
+            ...nativeToken(chain),
+            balanceText: formatUnits(coin, chain.decimals, 6),
+        });
+    }
+
+    for (const row of props.wallet.tokens.value[id]?.items ?? []) {
+        if (row.balance > 0n) {
+            rows.push({
+                chainId: chain.id,
+                address: row.address,
+                symbol: row.symbol,
+                name: row.name,
+                decimals: row.decimals,
+                verified: true,
+                logo: '',
+                balanceText: formatUnits(row.balance, row.decimals, 6),
+            });
+        }
+    }
+
+    return rows;
+});
+
+/** The router's catalogue without the network's own coin, which has its own row above. */
+const catalogueTokens = computed(() => {
+    const native = pickerChain.value
+        ? nativeCurrencyOf(pickerChain.value).toLowerCase()
+        : '';
+
+    return tokenRows.value.filter(
+        (token) => token.address.toLowerCase() !== native,
+    );
+});
+
 const openPicker = async (side: 'source' | 'dest'): Promise<void> => {
     picker.value = side;
+    tokenQuery.value = '';
+    chainQuery.value = '';
+    pickerChainId.value =
+        side === 'dest' ? destChainId.value : sourceChainId.value;
+    await loadTokens();
+};
+
+const pickChain = async (chainId: number): Promise<void> => {
+    if (chainNeedsEnabling(chainId)) {
+        enableSource(chainId);
+    }
+
+    pickerChainId.value = chainId;
     tokenQuery.value = '';
     await loadTokens();
 };
 
 const loadTokens = async (): Promise<void> => {
-    const chain = picker.value === 'dest' ? destination.value : source.value;
+    const chain =
+        pickerChain.value ??
+        (picker.value === 'dest' ? destination.value : source.value);
 
     if (!chain) {
         return;
@@ -493,15 +591,67 @@ const loadTokens = async (): Promise<void> => {
 };
 
 const pickToken = (token: CrossToken | null): void => {
+    const chainId = pickerChainId.value;
+
     if (picker.value === 'dest') {
+        if (chainId !== null && chainId !== destChainId.value) {
+            destChainId.value = chainId;
+        }
+
         destToken.value = token;
     } else {
+        if (chainId !== null && chainId !== sourceChainId.value) {
+            sourceChainId.value = chainId;
+        }
+
         sourceToken.value = token;
     }
 
     picker.value = null;
     void askQuote();
 };
+
+/** Give the other side: only when the destination is a network this wallet can spend from. */
+const canFlip = computed(
+    () =>
+        destination.value !== null &&
+        sources.value.some((chain) => chain.id === destination.value?.id),
+);
+
+const flip = (): void => {
+    if (!canFlip.value) {
+        return;
+    }
+
+    const [s, d, st, dt] = [
+        sourceChainId.value,
+        destChainId.value,
+        sourceToken.value,
+        destToken.value,
+    ];
+    sourceChainId.value = d;
+    destChainId.value = s;
+    sourceToken.value = dt;
+    destToken.value = st;
+    amount.value = '';
+    quote.value = null;
+};
+
+const useMax = (): void => {
+    if (balance.value !== null && fromToken.value) {
+        amount.value = formatUnits(balance.value, fromToken.value.decimals, 8);
+    }
+};
+
+// The quote follows the amount, a moment after typing stops.
+let typing: ReturnType<typeof setTimeout> | null = null;
+watch(amount, () => {
+    if (typing) {
+        clearTimeout(typing);
+    }
+
+    typing = setTimeout(() => void askQuote(), 700);
+});
 
 /* ------------------------------------------------------------------ setup -- */
 
@@ -632,208 +782,332 @@ watch(sourceChainId, () => {
             </div>
 
             <template v-else>
-                <!-- From -->
-                <div class="cw-label" style="margin: 24px 0 8px">
-                    {{ t('crossFrom') }}
-                </div>
-
-                <select
-                    v-model.number="sourceChainId"
-                    class="cw-input"
-                    :aria-label="t('crossFrom')"
-                >
-                    <option
-                        v-for="chain in sources"
-                        :key="chain.id"
-                        :value="chain.id"
-                    >
-                        {{ chain.name }}
-                    </option>
-                </select>
-
-                <button
-                    type="button"
-                    class="cw-ghost"
-                    style="margin-top: 8px; width: 100%"
-                    @click="openPicker('source')"
-                >
-                    {{ fromToken?.symbol ?? '—' }} · {{ t('crossPickToken') }}
-                </button>
-
-                <input
-                    v-model="amount"
-                    type="text"
-                    inputmode="decimal"
-                    class="cw-input"
-                    style="margin-top: 8px"
-                    :placeholder="t('crossAmount')"
-                    :aria-label="t('crossAmount')"
-                    :aria-invalid="overBalance"
-                    @change="askQuote()"
-                />
-
-                <div
-                    v-if="balance !== null && fromToken"
-                    style="
-                        margin-top: 6px;
-                        font: 500 13px/1.5 var(--cw-mono);
-                        color: var(--cw-dim);
-                    "
-                >
-                    {{
-                        t('crossBalance', {
-                            amount: formatUnits(balance, fromToken.decimals, 6),
-                            symbol: fromToken.symbol,
-                        })
-                    }}
-                </div>
-
-                <div
-                    v-if="overBalance"
-                    style="
-                        margin-top: 6px;
-                        font: 500 13px/1.5 var(--cw-mono);
-                        color: var(--cw-bad-soft);
-                    "
-                >
-                    {{ t('crossOverBalance') }}
-                </div>
-
-                <!-- To -->
-                <div class="cw-label" style="margin: 24px 0 8px">
-                    {{ t('crossTo') }}
-                </div>
-
-                <select
-                    v-model.number="destChainId"
-                    class="cw-input"
-                    :aria-label="t('crossTo')"
-                >
-                    <option
-                        v-for="chain in destinations"
-                        :key="chain.id"
-                        :value="chain.id"
-                    >
-                        {{ chain.name }}
-                    </option>
-                </select>
-
-                <button
-                    type="button"
-                    class="cw-ghost"
-                    style="margin-top: 8px; width: 100%"
-                    @click="openPicker('dest')"
-                >
-                    {{ toToken?.symbol ?? '—' }} · {{ t('crossPickToken') }}
-                </button>
-
-                <button
-                    v-if="bitcoinOff"
-                    type="button"
-                    class="cw-ghost"
-                    style="margin-top: 8px; width: 100%"
-                    data-test="cross-enable-bitcoin"
-                    @click="props.wallet.enableNetwork('bitcoin')"
-                >
-                    {{ t('crossEnableBitcoin') }}
-                </button>
-
-                <input
-                    v-model="recipient"
-                    type="text"
-                    class="cw-input"
-                    style="margin-top: 8px; font-family: var(--cw-mono)"
-                    :placeholder="t('crossRecipient')"
-                    :aria-label="t('crossRecipient')"
-                    :aria-invalid="recipient !== '' && !recipientValid"
-                    @input="recipientTouched = true"
-                    @change="askQuote()"
-                />
-
-                <div
-                    style="
-                        margin-top: 6px;
-                        font: 500 13px/1.5 var(--cw-mono);
-                        color: var(--cw-dim);
-                    "
-                >
-                    {{
-                        recipient === ''
-                            ? t('crossRecipientEmpty')
-                            : !recipientValid
-                              ? t('crossRecipientInvalid')
-                              : recipientIsOwn
-                                ? t('crossRecipientOwn')
-                                : t('crossRecipientOther')
-                    }}
-                </div>
-
-                <!-- Token picker, inline: a list nobody has to leave for. -->
-                <div
-                    v-if="picker"
-                    class="cw-card"
-                    style="margin-top: 14px; padding: 12px 14px"
-                >
-                    <div class="cw-row">
-                        <span class="cw-label">{{ t('crossPickToken') }}</span>
+                <!--
+                  Two cards, the way swap screens read everywhere: what you give
+                  (amount, token and network on one chip, balance, max) and what
+                  you get (the quote's amount, the chip, the address it lands on).
+                -->
+                <div class="cx-card" style="margin-top: 22px">
+                    <div class="cx-head">
+                        <span class="cw-label">{{ t('crossSell') }}</span>
+                        <span
+                            v-if="balance !== null && fromToken"
+                            class="cx-dim"
+                        >
+                            {{
+                                t('crossBalance', {
+                                    amount: formatUnits(
+                                        balance,
+                                        fromToken.decimals,
+                                        6,
+                                    ),
+                                    symbol: fromToken.symbol,
+                                })
+                            }}
+                            <button
+                                type="button"
+                                class="cx-max"
+                                @click="useMax()"
+                            >
+                                MAX
+                            </button>
+                        </span>
+                    </div>
+                    <div class="cx-body">
+                        <input
+                            v-model="amount"
+                            type="text"
+                            inputmode="decimal"
+                            class="cx-amount"
+                            placeholder="0"
+                            :aria-label="t('crossAmount')"
+                            :aria-invalid="overBalance"
+                            data-test="cross-amount"
+                        />
                         <button
                             type="button"
-                            class="cw-ghost"
-                            @click="picker = null"
+                            class="cx-chip"
+                            data-test="cross-pick-source"
+                            @click="openPicker('source')"
                         >
-                            {{ t('cancel') }}
+                            <span class="cx-coin">{{
+                                (fromToken?.symbol ?? '?').slice(0, 3)
+                            }}</span>
+                            <span class="cx-chip-text">
+                                <b>{{
+                                    fromToken?.symbol ?? t('crossPickToken')
+                                }}</b>
+                                <small>{{ source?.name ?? '—' }}</small>
+                            </span>
+                            <span aria-hidden="true">›</span>
+                        </button>
+                    </div>
+                    <div v-if="overBalance" class="cx-bad">
+                        {{ t('crossOverBalance') }}
+                    </div>
+                </div>
+
+                <div class="cx-flip-row">
+                    <button
+                        type="button"
+                        class="cx-flip"
+                        :disabled="!canFlip"
+                        :aria-label="t('crossFlip')"
+                        @click="flip()"
+                    >
+                        ↓
+                    </button>
+                </div>
+
+                <div class="cx-card">
+                    <div class="cx-head">
+                        <span class="cw-label">{{ t('crossBuy') }}</span>
+                        <span v-if="quote && quote.out.usd" class="cx-dim"
+                            >≈ ${{ quote.out.usd.toFixed(2) }}</span
+                        >
+                    </div>
+                    <div class="cx-body">
+                        <span
+                            class="cx-amount cx-amount-out"
+                            data-test="cross-out"
+                        >
+                            {{
+                                quoting
+                                    ? '…'
+                                    : quote
+                                      ? formatUnits(
+                                            quote.out.amount,
+                                            quote.out.decimals,
+                                            8,
+                                        )
+                                      : '0'
+                            }}
+                        </span>
+                        <button
+                            type="button"
+                            class="cx-chip cx-chip-strong"
+                            data-test="cross-pick-dest"
+                            @click="openPicker('dest')"
+                        >
+                            <span class="cx-coin">{{
+                                (toToken?.symbol ?? '?').slice(0, 3)
+                            }}</span>
+                            <span class="cx-chip-text">
+                                <b>{{
+                                    toToken?.symbol ?? t('crossPickToken')
+                                }}</b>
+                                <small>{{ destination?.name ?? '—' }}</small>
+                            </span>
+                            <span aria-hidden="true">›</span>
                         </button>
                     </div>
 
+                    <button
+                        v-if="bitcoinOff"
+                        type="button"
+                        class="cw-ghost"
+                        style="margin-top: 10px; width: 100%"
+                        data-test="cross-enable-bitcoin"
+                        @click="props.wallet.enableNetwork('bitcoin')"
+                    >
+                        {{ t('crossEnableBitcoin') }}
+                    </button>
+
                     <input
-                        v-model="tokenQuery"
-                        type="search"
+                        v-model="recipient"
+                        type="text"
                         class="cw-input"
-                        style="margin-top: 10px"
-                        :placeholder="t('crossTokenSearch')"
-                        :aria-label="t('crossTokenSearch')"
-                        @change="loadTokens()"
+                        style="margin-top: 10px; font-family: var(--cw-mono)"
+                        :placeholder="t('crossRecipient')"
+                        :aria-label="t('crossRecipient')"
+                        :aria-invalid="recipient !== '' && !recipientValid"
+                        @input="recipientTouched = true"
+                        @change="askQuote()"
                     />
+                    <div class="cx-dim" style="margin-top: 6px">
+                        {{
+                            recipient === ''
+                                ? t('crossRecipientEmpty')
+                                : !recipientValid
+                                  ? t('crossRecipientInvalid')
+                                  : recipientIsOwn
+                                    ? t('crossRecipientOwn')
+                                    : t('crossRecipientOther')
+                        }}
+                    </div>
+                </div>
 
-                    <button
-                        type="button"
-                        class="cw-ghost"
-                        style="margin-top: 8px; width: 100%"
-                        @click="pickToken(null)"
-                    >
-                        {{ (picker === 'dest' ? destination : source)?.symbol }}
-                        · {{ t('crossNativeCoin') }}
-                    </button>
-
-                    <p
-                        v-if="tokenLoading"
-                        class="cw-prose"
-                        style="margin-top: 10px; font-size: 14px"
-                    >
-                        {{ t('crossTokensLoading') }}
-                    </p>
-
-                    <button
-                        v-for="token in tokenRows"
-                        :key="`${token.chainId}-${token.address}`"
-                        type="button"
-                        class="cw-ghost"
-                        style="margin-top: 6px; width: 100%; text-align: left"
-                        @click="pickToken(token)"
-                    >
-                        {{ token.symbol }} · {{ token.name }}
-                        <template v-if="!token.verified">
-                            · {{ t('crossTokenUnverified') }}
-                        </template>
-                    </button>
-
-                    <p
-                        v-if="!tokenLoading && tokenRows.length === 0"
-                        class="cw-prose"
-                        style="margin-top: 10px; font-size: 14px"
-                    >
-                        {{ t('crossTokensEmpty') }}
-                    </p>
+                <!--
+                  The picker: networks on the left (search, the ones people use
+                  first, then A to Z), tokens on the right (what this wallet holds
+                  on that network first, then the router's catalogue).
+                -->
+                <div
+                    v-if="picker"
+                    class="cx-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    :aria-label="t('crossPickToken')"
+                    @click.self="picker = null"
+                >
+                    <div class="cx-modal">
+                        <div class="cx-modal-head">
+                            <b>{{ t('crossPickerTitle') }}</b>
+                            <button
+                                type="button"
+                                class="cw-ghost"
+                                :aria-label="t('cancel')"
+                                @click="picker = null"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div class="cx-modal-body">
+                            <div class="cx-chains">
+                                <input
+                                    v-model="chainQuery"
+                                    type="search"
+                                    class="cw-input"
+                                    :placeholder="t('crossChainSearch')"
+                                    :aria-label="t('crossChainSearch')"
+                                />
+                                <div
+                                    v-if="starredChains.length"
+                                    class="cx-group"
+                                >
+                                    {{ t('crossStarred') }}
+                                </div>
+                                <button
+                                    v-for="chain in starredChains"
+                                    :key="`s-${chain.id}`"
+                                    type="button"
+                                    :class="[
+                                        'cx-chain',
+                                        { on: chain.id === pickerChainId },
+                                    ]"
+                                    @click="pickChain(chain.id)"
+                                >
+                                    {{ chain.name }}
+                                    <small
+                                        v-if="chainNeedsEnabling(chain.id)"
+                                        >{{ t('crossEnableShort') }}</small
+                                    >
+                                </button>
+                                <div class="cx-group">
+                                    {{ t('crossAllChains') }}
+                                </div>
+                                <button
+                                    v-for="chain in otherChains"
+                                    :key="chain.id"
+                                    type="button"
+                                    :class="[
+                                        'cx-chain',
+                                        { on: chain.id === pickerChainId },
+                                    ]"
+                                    @click="pickChain(chain.id)"
+                                >
+                                    {{ chain.name }}
+                                    <small
+                                        v-if="chainNeedsEnabling(chain.id)"
+                                        >{{ t('crossEnableShort') }}</small
+                                    >
+                                </button>
+                            </div>
+                            <div class="cx-tokens">
+                                <input
+                                    v-model="tokenQuery"
+                                    type="search"
+                                    class="cw-input"
+                                    :placeholder="t('crossTokenSearch')"
+                                    :aria-label="t('crossTokenSearch')"
+                                    @change="loadTokens()"
+                                />
+                                <template v-if="ownTokens.length">
+                                    <div class="cx-group">
+                                        {{ t('crossYourTokens') }}
+                                    </div>
+                                    <button
+                                        v-for="token in ownTokens"
+                                        :key="`own-${token.address}`"
+                                        type="button"
+                                        class="cx-token"
+                                        @click="
+                                            pickToken(
+                                                token.address === CROSS_NATIVE
+                                                    ? null
+                                                    : token,
+                                            )
+                                        "
+                                    >
+                                        <span class="cx-coin">{{
+                                            token.symbol.slice(0, 3)
+                                        }}</span>
+                                        <span class="cx-chip-text"
+                                            ><b>{{ token.symbol }}</b
+                                            ><small>{{
+                                                pickerChain?.name
+                                            }}</small></span
+                                        >
+                                        <span class="cx-dim">{{
+                                            token.balanceText
+                                        }}</span>
+                                    </button>
+                                </template>
+                                <div class="cx-group">
+                                    {{ t('crossCatalogue') }}
+                                </div>
+                                <button
+                                    type="button"
+                                    class="cx-token"
+                                    @click="pickToken(null)"
+                                >
+                                    <span class="cx-coin">{{
+                                        (pickerChain?.symbol ?? '?').slice(0, 3)
+                                    }}</span>
+                                    <span class="cx-chip-text"
+                                        ><b>{{ pickerChain?.symbol }}</b
+                                        ><small>{{
+                                            t('crossNativeCoin')
+                                        }}</small></span
+                                    >
+                                </button>
+                                <p v-if="tokenLoading" class="cx-dim">
+                                    {{ t('crossTokensLoading') }}
+                                </p>
+                                <button
+                                    v-for="token in catalogueTokens"
+                                    :key="`${token.chainId}-${token.address}`"
+                                    type="button"
+                                    class="cx-token"
+                                    @click="pickToken(token)"
+                                >
+                                    <span class="cx-coin">{{
+                                        token.symbol.slice(0, 3)
+                                    }}</span>
+                                    <span class="cx-chip-text">
+                                        <b>{{ token.symbol }}</b>
+                                        <small
+                                            >{{ token.name
+                                            }}<template v-if="!token.verified">
+                                                ·
+                                                {{
+                                                    t('crossTokenUnverified')
+                                                }}</template
+                                            ></small
+                                        >
+                                    </span>
+                                </button>
+                                <p
+                                    v-if="
+                                        !tokenLoading && tokenRows.length === 0
+                                    "
+                                    class="cx-dim"
+                                >
+                                    {{ t('crossTokensEmpty') }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- The route, priced. -->
@@ -1149,3 +1423,213 @@ watch(sourceChainId, () => {
         </template>
     </div>
 </template>
+
+<style scoped>
+.cx-card {
+    background: var(--cw-surface);
+    border: 1px solid var(--cw-line);
+    border-radius: 16px;
+    padding: 14px 16px;
+}
+.cx-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.cx-dim {
+    color: var(--cw-dim);
+    font: 500 13px/1.5 var(--cw-mono);
+}
+.cx-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+.cx-amount {
+    flex: 1;
+    min-width: 0;
+    font-size: 30px;
+    font-weight: 600;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    outline: none;
+    font-family: inherit;
+}
+.cx-amount-out {
+    color: var(--cw-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cx-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--cw-line-strong);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    flex: none;
+}
+.cx-chip-strong {
+    border-color: var(--cw-accent);
+}
+.cx-chip-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.15;
+    text-align: left;
+}
+.cx-chip-text small {
+    color: var(--cw-dim);
+    font-size: 12px;
+}
+.cx-coin {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-grid;
+    place-items: center;
+    background: var(--cw-line);
+    font: 600 11px/1 var(--cw-mono);
+    flex: none;
+}
+.cx-max {
+    margin-left: 6px;
+    border: 1px solid var(--cw-line-strong);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: 600 11px/1.6 var(--cw-mono);
+    padding: 0 6px;
+    cursor: pointer;
+}
+.cx-bad {
+    margin-top: 6px;
+    color: var(--cw-bad-soft);
+    font: 500 13px/1.5 var(--cw-mono);
+}
+.cx-flip-row {
+    display: flex;
+    justify-content: center;
+    margin: -8px 0;
+    position: relative;
+    z-index: 1;
+}
+.cx-flip {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--cw-line-strong);
+    background: var(--cw-surface);
+    color: inherit;
+    cursor: pointer;
+    font-size: 16px;
+}
+.cx-flip:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.cx-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 55%);
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+}
+.cx-modal {
+    width: min(720px, 100%);
+    max-height: min(640px, 92vh);
+    background: var(--cw-surface);
+    border: 1px solid var(--cw-line);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.cx-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--cw-line);
+}
+.cx-modal-body {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    min-height: 0;
+    flex: 1;
+}
+.cx-chains,
+.cx-tokens {
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.cx-chains {
+    border-right: 1px solid var(--cw-line);
+}
+.cx-group {
+    margin: 10px 4px 2px;
+    color: var(--cw-dim);
+    font: 500 12px/1.4 var(--cw-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.cx-chain {
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+}
+.cx-chain small {
+    color: var(--cw-dim);
+}
+.cx-chain.on,
+.cx-chain:hover,
+.cx-token:hover {
+    background: var(--cw-line);
+}
+.cx-token {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+.cx-token .cx-dim {
+    margin-left: auto;
+}
+@media (max-width: 560px) {
+    .cx-modal-body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+    }
+    .cx-chains {
+        border-right: 0;
+        border-bottom: 1px solid var(--cw-line);
+        max-height: 34vh;
+    }
+}
+</style>
