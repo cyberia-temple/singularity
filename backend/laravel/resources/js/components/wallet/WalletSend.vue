@@ -80,7 +80,7 @@ const outcome = ref<Outcome>('signing');
 const asset = ref<WalletTokenBalance | null>(props.token ?? null);
 const to = ref('');
 const amount = ref('');
-const tier = ref<WalletFeeTier>('normal');
+const tier = ref<WalletFeeTier>(props.chain === 'cyberia' ? 'slow' : 'normal');
 const txHash = ref<string | null>(null);
 const failure = ref<FailureReason | null>(null);
 
@@ -602,6 +602,7 @@ watch(
     () => {
         to.value = '';
         amount.value = '';
+        tier.value = props.chain === 'cyberia' ? 'slow' : 'normal';
         // The asset belongs to the network it lives on: keeping a token
         // selected across a network switch would price and sign it against a
         // contract that is not there.
@@ -996,6 +997,13 @@ const balanceShown = computed(() =>
                         <RefreshCw :size="14" aria-hidden="true" />
                     </button>
                 </p>
+                <div v-else-if="props.chain === 'cyberia'" class="cw-note">
+                    {{
+                        fee === null
+                            ? t('feeUnavailable')
+                            : `${formatUnits(fee, account.decimals, 8)} ${account.symbol}`
+                    }}
+                </div>
                 <div v-else style="display: flex; gap: 8px">
                     <button
                         v-for="quote in quotes"

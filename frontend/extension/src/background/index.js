@@ -935,3 +935,8 @@ chrome.runtime.onStartup.addListener(async () => {
     await syncInjection(grants);
     await applyRelay(relay);
 });
+
+// Chromium opens the persistent wallet panel from the toolbar. Firefox keeps its popup.
+if (chrome.sidePanel?.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
+}

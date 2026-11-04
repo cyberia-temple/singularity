@@ -19,14 +19,17 @@ import { permissionPattern } from '../shared/origins.js';
 import { formatFiat, formatUnits, initials, parseUnits, shortAddress, toDecimal } from '../shared/format.js';
 import { describeSignature, describeTypedData } from '../shared/tx.js';
 import { RELAY_MODES } from '../background/relay.js';
+import { trackExtensionOpen } from '../shared/analytics.js';
 
 const app = document.getElementById('app');
 const params = new URLSearchParams(location.search);
 const isApprovalWindow = params.get('view') === 'request';
+const isSidePanel = params.get('view') === 'sidepanel';
 
-if (isApprovalWindow) {
+if (isApprovalWindow || isSidePanel) {
     document.body.classList.add('cw-window');
 }
+if (isSidePanel) document.body.classList.add('cw-sidepanel');
 
 /** How long a hold-to-sign has to be held. Long enough not to be a slip. */
 const HOLD_MS = 900;
@@ -40,6 +43,14 @@ let notice = '';
 let draft = { to: '', amount: '', password: '', host: '', port: '' };
 let chosenAccounts = new Set();
 let sent = null;
+let tradeSide = null;
+let tradePay = 'native';
+let tradeReceive = '';
+let socialTab = 'theses';
+let tradeAmount = '';
+let pickerQuery = '';
+let feedState = 'idle';
+let feedItems = [];
 
 const ask = (type, payload = {}) => chrome.runtime.sendMessage({ type, payload });
 
@@ -85,6 +96,16 @@ const foot = () => {
             <span class="cw-foot-note">KEYS ON DEVICE</span>
         </div>`;
 };
+
+// The extension has no swap engine of its own. This opens the existing site
+// explicitly, without presenting a quote or transaction the panel cannot make.
+const panelNav = (active) => isSidePanel && state.ready && !state.locked && active !== 'request' ? `
+    <nav class="cw-panel-nav" aria-label="Wallet navigation">
+        <button data-go="home" class="${active === 'home' ? 'is-active' : ''}"><span aria-hidden="true">⌂</span>HOME</button>
+        <button data-go="trade" class="${active === 'trade' ? 'is-active' : ''}"><span aria-hidden="true">⇄</span>SWAP</button>
+        <button data-go="sites" class="${active === 'sites' ? 'is-active' : ''}"><span aria-hidden="true">◉</span>SITES</button>
+        <button data-go="relay" class="${active === 'relay' ? 'is-active' : ''}"><span aria-hidden="true">⚙</span>RELAY</button>
+    </nav>` : '';
 
 const back = (target = 'home') => `<button class="cw-back" data-go="${target}">← BACK</button>`;
 
@@ -239,6 +260,12 @@ const homeView = () => {
                 <button class="cw-tile" data-site="/staking"><span class="cw-tile-glyph">◇</span><span class="cw-tile-label">EARN</span></button>
             </div>
 
+            <div class="cw-note" style="margin-top:12px">
+                Open the full web wallet for its complete set of features. The website
+                and this extension have separate vaults; opening it does not copy keys.
+                <button class="cw-link" style="display:block;margin-top:9px" data-site="/wallet">OPEN WEB WALLET ↗</button>
+            </div>
+
             ${
                 state.networkGranted
                     ? ''
@@ -269,6 +296,86 @@ const homeView = () => {
             </div>
             ${noticeLine()}
         </div>`;
+};
+
+// Portfolio entries use their contract as identity: an index can change when balances refresh.
+const tradeTokens = () => {
+    const chain = chainById(state.chainId);
+    return [{ id: 'native', symbol: chain.symbol, name: `${chain.name} · native`,
+        raw: money?.balance ?? null, decimals: chain.decimals, price: money?.nativePrice ?? null },
+        ...(money?.tokens ?? []).filter((token) => /^0x[0-9a-f]{40}$/i.test(token.contract)).map((token) => ({
+            id: token.contract.toLowerCase(), symbol: token.symbol, name: token.name,
+            raw: token.balance, decimals: token.decimals, price: token.price,
+        }))];
+};
+
+const tokenBalance = (token) => token?.raw == null ? '—' : formatUnits(token.raw, token.decimals);
+const tokenCoin = (token) => `<span class="cw-trade-coin">${esc(initials(token?.symbol ?? '?'))}</span>`;
+const feedTime = (value) => {
+    const date = new Date(value);
+    return value && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+};
+
+const socialView = () => {
+    if (socialTab === 'otc') return `<div class="cw-social-empty">OTC offers are available in the full Cyberia wallet.<button class="cw-social-link" data-site="/wallet?section=otc">OPEN OTC ↗</button></div>`;
+    if (feedState === 'loading' || feedState === 'idle') return '<div class="cw-social-empty">Loading theses…</div>';
+    if (feedState === 'error') return '<div class="cw-social-empty">The feed is unavailable. <button class="cw-social-link" data-do="reload-feed">TRY AGAIN</button></div>';
+    if (!feedItems.length) return '<div class="cw-social-empty">No theses yet.</div>';
+    return feedItems.map((item) => `
+        <article class="cw-feed-item">
+            <div class="cw-feed-avatar">${esc(initials(item.who?.name ?? 'C'))}</div>
+            <div class="cw-feed-copy"><div class="cw-feed-author">${esc(item.who?.name ?? 'Cyberia')} <time>${esc(feedTime(item.at))}</time></div>
+            <div class="cw-feed-text">${esc(item.text || item.meta || 'Activity on Cyberia')}</div>
+            ${item.engagement ? `<div class="cw-feed-actions"><button data-site="/wallet?section=feed" aria-label="Open feed to like">↑ ${esc(item.engagement.likes ?? 0)}</button><button data-site="/wallet?section=feed" aria-label="Open replies">▢ ${esc(item.engagement.replies ?? 0)}</button></div>` : ''}</div>
+        </article>`).join('');
+};
+
+const tradeView = () => {
+    const tokens = tradeTokens();
+    const selected = (id) => tokens.find((token) => token.id === id);
+    const selector = (side, id) => {
+        const token = selected(id);
+        return `<button class="cw-trade-token${tradeSide === side ? ' is-open' : ''}" data-trade-pick="${side}" aria-expanded="${tradeSide === side}">${tokenCoin(token)}<b>${esc(token?.symbol ?? 'Select token')}</b><span aria-hidden="true">⌄</span></button>`;
+    };
+    const picker = tradeSide ? `
+        <div class="cw-picker-backdrop" data-do="close-picker"></div>
+        <section class="cw-token-picker" role="dialog" aria-modal="true" aria-label="Select token">
+            <div class="cw-picker-handle"></div><div class="cw-picker-head"><strong>Select token</strong><button data-do="close-picker" aria-label="Close">×</button></div>
+            <input class="cw-picker-search" data-token-search value="${esc(pickerQuery)}" placeholder="Search token or address" aria-label="Search token or address" />
+            <div class="cw-picker-caption">YOUR TOKENS · ${esc(chainById(state.chainId).name)}</div>
+            <div class="cw-picker-list">${tokens.map((token) => `<button class="cw-picker-row" data-pick-token="${esc(token.id)}" data-search="${esc(`${token.symbol} ${token.name} ${token.id}`.toLowerCase())}" ${`${token.symbol} ${token.name} ${token.id}`.toLowerCase().includes(pickerQuery.toLowerCase().trim()) ? '' : 'hidden'}>${tokenCoin(token)}<span class="cw-grow"><b>${esc(token.symbol)}</b><small>${esc(token.name)}</small></span><span class="cw-picker-value"><b>${esc(tokenBalance(token))}</b><small>${token.price == null ? '—' : esc(formatFiat(token.price))}</small></span></button>`).join('')}</div>
+            ${money?.tokensNote ? `<div class="cw-picker-note">${esc(money.tokensNote)}</div>` : ''}
+            <div class="cw-picker-empty" hidden>No matching tokens in this wallet.</div>
+        </section>` : '';
+    const pay = selected(tradePay);
+    return `<div class="cw-body cw-trade-body">
+        <div class="cw-trade-card"><div class="cw-trade-label">You pay</div><div class="cw-trade-line"><input class="cw-trade-amount" data-trade-amount inputmode="decimal" autocomplete="off" placeholder="0" value="${esc(tradeAmount)}" aria-label="Amount to pay">${selector('pay', tradePay)}</div><div class="cw-trade-hint"><span>${esc(tokenBalance(pay))} available</span><button data-trade-percent="50" ${pay?.raw == null ? 'disabled' : ''}>50%</button><button data-trade-percent="100" ${pay?.raw == null ? 'disabled' : ''}>100%</button></div></div>
+        <button class="cw-trade-reverse" data-do="reverse-trade" aria-label="Reverse tokens">⇅</button>
+        <div class="cw-trade-card"><div class="cw-trade-label">You receive</div><div class="cw-trade-line"><span class="cw-trade-output">—</span>${selector('receive', tradeReceive)}</div><div class="cw-trade-hint">Quote available in the full wallet</div></div>
+        <button class="cw-trade-open" data-site="/wallet">OPEN FULL WALLET TO SWAP ↗</button>
+        <div class="cw-social-tabs" role="tablist">${[['theses','Theses'],['otc','OTC']].map(([key,label]) => `<button role="tab" aria-selected="${socialTab === key}" class="${socialTab === key ? 'is-active' : ''}" data-social-tab="${key}">${label}</button>`).join('')}</div>
+        <div class="cw-social-content">${socialView()}</div>
+        ${socialTab === 'theses' ? '<button class="cw-composer" data-site="/wallet?section=feed"><span>Write a thesis…</span><b aria-hidden="true">➤</b></button>' : ''}
+        ${picker}
+    </div>`;
+};
+
+const loadFeed = async () => {
+    feedState = 'loading';
+    try {
+        const response = await fetch(`${SITE_URL}/api/wallet/feed?tab=posts`, {
+            headers: { Accept: 'application/json' }, credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) throw new Error('feed unavailable');
+        const data = await response.json();
+        if (!Array.isArray(data.items)) throw new Error('invalid feed');
+        feedItems = data.items.filter((item) => item && typeof item === 'object').slice(0, 30);
+        feedState = 'ready';
+    } catch {
+        feedState = 'error';
+    }
+    const content = app.querySelector('.cw-social-content');
+    if (content && socialTab === 'theses') renderInto(content, socialView());
 };
 
 const receiveView = () => {
@@ -677,6 +784,7 @@ const render = () => {
         locked: lockedView,
         request: requestView,
         home: homeView,
+        trade: tradeView,
         receive: receiveView,
         send: sendView,
         sent: sentView,
@@ -687,7 +795,7 @@ const render = () => {
     };
 
     const active = currentView();
-    renderInto(app, `${head()}${(bodies[active] ?? homeView)()}${foot()}`);
+    renderInto(app, `${head()}${(bodies[active] ?? homeView)()}${foot()}${panelNav(active)}`);
 
     const focus = app.querySelector('[autofocus]') ?? (active === 'request' ? app.querySelector('[data-autofocus-reject]') : null);
     focus?.focus();
@@ -709,7 +817,8 @@ const refresh = async () => {
 
     if (!state.locked && state.requests.length === 0) {
         money = await ask(POPUP.quote);
-        render();
+        // A delayed balance must not erase the token search as someone types.
+        if (!tradeSide) render();
     }
 };
 
@@ -723,7 +832,9 @@ const setNotice = (message) => {
 const go = (target) => {
     notice = '';
     view = target;
+    tradeSide = null;
     render();
+    if (target === 'trade' && feedState === 'idle') void loadFeed();
 };
 
 const resolveRequest = async (approved) => {
@@ -892,6 +1003,18 @@ const paintSend = () => {
 };
 
 app.addEventListener('input', (event) => {
+    if (event.target.matches('[data-token-search]')) {
+        pickerQuery = event.target.value;
+        const query = pickerQuery.trim().toLowerCase();
+        const rows = [...app.querySelectorAll('[data-pick-token]')];
+        rows.forEach((row) => { row.hidden = !row.dataset.search.includes(query); });
+        app.querySelector('.cw-picker-empty').hidden = rows.some((row) => !row.hidden);
+        return;
+    }
+    if (event.target.matches('[data-trade-amount]')) {
+        tradeAmount = event.target.value;
+        return;
+    }
     const field = event.target.dataset?.field;
 
     if (!field) {
@@ -907,6 +1030,12 @@ app.addEventListener('input', (event) => {
 
 // Esc on a request rejects it, wherever focus is.
 document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && tradeSide) {
+        event.preventDefault();
+        tradeSide = null;
+        render();
+        return;
+    }
     if (event.key === 'Escape' && state && currentView() === 'request') {
         event.preventDefault();
         resolveRequest(false);
@@ -914,13 +1043,51 @@ document.addEventListener('keydown', (event) => {
 });
 
 app.addEventListener('click', async (event) => {
-    const target = event.target.closest('[data-go],[data-do],[data-site],[data-open],[data-pick-account],[data-pick-chain],[data-relay-mode],[data-relay-toggle],[data-toggle-account],[data-resolve],[data-revoke],[data-lock-minutes]');
+    const target = event.target.closest('[data-go],[data-do],[data-site],[data-open],[data-trade-pick],[data-pick-token],[data-social-tab],[data-trade-percent],[data-pick-account],[data-pick-chain],[data-relay-mode],[data-relay-toggle],[data-toggle-account],[data-resolve],[data-revoke],[data-lock-minutes]');
 
     if (!target) {
         return;
     }
 
     const data = target.dataset;
+
+    if (data.tradePick) {
+        tradeSide = data.tradePick;
+        pickerQuery = '';
+        render();
+        app.querySelector('[data-token-search]')?.focus();
+        return;
+    }
+
+    if (data.pickToken) {
+        if (tradeSide === 'pay') {
+            if (data.pickToken === tradeReceive) tradeReceive = tradePay;
+            tradePay = data.pickToken;
+        } else if (tradeSide === 'receive') {
+            if (data.pickToken === tradePay) tradePay = tradeReceive;
+            tradeReceive = data.pickToken;
+        }
+        tradeSide = null;
+        render();
+        return;
+    }
+
+    if (data.tradePercent) {
+        const token = tradeTokens().find((entry) => entry.id === tradePay);
+        if (token?.raw != null) {
+            const raw = BigInt(token.raw) * BigInt(data.tradePercent) / 100n;
+            tradeAmount = formatUnits(raw, token.decimals, token.decimals).replaceAll(',', '');
+            render();
+        }
+        return;
+    }
+
+    if (data.socialTab) {
+        socialTab = data.socialTab;
+        render();
+        if (socialTab === 'theses' && feedState === 'idle') void loadFeed();
+        return;
+    }
 
     if (data.go) {
         go(data.go);
@@ -929,7 +1096,7 @@ app.addEventListener('click', async (event) => {
 
     if (data.site) {
         await chrome.tabs.create({ url: `${SITE_URL}${data.site}` });
-        window.close();
+        if (!isSidePanel) window.close();
         return;
     }
 
@@ -959,6 +1126,9 @@ app.addEventListener('click', async (event) => {
     if (data.pickAccount) {
         await ask(POPUP.selectAccount, { index: Number(data.pickAccount) });
         money = null;
+        tradePay = 'native';
+        tradeReceive = '';
+        tradeAmount = '';
         view = 'home';
         await refresh();
         return;
@@ -967,6 +1137,9 @@ app.addEventListener('click', async (event) => {
     if (data.pickChain) {
         await ask(POPUP.selectChain, { chainId: Number(data.pickChain) });
         money = null;
+        tradePay = 'native';
+        tradeReceive = '';
+        tradeAmount = '';
         view = 'home';
         await refresh();
         return;
@@ -995,9 +1168,21 @@ app.addEventListener('click', async (event) => {
     }
 
     switch (data.do) {
+        case 'close-picker':
+            tradeSide = null;
+            render();
+            break;
+        case 'reverse-trade':
+            [tradePay, tradeReceive] = [tradeReceive, tradePay];
+            render();
+            break;
+        case 'reload-feed':
+            void loadFeed();
+            render();
+            break;
         case 'onboard':
             await chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
-            window.close();
+            if (!isSidePanel) window.close();
             break;
 
         case 'unlock': {
@@ -1152,5 +1337,25 @@ const readActiveTab = async () => {
     }
 };
 
+if (!isApprovalWindow) void trackExtensionOpen();
 await readActiveTab();
 await refresh();
+
+// The panel survives navigation. Refresh the site context without replacing an
+// in-progress form or signature; the browser only exposes URLs it permits.
+if (isSidePanel) {
+    const updateSite = async () => {
+        await readActiveTab();
+        if (state && currentView() === 'home') render();
+    };
+    chrome.tabs.onActivated.addListener(updateSite);
+    chrome.tabs.onUpdated.addListener((tabId, change) => {
+        if (tabId === activeTabId && (change.url || change.status === 'complete')) updateSite();
+    });
+    document.addEventListener('visibilitychange', async () => {
+        if (!document.hidden && state && ['home', 'setup', 'locked'].includes(currentView())) {
+            await readActiveTab();
+            await refresh();
+        }
+    });
+}

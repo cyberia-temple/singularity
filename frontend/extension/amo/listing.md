@@ -29,7 +29,7 @@ Cyberia Wallet keeps your keys in your browser and nowhere else.
 
 **Every signature is yours.** Transactions and messages open in a separate window that shows what you are signing — an unlimited token approval is labelled as unlimited — and you hold the button to sign.
 
-**Private by design.** No account, no email, no analytics. The wallet talks only to the blockchain networks themselves. An optional relay can route its requests through Tor, I2P or your own SOCKS5 proxy.
+**Private by design.** No account or email. Extension openings are measured with Google Analytics; the privacy policy explains what is sent. An optional relay can route its requests through Tor, I2P or your own SOCKS5 proxy.
 
 Requires Firefox 140 or newer.
 
@@ -43,7 +43,7 @@ Cyberia Wallet хранит ключи в вашем браузере и бол�
 
 **Каждая подпись — ваша.** Транзакции и сообщения открываются в отдельном окне, где видно, что именно вы подписываете (безлимитное разрешение на токен так и подписано), и подпись ставится удержанием кнопки.
 
-**Приватность по устройству.** Ни аккаунта, ни почты, ни аналитики. Кошелёк общается только с самими блокчейн-сетями. По желанию запросы можно пустить через Tor, I2P или свой SOCKS5-прокси.
+**Приватность по устройству.** Без аккаунта и почты. Открытия расширения измеряются с помощью Google Analytics; состав данных описан в политике конфиденциальности. По желанию запросы можно пустить через Tor, I2P или свой SOCKS5-прокси.
 
 Нужен Firefox 140 или новее.
 

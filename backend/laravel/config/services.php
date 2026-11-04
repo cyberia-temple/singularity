@@ -14,6 +14,11 @@ return [
     |
     */
 
+    'extension_analytics' => [
+        'measurement_id' => 'G-TNT5C5CBCP',
+        'api_secret' => env('GA_EXTENSION_API_SECRET'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

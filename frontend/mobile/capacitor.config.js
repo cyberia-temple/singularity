@@ -16,7 +16,7 @@ const { hostname, protocol } = new URL(appUrl);
  * @type {import('@capacitor/cli').CapacitorConfig}
  */
 const config = {
-    appId: 'church.cyberia.app',
+    appId: process.env.CYBERIA_ANDROID_APP_ID || 'church.cyberia.app',
     appName: 'Cyberia',
     webDir: 'www',
     backgroundColor: '#0b0f10',

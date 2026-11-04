@@ -76,7 +76,23 @@ class WalletSocialController extends Controller
             fn () => $this->feedItems($tab),
         );
 
-        return response()->json(['items' => $items]);
+        $ids = collect($items)->filter(fn ($item) => $item['kind'] === 'post')->map(fn ($item) => (int) substr($item['id'], 5))->unique()->values();
+        $counts = DB::table('post_reactions')->whereIn('post_id', $ids)->selectRaw('post_id, kind, count(*) as total')->groupBy('post_id', 'kind')->get()->groupBy('post_id');
+        $replies = DB::table('post_replies')->whereIn('post_id', $ids)->selectRaw('post_id, count(*) as total')->groupBy('post_id')->pluck('total', 'post_id');
+        $views = DB::table('post_views')->whereIn('post_id', $ids)->selectRaw('post_id, count(*) as total')->groupBy('post_id')->pluck('total', 'post_id');
+        $mine = $request->user() ? DB::table('post_reactions')->where('user_id', $request->user()->id)->whereIn('post_id', $ids)->get()->groupBy('post_id') : collect();
+        foreach ($items as &$item) {
+            if ($item['kind'] !== 'post') {
+                continue;
+            }
+            $id = (int) substr($item['id'], 5);
+            $reactions = ($counts->get($id) ?? collect())->pluck('total', 'kind');
+            $own = ($mine->get($id) ?? collect())->pluck('kind');
+            $item['engagement'] = ['likes' => (int) ($reactions['like'] ?? 0), 'reposts' => (int) ($reactions['repost'] ?? 0), 'replies' => (int) ($replies[$id] ?? 0), 'views' => (int) ($views[$id] ?? 0), 'liked' => $own->contains('like'), 'reposted' => $own->contains('repost')];
+        }
+        unset($item);
+
+        return response()->json(['items' => $items])->header('Cache-Control', 'private, no-store');
     }
 
     /**
@@ -289,6 +305,22 @@ class WalletSocialController extends Controller
                     'url' => route('feed'),
                 ])
                 ->all());
+        }
+
+        if ($tab === 'all' || $tab === 'posts') {
+            $reposts = DB::table('post_reactions')->join('posts', 'posts.id', '=', 'post_reactions.post_id')
+                ->join('users', 'users.id', '=', 'post_reactions.user_id')
+                ->where('post_reactions.kind', 'repost')->whereNull('posts.hidden_at')
+                ->orderByDesc('post_reactions.id')->limit(self::FEED_LIMIT)
+                ->get(['post_reactions.id', 'post_reactions.post_id', 'post_reactions.created_at', 'users.name', 'users.wallet_address']);
+            $originals = Post::query()->visible()->with('user:id,name,avatar_path,wallet_address')->whereIn('id', $reposts->pluck('post_id'))->get()->keyBy('id');
+            foreach ($reposts as $repost) {
+                $post = $originals->get($repost->post_id);
+                if (! $post) {
+                    continue;
+                }
+                $items[] = ['kind' => 'post', 'id' => "post-{$post->id}", 'repostId' => $repost->id, 'repostedBy' => ['name' => $repost->name, 'address' => $repost->wallet_address], 'at' => Carbon::parse($repost->created_at)->toIso8601String(), 'who' => $this->person($post->user), 'text' => $post->body, 'meta' => null, 'url' => route('feed')];
+            }
         }
 
         if ($tab === 'all' || $tab === 'dao') {

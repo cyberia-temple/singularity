@@ -4,10 +4,9 @@
     "version": "0.0.0",
     "description": "Non-custodial wallet for Cyberia and other EVM chains. Keys are generated on this device and never leave it.",
     "homepage_url": "https://cyberia.church/wallet",
-    "minimum_chrome_version": "111",
+    "minimum_chrome_version": "116",
     "action": {
         "default_title": "Cyberia Wallet",
-        "default_popup": "popup.html",
         "default_icon": {
             "16": "icons/icon-16.png",
             "32": "icons/icon-32.png",
@@ -25,7 +24,8 @@
         "service_worker": "background.js",
         "type": "module"
     },
-    "permissions": ["storage", "alarms", "scripting", "activeTab"],
+    "side_panel": { "default_path": "popup.html?view=sidepanel" },
+    "permissions": ["storage", "alarms", "scripting", "activeTab", "sidePanel"],
     "optional_permissions": ["proxy", "privacy"],
     "host_permissions": [
         "https://rpc.cyberia.church/*",

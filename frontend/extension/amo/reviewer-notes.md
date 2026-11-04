@@ -88,8 +88,7 @@ Declared in `data_collection_permissions` as `financialAndPaymentInfo` and
   window first.
 
 The price request to `https://cyberia.church/api/wallet/prices` carries no
-address or identifier. There is no analytics, telemetry, crash reporting or
-remote configuration.
+address or identifier. With the optional Firefox technical and interaction data permission, opening the wallet sends a random installation ID to Cyberia, which forwards the opening event to Google Analytics. No wallet data or connected-site information is included. There is no crash reporting or remote configuration.
 
 ## Testing it
 

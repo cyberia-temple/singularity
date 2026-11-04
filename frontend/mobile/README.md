@@ -140,3 +140,26 @@ still builds an AAB of the whole wallet, which is not the one to send to Play.
   APK distribution from cyberia.church has no such constraint.
 - No in-app wallet is injected — the WalletConnect path is what mobile users get,
   same as mobile browsers.
+
+## iPhone test build without a Mac
+
+The `iOS test build` GitHub Actions workflow runs when a `codex/ios-test-*`
+branch is pushed or when it is started manually in Actions (after the workflow
+is present on the default branch).
+It builds the iPhone device target on a macOS runner without an Apple signing
+identity and uploads `Cyberia-unsigned.ipa` and its SHA-256 checksum for seven
+days. The workflow has to be committed and pushed to GitHub first. This is an
+unsigned personal test artifact, not an App Store or TestFlight release and it
+cannot be installed directly by iOS.
+
+To install it on an iPhone, set up [SideStore](https://docs.sidestore.io/docs/installation/prerequisites)
+following its current Linux instructions, transfer the IPA to the phone, and
+use SideStore to sign and install it with your Apple Account. Free-account apps
+need periodic refresh and Apple limits the number of active apps. Device, iOS
+version, SideStore setup and Apple account restrictions affect whether this
+works. SideStore's own installation and pairing must be completed first.
+
+The app loads the hosted site over the network. Test login, navigation, uploads
+and recovery from lost connectivity on a real iPhone. For the wallet, test creation, recovery and
+transaction signing with test funds only; WebView storage is separate from the
+browser and other apps.

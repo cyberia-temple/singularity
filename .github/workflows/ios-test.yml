@@ -1,0 +1,55 @@
+name: iOS test build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/ios-test-*']
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-ipa:
+    name: Build Cyberia for personal testing
+    runs-on: macos-15
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: frontend/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Test mobile configuration
+        run: npm test
+      - name: Prepare iOS project
+        run: npm run sync:ios
+      - name: Build without signing
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/Cyberia-build" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Cyberia-build/Build/Products/Release-iphoneos/App.app"
+          test -x "$APP/App"
+          mkdir -p "$RUNNER_TEMP/Cyberia-package/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Cyberia-package/Payload/"
+          cd "$RUNNER_TEMP/Cyberia-package"
+          zip -qry Cyberia-unsigned.ipa Payload
+          shasum -a 256 Cyberia-unsigned.ipa > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cyberia-ios-unsigned
+          path: |
+            ${{ runner.temp }}/Cyberia-package/Cyberia-unsigned.ipa
+            ${{ runner.temp }}/Cyberia-package/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7

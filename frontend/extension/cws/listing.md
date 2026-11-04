@@ -42,7 +42,7 @@ Sites see the wallet only when you say so. The wallet does not appear on any web
 
 Every signature is yours. Transactions and messages open in a separate window that shows what you are signing — an unlimited token approval is labelled as unlimited — and you hold the button to sign.
 
-Private by design. No account, no email, no analytics. The wallet talks only to the blockchain networks themselves. An optional relay can route its requests through Tor, I2P or your own SOCKS5 proxy; Chrome applies it to the whole browser, and the wallet tells you so before you turn it on.
+Private by design. No account or email. Extension openings are measured with Google Analytics; the privacy policy explains what is sent. An optional relay can route its requests through Tor, I2P or your own SOCKS5 proxy; Chrome applies it to the whole browser, and the wallet tells you so before you turn it on.
 
 **Category:** Tools (Productivity)
 
@@ -80,7 +80,7 @@ Cyberia Wallet хранит ключи в вашем браузере и бол�
 
 Каждая подпись — ваша. Транзакции и сообщения открываются в отдельном окне, где видно, что именно вы подписываете (безлимитное разрешение на токен так и подписано), и подпись ставится удержанием кнопки.
 
-Приватность по устройству. Ни аккаунта, ни почты, ни аналитики. Кошелёк общается только с самими блокчейн-сетями. По желанию запросы можно пустить через Tor, I2P или свой SOCKS5-прокси; Chrome применяет его ко всему браузеру, и кошелёк предупреждает об этом до включения.
+Приватность по устройству. Без аккаунта и почты. Открытия расширения измеряются с помощью Google Analytics; состав данных описан в политике конфиденциальности. По желанию запросы можно пустить через Tor, I2P или свой SOCKS5-прокси; Chrome применяет его ко всему браузеру, и кошелёк предупреждает об этом до включения.
 
 ## Privacy practices
 
@@ -95,7 +95,8 @@ A non-custodial crypto wallet for EVM networks: it keeps the user's keys encrypt
 | `storage` | Stores the user's encrypted wallet vault, their settings and the list of websites they connected. |
 | `alarms` | Locks the wallet automatically after the inactivity period the user chose. |
 | `scripting` | Registers the wallet's provider script (window.ethereum) only on websites the user connected, via scripting.registerContentScripts. There is no static content script and no access to sites the user did not connect. |
-| `activeTab` | Reads which website the popup was opened on, so the popup can offer to connect that one site. |
+| `activeTab` | Reads the current site after the user invokes the extension so the wallet can offer to connect it. |
+| `sidePanel` | Opens the wallet in the browser side panel so it remains available beside the current page. |
 | `proxy` (optional) | Requested only when the user turns on the relay, to route the wallet's network requests through a SOCKS5, Tor or I2P service the user runs. Chrome applies it to the whole browser; the wallet says so on that screen. |
 | `privacy` (optional) | Requested together with the relay, to set webRTCIPHandlingPolicy so WebRTC cannot reveal the user's IP address around the relay. |
 | Host permissions | The fixed hosts are the blockchain RPC nodes and token index the wallet reads balances from and broadcasts approved transactions to (rpc.cyberia.church, explorer.cyberia.church, Robinhood Chain, BNB Chain and Base public RPCs) and cyberia.church for USD prices. The optional `https://*/*` and `http://localhost/*` are never requested at install: when the user presses Connect on a site, the wallet asks Chrome for that one site's origin only. |
@@ -110,9 +111,10 @@ never executed.
 - [x] **Financial and payment information** — the user's public wallet address goes
   to the blockchain RPC nodes and token index to read balances, and transactions the
   user approves are broadcast to them.
-- Everything else unticked. The recovery phrase, keys and password never leave the
-  device (Authentication information is handled locally only); no browsing history,
-  page content, location or personal communications are read or sent.
+- **Extension usage:** a random installation identifier and an extension-open event
+  are sent to Cyberia and forwarded to Google Analytics. Review the current Chrome
+  Web Store data-use categories and update the dashboard before publishing.
+- **Authentication information and web activity:** assess and disclose local handling as well as transmission. The wallet handles the recovery phrase, keys and password locally, and reads the active site origin to support connecting that site. Do not assume locally handled data is exempt from disclosure. The extension does not collect browsing history or page content.
 
 Certify all three: not sold or transferred to third parties outside the approved use
 cases; not used or transferred for purposes unrelated to the single purpose; not used

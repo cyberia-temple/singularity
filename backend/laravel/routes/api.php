@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AnalyticsIngestController;
 use App\Http\Controllers\Api\BridgeController;
 use App\Http\Controllers\Api\BridgeEventController;
 use App\Http\Controllers\Api\CrmTaskIngestController;
+use App\Http\Controllers\Api\ExtensionAnalyticsController;
 use App\Http\Controllers\Api\FujiChainController;
 use App\Http\Controllers\Api\FujiFaucetController;
 use App\Http\Controllers\Api\FujiRpcController;
@@ -36,6 +37,8 @@ use App\Services\WalletPriceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+
+Route::post('extension/analytics', ExtensionAnalyticsController::class)->middleware('throttle:30,1');
 
 Route::post('board/threads/{thread}/posts', [BoardController::class, 'agentReply'])
     ->middleware(['auth:sanctum', 'throttle:3,1'])->name('api.board.reply');

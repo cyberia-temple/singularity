@@ -175,6 +175,10 @@ body.cw-window .cw-shell {
     min-height: 100vh;
 }
 
+body.cw-window {
+    overflow-x: hidden;
+}
+
 /* ------------------------------------------------------------------ head --- */
 
 .cw-head {
@@ -964,3 +968,139 @@ button.cw-row:hover {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
+
+/* Persistent side panel: the same wallet, sized for the browser's panel. */
+body.cw-sidepanel {
+    --cw-bg: #08090b;
+    --cw-row: #191a1e;
+    --cw-raise: #242529;
+    --cw-line: #27282c;
+    --cw-line-2: #292a2e;
+    --cw-line-3: #303136;
+    --cw-accent: #b39af2;
+    --cw-accent-hover: #cbb9f7;
+    --cw-accent-ink: #171021;
+    width: 100%;
+    min-width: 0;
+}
+.cw-sidepanel .cw-shell { min-height: 100vh; }
+.cw-sidepanel .cw-head { padding: 18px 18px 14px; }
+.cw-sidepanel .cw-body { padding: 22px 18px; }
+.cw-sidepanel .cw-total { font: 600 36px/1.1 var(--cw-sans); letter-spacing: -0.03em; }
+.cw-sidepanel .cw-total-sub { margin-top: 8px; }
+.cw-sidepanel .cw-actions { gap: 8px; margin-top: 24px; }
+.cw-sidepanel .cw-tile {
+    height: 72px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--cw-row);
+    gap: 9px;
+}
+.cw-sidepanel .cw-tile:hover { background: var(--cw-raise); }
+.cw-sidepanel .cw-tile-glyph { font-size: 22px; }
+.cw-sidepanel .cw-tile-label { font: 500 10px/1 var(--cw-sans); letter-spacing: .02em; }
+.cw-sidepanel .cw-section { margin-top: 28px; font: 600 14px/1 var(--cw-sans); letter-spacing: 0; color: var(--cw-text); }
+.cw-sidepanel .cw-rows { gap: 6px; border: 0; background: transparent; }
+.cw-sidepanel .cw-row { border-radius: 16px; padding: 14px; }
+.cw-sidepanel .cw-coin { width: 34px; height: 34px; }
+.cw-sidepanel .cw-sym { font-size: 14px; }
+.cw-sidepanel .cw-name { font-size: 10px; }
+.cw-sidepanel .cw-amount-main { font-size: 12px; }
+.cw-sidepanel .cw-btn, .cw-sidepanel .cw-input, .cw-sidepanel .cw-note, .cw-sidepanel .cw-panel { border-radius: 12px; }
+.cw-sidepanel .cw-foot { padding: 11px 18px; }
+.cw-panel-nav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--cw-line);
+    background: var(--cw-bg);
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+}
+.cw-panel-nav button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 0;
+    color: var(--cw-soft);
+    font: 500 9px/1 var(--cw-sans);
+}
+.cw-panel-nav button span { font: 400 24px/1 var(--cw-sans); }
+.cw-panel-nav button:hover, .cw-panel-nav button.is-active { color: var(--cw-accent); }
+
+/* Trade workspace: the social area remains under the cards until a picker opens. */
+.cw-trade-body { position: relative; }
+.cw-trade-card { background: #1b1c20; border-radius: 20px; padding: 18px; min-height: 132px; }
+.cw-trade-label { color: var(--cw-soft); font-size: 13px; }
+.cw-trade-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 28px; }
+.cw-trade-token { max-width: 70%; border-radius: 24px; padding: 9px 12px; background: #303136; color: var(--cw-text); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-trade-token span { margin-left: 8px; color: var(--cw-soft); }
+.cw-trade-hint { margin-top: 12px; text-align: right; color: var(--cw-muted); font-size: 11px; }
+.cw-trade-reverse { position: relative; display: block; width: 38px; height: 38px; border-radius: 50%; margin: -12px auto; background: var(--cw-accent); color: var(--cw-accent-ink); font-size: 21px; z-index: 1; }
+.cw-trade-note { color: var(--cw-soft); font-size: 11px; line-height: 1.5; margin: 14px 2px 10px; }
+.cw-social-tabs { display: flex; gap: 18px; overflow-x: auto; margin-top: 25px; border-bottom: 1px solid var(--cw-line); }
+.cw-social-tabs button { color: var(--cw-muted); padding: 0 0 11px; border-bottom: 2px solid transparent; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.cw-social-tabs button.is-active { color: var(--cw-text); border-color: var(--cw-accent); }
+.cw-social-content { min-height: 170px; }
+.cw-social-empty { padding: 20px 0; color: var(--cw-soft); font-size: 12px; line-height: 1.5; }
+.cw-social-link { display: block; color: var(--cw-accent); font-size: 10px; margin-top: 12px; }
+.cw-feed-item { display: flex; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--cw-line); }
+.cw-feed-avatar { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: #302c3b; color: var(--cw-accent); font-size: 11px; }
+.cw-feed-copy { min-width: 0; }
+.cw-feed-author { color: var(--cw-accent); font-size: 12px; font-weight: 600; }
+.cw-feed-author span { color: var(--cw-muted); font-size: 10px; font-weight: 400; }
+.cw-feed-text { color: var(--cw-body); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 5px; }
+.cw-picker-backdrop { position: fixed; inset: 0; z-index: 9; background: rgb(0 0 0 / 70%); }
+.cw-token-picker { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; max-height: 75vh; display: flex; flex-direction: column; padding: 10px 18px 20px; border: 1px solid var(--cw-edge-2); border-radius: 22px 22px 0 0; background: #1b1c20; }
+.cw-picker-handle { width: 42px; height: 5px; margin: 0 auto 15px; border-radius: 9px; background: #48494d; }
+.cw-picker-head { display: flex; justify-content: space-between; align-items: center; font-size: 19px; }
+.cw-picker-head button { font-size: 28px; line-height: 1; color: var(--cw-soft); }
+.cw-picker-search { width: 100%; margin-top: 15px; padding: 12px; border: 1px solid var(--cw-edge-2); border-radius: 12px; background: #292a2e; color: var(--cw-text); }
+.cw-picker-caption { color: var(--cw-muted); font: 10px/1 var(--cw-mono); margin: 18px 0 8px; }
+.cw-picker-list { overflow-y: auto; }
+.cw-picker-row { width: 100%; display: flex; gap: 10px; align-items: center; text-align: left; padding: 12px 0; border-bottom: 1px solid var(--cw-line); font-size: 12px; }
+.cw-picker-row[hidden] { display: none; }
+.cw-picker-row small { display: block; margin-top: 4px; color: var(--cw-muted); }
+
+/* Swap workspace: cards and the token sheet adapt to narrow browser panels. */
+.cw-sidepanel .cw-trade-body { padding: 18px 14px 22px; }
+.cw-trade-card { background: #18181a; border-radius: 20px; padding: 18px; min-height: 137px; }
+.cw-trade-label { color: #888b91; font-size: 15px; font-weight: 600; }
+.cw-trade-line { min-width: 0; margin-top: 10px; }
+.cw-trade-amount, .cw-trade-output { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--cw-text); font: 500 28px/1.2 var(--cw-sans); }
+.cw-trade-amount::placeholder, .cw-trade-output { color: #777b82; }
+.cw-trade-token { display: flex; align-items: center; gap: 8px; max-width: 67%; min-width: 0; padding: 5px 10px 5px 5px; border: 1px solid transparent; background: #303033; font-size: 14px; }
+.cw-trade-token.is-open { border-color: var(--cw-accent); }
+.cw-trade-token b { overflow: hidden; text-overflow: ellipsis; }
+.cw-trade-token span:last-child { margin-left: 0; }
+.cw-trade-coin { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: #09090b; color: var(--cw-accent); font-size: 10px; font-weight: 700; }
+.cw-trade-hint { display: flex; justify-content: flex-end; align-items: center; gap: 6px; min-height: 27px; margin-top: 12px; color: #9ba0a8; }
+.cw-trade-hint button { padding: 4px 8px; border-radius: 12px; background: #303033; color: #b9bdc4; font-size: 11px; }
+.cw-trade-hint button:disabled { opacity: .45; }
+.cw-trade-open { display: block; margin: 12px 0 0 auto; color: var(--cw-accent); font-size: 10px; }
+.cw-social-tabs { gap: 36px; margin-top: 20px; }
+.cw-social-tabs button { font-size: 16px; }
+.cw-social-content { min-height: 100px; }
+.cw-feed-item { gap: 11px; margin-top: 10px; padding: 14px; border: 0; border-radius: 17px; background: #18181a; }
+.cw-feed-avatar { width: 38px; height: 38px; background: #3d3154; }
+.cw-feed-copy { flex: 1; }
+.cw-feed-author { color: var(--cw-text); font-size: 13px; }
+.cw-feed-author time { margin-left: 8px; color: #858a91; font-size: 11px; font-weight: 400; }
+.cw-feed-text { margin-top: 7px; color: var(--cw-text); font-size: 13px; line-height: 1.4; }
+.cw-feed-actions { display: flex; gap: 8px; margin-top: 10px; }
+.cw-feed-actions button { padding: 6px 10px; border: 1px solid #343438; border-radius: 12px; background: #242426; color: #adb3bb; font-size: 12px; }
+.cw-feed-actions button:first-child { color: #38d998; }
+.cw-feed-actions button:last-child { margin-left: auto; }
+.cw-composer { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-top: 14px; padding: 8px 8px 8px 16px; border: 1px solid #303034; border-radius: 28px; background: #202022; color: #858a91; text-align: left; }
+.cw-composer b { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--cw-accent); color: #111; font-size: 18px; }
+.cw-token-picker { max-height: min(75vh, 700px); padding: 10px 18px 20px; background: #18181a; }
+.cw-picker-list { min-height: 0; }
+.cw-picker-row { gap: 12px; }
+.cw-picker-row b { color: var(--cw-text); font-size: 14px; }
+.cw-picker-value { text-align: right; }
+.cw-picker-note, .cw-picker-empty { padding: 12px 0; color: var(--cw-soft); font-size: 11px; line-height: 1.4; }
+.cw-sidepanel .cw-shell { height: 100vh; min-height: 0; }
+.cw-sidepanel .cw-body { min-height: 0; }
+.cw-sidepanel .cw-composer { position: sticky; bottom: 0; }
+.cw-sidepanel .cw-token-picker { bottom: 54px; }
+.cw-trade-amount, .cw-trade-output { flex: 1 1 0; width: 0; }
+.cw-trade-token { flex: 0 1 auto; }

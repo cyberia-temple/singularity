@@ -90,7 +90,7 @@ cloud-managed certificates through the API key (`-allowProvisioningUpdates`).
 
 ### Google Play Console
 
-1. Create the app *Cyberia Wallet*, package `church.cyberia.app`, free, app.
+1. Create the app *Cyberia Wallet*, package `cyberia.app`, free, app.
 2. **App signing.** If `Cyberia.apk` was ever published on `/download`, choose
    *Use a different key* and upload the existing keystore with Google's PEPK
    tool, so the Play build updates a sideloaded install in place — otherwise

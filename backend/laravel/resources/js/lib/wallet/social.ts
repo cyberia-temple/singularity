@@ -12,6 +12,7 @@
  * nothing else.
  */
 
+import { reaction, reply, replies, view } from '@/routes/wallet/social';
 import { sessionCall } from '@/lib/wallet/session';
 
 export type FeedPerson = {
@@ -56,7 +57,47 @@ export type FeedItem = {
     onchain?: FeedOnchain;
     launch?: FeedLaunch;
     url: string;
+    repostId?: number;
+    repostedBy?: { name: string; address: string | null };
+    engagement?: {
+        likes: number;
+        reposts: number;
+        replies: number;
+        views: number;
+        liked: boolean;
+        reposted: boolean;
+    };
 };
+
+export type FeedReply = {
+    id: number;
+    body: string;
+    created_at: string;
+    name: string;
+    wallet_address: string | null;
+};
+
+export const reactToPost = (
+    id: number,
+    address: string,
+    kind: 'like' | 'repost',
+    active: boolean,
+) =>
+    sessionCall<{ active: boolean; count: number }>(reaction.url(id), {
+        method: 'POST',
+        body: JSON.stringify({ address, kind, active }),
+    });
+export const viewPost = (id: number) =>
+    sessionCall<{ count: number }>(view.url(id), { method: 'POST' });
+export const fetchReplies = (id: number, before?: number) =>
+    sessionCall<{ replies: FeedReply[]; hasMore: boolean }>(
+        replies.url(id, before ? { query: { before } } : undefined),
+    );
+export const sendReply = (id: number, address: string, body: string) =>
+    sessionCall<{ replies: FeedReply[]; hasMore: boolean }>(reply.url(id), {
+        method: 'POST',
+        body: JSON.stringify({ address, body }),
+    });
 
 export type FeedTab = 'all' | 'posts' | 'dao' | 'onchain';
 

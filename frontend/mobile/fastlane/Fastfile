@@ -18,7 +18,7 @@ platform :android do
   desc 'Upload the signed AAB, listing text and graphics to Google Play'
   lane :play do
     upload_to_play_store(
-      package_name: 'church.cyberia.app',
+      package_name: 'cyberia.app',
       json_key_data: ENV.fetch('PLAY_SERVICE_ACCOUNT_JSON'),
       aab: ENV.fetch('PLAY_AAB', 'android/app/build/outputs/bundle/release/app-release.aab'),
       track: ENV.fetch('PLAY_TRACK', 'internal'),

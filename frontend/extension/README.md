@@ -2,7 +2,9 @@
 
 A Manifest V3 wallet for Chrome, Brave, Edge and Firefox 140+. It holds its own
 encrypted vault, injects an EIP-1193 provider into the sites you grant it, and
-signs transactions and messages for them.
+signs transactions and messages for them. In Chromium, its toolbar button opens
+the wallet in the browser side panel; the browser controls whether the panel is
+on the left or right. Firefox keeps the toolbar popup.
 
 **This is the one build that is not a shell around cyberia.church.** The desktop
 and mobile apps render the live site, so a deploy updates them; an extension
@@ -10,6 +12,10 @@ cannot do that — a dapp expects `window.ethereum` in its own page, and the cod
 that answers it has to be installed. The seed phrase is the bridge: import the
 phrase you already use in the wallet on the site and both surfaces derive the
 same accounts, because both derive `m/44'/60'/0'/0/{index}`.
+
+The home screen's **Open web wallet** button opens the full site in a browser
+tab. The website and extension keep separate vaults; the button does not copy a
+phrase, unlock either vault, or connect an account automatically.
 
 EVM only, on purpose. A dapp speaks EIP-1193, and EIP-1193 is EVM; Solana,
 Monero and the Bitcoin family live in the wallet on the site, where they have
@@ -77,8 +83,11 @@ rewrites both and the extension reloads with one click.
   instead of rendering a 78-digit number nobody parses.
 - **`eth_sign` is not supported.** It signs 32 arbitrary bytes that can be a
   transaction hash; there is no preview that makes that safe.
-- **No vendor server.** No analytics, no crash reporter, no remote config, no
-  hosted token list. Balances and tokens come from the chain's own RPC and its
+- **Limited usage analytics.** Opening the wallet sends a random installation ID
+  to Cyberia, which forwards an opening event to Google Analytics. Firefox sends
+  this only when its optional technical and interaction data permission is granted.
+  No wallet addresses, connected sites or secrets are included. No crash reporter,
+  remote config or hosted token list. Balances and tokens come from the chain's own RPC and its
   keyless Blockscout index; USD quotes come from this project's own endpoint and
   a quote that cannot be read stays `null` and renders as a dash.
 - **No fonts are fetched.** The stylesheet declares the same stack as the site

@@ -7,8 +7,8 @@
     "type": "commonjs",
     "scripts": {
         "www": "node scripts/build-www.js",
-        "sync": "npm run www && cap sync",
-        "sync:android": "npm run www && cap sync android",
+        "sync": "npm run sync:android && npm run sync:ios",
+        "sync:android": "npm run www && CYBERIA_ANDROID_APP_ID=cyberia.app cap sync android",
         "sync:ios": "npm run www && cap sync ios",
         "assets": "capacitor-assets generate --iconBackgroundColor '#0b0f10' --iconBackgroundColorDark '#0b0f10' --splashBackgroundColor '#0b0f10' --splashBackgroundColorDark '#0b0f10'",
         "open:android": "cap open android",
@@ -22,15 +22,15 @@
         "android:bundle": "npm run sync:play && cd android && ./gradlew bundleRelease"
     },
     "dependencies": {
-        "@capacitor/android": "^8.5.0",
+        "@capacitor/android": "8.5.1",
         "@capacitor/app": "^8.1.1",
-        "@capacitor/core": "^8.5.0",
-        "@capacitor/ios": "^8.5.0",
+        "@capacitor/core": "8.5.1",
+        "@capacitor/ios": "8.5.1",
         "@capacitor/splash-screen": "^8.0.2",
         "@capacitor/status-bar": "^8.0.3"
     },
     "devDependencies": {
         "@capacitor/assets": "^3.0.5",
-        "@capacitor/cli": "^8.5.0"
+        "@capacitor/cli": "8.5.1"
     }
 }

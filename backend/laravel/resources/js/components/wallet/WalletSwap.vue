@@ -11,6 +11,7 @@ import GasSponsor from '@/components/wallet/GasSponsor.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import NetworkMark from '@/components/wallet/NetworkMark.vue';
 import WalletRouteSwap from '@/components/wallet/WalletRouteSwap.vue';
+import WalletV4Swap from '@/components/wallet/WalletV4Swap.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { useWalletMode } from '@/composables/useWalletMode';
@@ -66,6 +67,7 @@ import {
     playWalletSound,
 } from '@/lib/wallet/notifications';
 import { walletMessages } from '@/lib/walletMessages';
+import { V4_FUJI } from '@/lib/wallet/v4';
 
 /**
  * Trading inside the wallet: swap two assets, or wrap the network's coin.
@@ -226,6 +228,9 @@ const tradable = computed(() => {
     const routed = routerChains.value ?? [];
 
     return props.wallet.accounts.value.filter((candidate) => {
+        if (candidate.chain === 'cyberia_fuji' && V4_FUJI !== null) {
+            return true;
+        }
         if (hasSwap(walletChain(candidate.chain).chainId)) {
             return true;
         }
@@ -1629,8 +1634,15 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
               decides who routes the trade. The old dead end survives for the
               case it was actually right about — a chain nobody routes at all.
             -->
+            <WalletV4Swap
+                v-if="props.chain === 'cyberia_fuji' && V4_FUJI !== null"
+                :wallet="wallet"
+                :token="props.token"
+                :contract="props.contract"
+                @swapped="emit('swapped')"
+            />
             <WalletRouteSwap
-                v-if="!dex && routable"
+                v-else-if="!dex && routable"
                 :wallet="wallet"
                 :chain="props.chain"
             />
@@ -1998,6 +2010,33 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                             :aria-label="t('amount')"
                             class="cw-amount"
                         />
+                    </div>
+
+                    <div
+                        v-if="
+                            props.chain === 'cyberia_fuji' &&
+                            mode === 'swap' &&
+                            payAsset.address === null
+                        "
+                        class="cw-row"
+                        style="
+                            justify-content: flex-start;
+                            gap: 8px;
+                            flex-wrap: wrap;
+                            margin-top: 10px;
+                        "
+                    >
+                        <button
+                            v-for="preset in ['100', '200', '500']"
+                            :key="preset"
+                            type="button"
+                            class="cw-chip"
+                            :class="{ 'cw-chip-on': amount === preset }"
+                            :aria-pressed="amount === preset"
+                            @click="amount = preset"
+                        >
+                            {{ preset }} CYBER
+                        </button>
                     </div>
 
                     <div class="cw-row" style="margin-top: 9px">

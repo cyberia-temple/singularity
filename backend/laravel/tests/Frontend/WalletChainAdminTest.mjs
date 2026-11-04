@@ -92,3 +92,31 @@ test('Cyberia 2.0 sits beside Cyberia, always on, and the old network stays', ()
     assert.equal(shippedChainByEvmId(49407)?.label, 'Cyberia 2.0');
     assert.equal(shippedChainByEvmId(49406)?.label, 'Cyberia');
 });
+
+test('connected fee changes reject a different wallet account before sending', async () => {
+    const { selectEvmWalletProvider } = await import('@/lib/evmProvider');
+    const { submitConnectedFeeConfig } = await import('@/lib/wallet/chainAdmin');
+    const methods = [];
+    const provider = {
+        async request({ method }) {
+            methods.push(method);
+            if (method === 'eth_chainId') return '0xc0ff';
+            if (method === 'eth_accounts') return ['0x0000000000000000000000000000000000000001'];
+            throw new Error(`Unexpected request: ${method}`);
+        },
+    };
+    selectEvmWalletProvider({ id: 'test', name: 'test', source: 'legacy', provider });
+    try {
+        await assert.rejects(
+            submitConnectedFeeConfig('0x0000000000000000000000000000000000000002', {
+                config: Object.fromEntries(FEE_FIELDS.map((field) => [field, '1'])),
+                latestBaseFee: 1n,
+                rpcUrl: 'https://example.invalid',
+            }),
+            /account changed/,
+        );
+        assert.ok(!methods.includes('eth_sendTransaction'));
+    } finally {
+        selectEvmWalletProvider(null);
+    }
+});

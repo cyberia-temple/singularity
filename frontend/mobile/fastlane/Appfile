@@ -1,4 +1,4 @@
 # Identity only. Every credential comes from the environment the store
 # workflow sets (.github/workflows/stores.yml), never from this file.
-package_name('church.cyberia.app')
+package_name('cyberia.app')
 app_identifier('church.cyberia.app')

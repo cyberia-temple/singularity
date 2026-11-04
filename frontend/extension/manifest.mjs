@@ -49,16 +49,16 @@ export const GECKO_MIN = '140.0';
  *   read-only calls go straight to the chain's RPC, and a transaction it
  *   proposes goes there once the user approves it.
  *
- * Nothing goes to an analytics or crash service, because there is none; the
- * price request to cyberia.church carries no address and no identifier.
+ * `technicalAndInteraction` covers optional extension-open analytics. Firefox
+ * sends it only when the user has granted this data collection permission.
  */
 export const DATA_COLLECTION = {
     required: ['financialAndPaymentInfo', 'websiteActivity'],
-    optional: [],
+    optional: ['technicalAndInteraction'],
 };
 
 export const TARGETS = {
-    chrome: { dir: 'dist', zip: 'Cyberia-extension.zip', engine: 'chrome111' },
+    chrome: { dir: 'dist', zip: 'Cyberia-extension.zip', engine: 'chrome116' },
     firefox: { dir: 'dist-firefox', zip: 'Cyberia-extension-firefox.zip', engine: 'firefox128' },
 };
 
@@ -77,6 +77,9 @@ export const manifestFor = (base, target, version) => {
     }
 
     delete manifest.minimum_chrome_version;
+    delete manifest.side_panel;
+    manifest.permissions = manifest.permissions.filter((permission) => permission !== 'sidePanel');
+    manifest.action.default_popup = 'popup.html';
     manifest.background = { scripts: ['background.js'], type: 'module' };
     manifest.browser_specific_settings = {
         gecko: {

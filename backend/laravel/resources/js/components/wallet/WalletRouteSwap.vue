@@ -631,6 +631,32 @@ const canSign = computed(
                 :placeholder="t('crossAmount')"
             />
         </div>
+        <div
+            v-if="
+                props.chain === 'cyberia_fuji' &&
+                from &&
+                sameAddress(from.address, nativeCurrency)
+            "
+            class="cw-row"
+            style="
+                justify-content: flex-start;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-top: 10px;
+            "
+        >
+            <button
+                v-for="preset in ['100', '200', '500']"
+                :key="preset"
+                type="button"
+                class="cw-chip"
+                :class="{ 'cw-chip-on': amount === preset }"
+                :aria-pressed="amount === preset"
+                @click="amount = preset"
+            >
+                {{ preset }} CYBER
+            </button>
+        </div>
         <p
             v-if="balance !== null && from"
             class="cw-label"

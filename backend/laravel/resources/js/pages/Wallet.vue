@@ -67,6 +67,7 @@ import WalletShop from '@/components/wallet/WalletShop.vue';
 import WalletStocks from '@/components/wallet/WalletStocks.vue';
 import WalletSwap from '@/components/wallet/WalletSwap.vue';
 import WalletToken from '@/components/wallet/WalletToken.vue';
+import WalletTokenAdmin from '@/components/wallet/WalletTokenAdmin.vue';
 import WalletTokens from '@/components/wallet/WalletTokens.vue';
 import WalletTorrent from '@/components/wallet/WalletTorrent.vue';
 import WalletTracker from '@/components/wallet/WalletTracker.vue';
@@ -245,6 +246,7 @@ type Section =
     | 'shop'
     | 'developer'
     | 'chain'
+    | 'tokenAdmin'
     | 'experiments'
     | 'gallery'
     | 'underground'
@@ -454,6 +456,7 @@ const TAB_OF: Record<Section, Section> = {
     browse: 'portfolio',
     developer: 'portfolio',
     chain: 'portfolio',
+    tokenAdmin: 'portfolio',
     experiments: 'portfolio',
     gallery: 'portfolio',
     underground: 'portfolio',
@@ -748,6 +751,7 @@ const PARENTS: Partial<Record<Section, Section>> = {
     accounts: 'preferences',
     developer: 'preferences',
     chain: 'preferences',
+    tokenAdmin: 'preferences',
     experiments: 'preferences',
     gallery: 'preferences',
     underground: 'preferences',
@@ -2753,6 +2757,12 @@ watch(
                         @back="openSection('preferences')"
                     />
 
+                    <WalletTokenAdmin
+                        v-else-if="section === 'tokenAdmin'"
+                        :wallet="wallet"
+                        @back="openSection('preferences')"
+                    />
+
                     <WalletPreferences
                         v-else-if="section === 'preferences'"
                         :wallet="wallet"
@@ -2763,6 +2773,7 @@ watch(
                         @accounts="openSection('accounts')"
                         @networks="openSection('networks')"
                         @chain="openSection('chain')"
+                        @token-admin="openSection('tokenAdmin')"
                         @proxy="openSection('proxy')"
                         @developer="openSection('developer')"
                         @back="openSection('portfolio')"

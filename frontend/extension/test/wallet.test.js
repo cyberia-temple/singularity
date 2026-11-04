@@ -186,13 +186,18 @@ test('the firefox manifest is the same wallet in gecko dialect', () => {
     assert.ok(!('gecko_android' in gecko.browser_specific_settings), 'not an Android add-on');
 
     // Everything that decides what the wallet may reach stays identical.
-    assert.deepEqual(gecko.permissions, manifest.permissions);
+    assert.deepEqual(gecko.permissions, manifest.permissions.filter((permission) => permission !== 'sidePanel'));
+    assert.ok(!('side_panel' in gecko));
+    assert.equal(gecko.action.default_popup, 'popup.html');
     assert.deepEqual(gecko.optional_permissions, manifest.optional_permissions);
     assert.deepEqual(gecko.host_permissions, manifest.host_permissions);
     assert.ok(!('content_scripts' in gecko));
 
     const chromium = manifestFor(manifest, 'chrome', '9.9.9');
     assert.equal(chromium.background.service_worker, 'background.js');
+    assert.equal(chromium.side_panel.default_path, 'popup.html?view=sidepanel');
+    assert.ok(chromium.permissions.includes('sidePanel'));
+    assert.ok(!('default_popup' in chromium.action));
     assert.ok(!('browser_specific_settings' in chromium));
 });
 

@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJNFCHJMN5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BJNFCHJMN5');
+</script>
+
 <meta charset="utf-8" />
 <title>Cyberia — Wallet, Bridge and Swap</title>
 <!--
@@ -19,6 +28,21 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Cyberia" />
+<script>
+// A returning wallet owner goes straight to their wallet. A link from this
+// site remains usable, including the wallet's link back to the landing page.
+(function () {
+  try {
+    var fromThisSite = document.referrer &&
+      new URL(document.referrer).origin === location.origin;
+    if (!fromThisSite && localStorage.getItem('cyberia.wallet.vault.v1') !== null) {
+      location.replace('/wallet');
+    }
+  } catch (e) {
+    // If storage is unavailable, leave the landing page accessible.
+  }
+})();
+</script>
 <script>
 /*
  * An app icon opens the wallet, and the landing page is not the wallet.

@@ -4,7 +4,7 @@ apply plugin: 'com.android.application'
 // is what CI turns into 1.2.3 / 10203, so shipping a version never means editing
 // and committing Gradle.
 def appVersionName = System.getenv('CYBERIA_VERSION_NAME') ?: '1.0.0'
-def appVersionCode = System.getenv('CYBERIA_VERSION_CODE') ? System.getenv('CYBERIA_VERSION_CODE').toInteger() : 1
+def appVersionCode = System.getenv('CYBERIA_VERSION_CODE') ? System.getenv('CYBERIA_VERSION_CODE').toInteger() : 2
 
 // Signing material never lives in Git (see .gitignore). CI writes this file from
 // repository secrets; on a workstation you write it by hand. Without it the
@@ -20,7 +20,7 @@ android {
     namespace = "church.cyberia.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "church.cyberia.app"
+        applicationId "cyberia.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
