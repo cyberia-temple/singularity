@@ -41,8 +41,8 @@ return [
         'validation_id' => (string) env('FUJI_VALIDATION_ID', '2KZnTnX6QqZ1WNAFd7BCp9cKgXWYd3MXoj1zpccdSfVG14ULLJ'),
         'pchain_rpc_url' => (string) env('FUJI_PCHAIN_RPC_URL', 'https://api.avax-test.network/ext/bc/P'),
 
-        /** Admin of FeeManager and RewardManager in genesis. */
-        'operator' => (string) env('FUJI_OPERATOR_ADDRESS', '0xae8F9c21b082d09857622824ADA365D71b18B44B'),
+        /** Address shown as chain admin; actual permissions are read from the precompiles. */
+        'operator' => (string) env('FUJI_OPERATOR_ADDRESS', '0x472725293D97dFf80eA34C22840872832Edbe8DC'),
 
         /** Pays Teleporter deliveries on the L1. */
         'icm_relayer' => (string) env('FUJI_ICM_RELAYER_ADDRESS', '0xEc2D561301e9A9cfd07DAB3524Aa6be6a5988480'),

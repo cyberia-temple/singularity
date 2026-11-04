@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { Ban, ExternalLink, Flag, MessageSquare } from 'lucide-vue-next';
+import {
+    Ban,
+    ExternalLink,
+    Eye,
+    Flag,
+    Heart,
+    MessageCircle,
+    MessageSquare,
+    Repeat2,
+} from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
@@ -11,6 +20,10 @@ import { signInWithWallet } from '@/lib/wallet/session';
 import {
     REPORT_REASONS,
     fetchFeed,
+    fetchReplies,
+    reactToPost,
+    sendReply,
+    viewPost,
     postIdOf,
     publishPost,
     reportPost,
@@ -18,6 +31,7 @@ import {
 import type {
     FeedItem,
     FeedOnchain,
+    FeedReply,
     FeedTab,
     ReportReason,
 } from '@/lib/wallet/social';
@@ -41,9 +55,6 @@ import { walletMessages } from '@/lib/walletMessages';
  * not move; the seed stays in this browser and what the server gets is an
  * address that proved it can sign.
  *
- * Replying is still elsewhere: a post opens on the site, and the person who
- * wrote it can be written to *directly* — the wallet's own encrypted chat is
- * addressed by exactly the address this feed already shows.
  */
 
 const props = defineProps<{
@@ -259,6 +270,7 @@ const shown = computed(() =>
     items.value.filter(
         (item) =>
             !blocklist.isBlocked(item.who?.address) &&
+            !blocklist.isBlocked(item.repostedBy?.address) &&
             !(storeBuild && item.kind === 'launch') &&
             !(socialOnly() && item.kind !== 'post'),
     ),
@@ -350,6 +362,165 @@ const undoBlock = (): void => {
         blocklist.unblock(justBlocked.value);
         justBlocked.value = null;
     }
+};
+
+const openReplies = ref<number | null>(null);
+const repliesByPost = ref<Record<number, FeedReply[]>>({});
+const replyDraft = ref('');
+const repliesHaveMore = ref<Record<number, boolean>>({});
+const interactionProblem = ref<string | null>(null);
+const busy = ref(false);
+
+const withSession = async <T,>(action: () => Promise<T>): Promise<T> => {
+    try {
+        return await action();
+    } catch (error) {
+        const status = (error as { status?: number }).status;
+        if (
+            (status !== 401 && status !== 419 && status !== 409) ||
+            !canSign.value ||
+            !signer.value
+        )
+            throw error;
+        await signInWithWallet(signer.value, (message) =>
+            props.wallet.signMessage(SIGNING_CHAIN, message),
+        );
+        emit('signedIn');
+        return action();
+    }
+};
+
+const updateEngagement = (
+    id: number,
+    update: Partial<NonNullable<FeedItem['engagement']>>,
+): void => {
+    for (const entry of items.value) {
+        if (postIdOf(entry) === id && entry.engagement)
+            Object.assign(entry.engagement, update);
+    }
+};
+
+const react = async (
+    item: FeedItem,
+    kind: 'like' | 'repost',
+): Promise<void> => {
+    const id = postIdOf(item);
+    if (id === null || !item.engagement || busy.value) return;
+    if (!signer.value || !canSign.value) {
+        interactionProblem.value = t('feedWatchOnly');
+        return;
+    }
+    busy.value = true;
+    interactionProblem.value = null;
+    try {
+        const active =
+            kind === 'like'
+                ? !item.engagement.liked
+                : !item.engagement.reposted;
+        const result = await withSession(() =>
+            reactToPost(id, signer.value!, kind, active),
+        );
+        updateEngagement(
+            id,
+            kind === 'like'
+                ? { liked: result.active, likes: result.count }
+                : { reposted: result.active, reposts: result.count },
+        );
+        if (kind === 'repost') await load();
+    } catch (error) {
+        interactionProblem.value =
+            error instanceof Error ? error.message : String(error);
+    } finally {
+        busy.value = false;
+    }
+};
+
+const toggleReplies = async (item: FeedItem): Promise<void> => {
+    const id = postIdOf(item);
+    if (id === null) return;
+    if (openReplies.value === id) {
+        openReplies.value = null;
+        return;
+    }
+    openReplies.value = id;
+    replyDraft.value = '';
+    interactionProblem.value = null;
+    try {
+        const result = await fetchReplies(id);
+        repliesByPost.value[id] = result.replies;
+        repliesHaveMore.value[id] = result.hasMore;
+    } catch (error) {
+        interactionProblem.value =
+            error instanceof Error ? error.message : String(error);
+    }
+};
+
+const loadOlderReplies = async (id: number): Promise<void> => {
+    const first = repliesByPost.value[id]?.[0];
+    if (!first || busy.value) return;
+    busy.value = true;
+    try {
+        const result = await fetchReplies(id, first.id);
+        repliesByPost.value[id] = [
+            ...result.replies,
+            ...repliesByPost.value[id],
+        ];
+        repliesHaveMore.value[id] = result.hasMore;
+    } catch (error) {
+        interactionProblem.value =
+            error instanceof Error ? error.message : String(error);
+    } finally {
+        busy.value = false;
+    }
+};
+
+const replyToPost = async (item: FeedItem): Promise<void> => {
+    const id = postIdOf(item);
+    const body = replyDraft.value.trim();
+    if (id === null || !body || busy.value) return;
+    if (!signer.value || !canSign.value) {
+        interactionProblem.value = t('feedWatchOnly');
+        return;
+    }
+    busy.value = true;
+    interactionProblem.value = null;
+    try {
+        const result = await withSession(() =>
+            sendReply(id, signer.value!, body),
+        );
+        repliesByPost.value[id] = result.replies;
+        repliesHaveMore.value[id] = result.hasMore;
+        replyDraft.value = '';
+        updateEngagement(id, { replies: (item.engagement?.replies ?? 0) + 1 });
+    } catch (error) {
+        interactionProblem.value =
+            error instanceof Error ? error.message : String(error);
+    } finally {
+        busy.value = false;
+    }
+};
+
+const observers = new WeakMap<HTMLElement, IntersectionObserver>();
+const vFeedView = {
+    mounted(el: HTMLElement, binding: { value: FeedItem }) {
+        const id = postIdOf(binding.value);
+        if (id === null || typeof IntersectionObserver === 'undefined') return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (!entries.some((entry) => entry.isIntersecting)) return;
+                observer.disconnect();
+                void viewPost(id)
+                    .then(({ count }) => updateEngagement(id, { views: count }))
+                    .catch(() => {});
+            },
+            { threshold: 0 },
+        );
+        observers.set(el, observer);
+        observer.observe(el);
+    },
+    unmounted(el: HTMLElement) {
+        observers.get(el)?.disconnect();
+    },
 };
 
 watch(tab, load);
@@ -455,7 +626,14 @@ onMounted(load);
             {{ t('feedEmpty') }}
         </p>
 
-        <div v-else class="cw-stack" style="gap: 12px; margin-top: 18px">
+        <p v-if="interactionProblem" class="cw-note cw-note-bad" role="alert">
+            {{ interactionProblem }}
+        </p>
+        <div
+            v-if="!failure && !loading && shown.length"
+            class="cw-stack"
+            style="gap: 12px; margin-top: 18px"
+        >
             <div
                 v-if="justBlocked"
                 class="cw-card"
@@ -476,10 +654,18 @@ onMounted(load);
             </div>
             <article
                 v-for="item in shown"
-                :key="item.id"
+                :key="item.repostId ? `repost-${item.repostId}` : item.id"
+                v-feed-view="item"
                 class="cw-card"
                 style="padding: 16px"
             >
+                <p
+                    v-if="item.repostedBy"
+                    class="cw-label"
+                    style="margin: 0 0 10px"
+                >
+                    {{ t('feedRepostedBy', { who: item.repostedBy.name }) }}
+                </p>
                 <div
                     style="
                         display: flex;
@@ -748,6 +934,121 @@ onMounted(load);
                     "
                 >
                     <span class="cw-label">{{ item.meta }}</span>
+                </div>
+                <div
+                    v-if="item.kind === 'post' && item.engagement"
+                    style="
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 16px;
+                        margin-top: 14px;
+                        align-items: center;
+                    "
+                >
+                    <button
+                        type="button"
+                        class="cw-ghost"
+                        :aria-label="t('feedLikes')"
+                        :aria-pressed="item.engagement.liked"
+                        :disabled="busy"
+                        @click="react(item, 'like')"
+                    >
+                        <Heart
+                            :size="16"
+                            :fill="
+                                item.engagement.liked ? 'currentColor' : 'none'
+                            "
+                            aria-hidden="true"
+                        />
+                        {{ item.engagement.likes }}
+                    </button>
+                    <button
+                        type="button"
+                        class="cw-ghost"
+                        :aria-label="t('feedReposts')"
+                        :aria-pressed="item.engagement.reposted"
+                        :disabled="busy"
+                        @click="react(item, 'repost')"
+                    >
+                        <Repeat2 :size="16" aria-hidden="true" />
+                        {{ item.engagement.reposts }}
+                    </button>
+                    <button
+                        type="button"
+                        class="cw-ghost"
+                        :aria-label="t('feedReplies')"
+                        :aria-expanded="openReplies === postIdOf(item)"
+                        @click="toggleReplies(item)"
+                    >
+                        <MessageCircle :size="16" aria-hidden="true" />
+                        {{ item.engagement.replies }}
+                    </button>
+                    <span
+                        class="cw-label"
+                        :title="t('feedViews')"
+                        :aria-label="`${t('feedViews')}: ${item.engagement.views}`"
+                        ><Eye
+                            :size="16"
+                            aria-hidden="true"
+                            style="display: inline; vertical-align: middle"
+                        />
+                        {{ item.engagement.views }}</span
+                    >
+                </div>
+                <div
+                    v-if="
+                        item.kind === 'post' && openReplies === postIdOf(item)
+                    "
+                    class="cw-stack"
+                    style="gap: 10px; margin-top: 12px"
+                >
+                    <button
+                        v-if="repliesHaveMore[postIdOf(item)!]"
+                        type="button"
+                        class="cw-ghost"
+                        :disabled="busy"
+                        @click="loadOlderReplies(postIdOf(item)!)"
+                    >
+                        {{ t('feedEarlierReplies') }}
+                    </button>
+                    <div
+                        v-for="reply in (
+                            repliesByPost[postIdOf(item)!] ?? []
+                        ).filter(
+                            (entry) =>
+                                !blocklist.isBlocked(entry.wallet_address),
+                        )"
+                        :key="reply.id"
+                        style="
+                            border-top: 1px solid var(--cw-line);
+                            padding-top: 10px;
+                        "
+                    >
+                        <span class="cw-label">{{ reply.name }}</span>
+                        <p
+                            class="cw-prose"
+                            style="margin: 4px 0 0; white-space: pre-wrap"
+                        >
+                            {{ reply.body }}
+                        </p>
+                    </div>
+                    <textarea
+                        v-model="replyDraft"
+                        class="cw-textarea"
+                        rows="2"
+                        maxlength="2000"
+                        :placeholder="t('feedReplyPlaceholder')"
+                        :aria-label="t('feedReplyPlaceholder')"
+                    ></textarea>
+                    <button
+                        type="button"
+                        class="cw-btn cw-btn-secondary"
+                        style="align-self: flex-start"
+                        :disabled="busy || !replyDraft.trim()"
+                        @click="replyToPost(item)"
+                    >
+                        {{ t('feedReplySend') }}
+                    </button>
                 </div>
                 <!--
                   Anything somebody wrote can be reported to the operators and

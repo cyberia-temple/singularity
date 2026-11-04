@@ -17,6 +17,7 @@ import {
     nativeGasReserve,
     otcAssets,
     payFor,
+    quickCyberFill,
     readBalance,
     readOtcBook,
     readSide,
@@ -233,27 +234,45 @@ const shortOfFunds = computed(
         takePay.value > budget.value,
 );
 
+const quickAmounts = [100n, 200n, 500n] as const;
+const quickFill = (order: OtcOrder, cyber: bigint): bigint | null =>
+    quickCyberFill(order, cyber * 10n ** BigInt(order.buy.decimals));
+const selectQuickFill = (order: OtcOrder, cyber: bigint): void => {
+    const value = quickFill(order, cyber);
+    if (value !== null) {
+        takeInput.value = formatUnits(
+            value,
+            order.sell.decimals,
+            order.sell.decimals,
+        );
+    }
+};
+
 const open = async (order: OtcOrder): Promise<void> => {
     selected.value = order;
     budget.value = null;
     takeInput.value = order.partialFill
         ? formatUnits(order.remaining, order.sell.decimals, order.sell.decimals)
         : '';
+    const initialInput = takeInput.value;
 
     if (!me.value) {
         return;
     }
 
     try {
-        budget.value = await readBalance(
+        const balance = await readBalance(
             desk.value!,
             order.buy.address,
             me.value,
         );
+        if (selected.value?.id !== order.id) return;
+        budget.value = balance;
 
         // Cannot pay for all of it: offer the most that can be paid for.
         if (
             order.partialFill &&
+            takeInput.value === initialInput &&
             payFor(order, order.remaining) > budget.value
         ) {
             const most = affordable(order, budget.value);
@@ -935,6 +954,32 @@ resetLegs();
                                     spellcheck="false"
                                     placeholder="0.0"
                                 />
+                                <div
+                                    v-if="
+                                        order.buy.address.toLowerCase() ===
+                                        NATIVE.toLowerCase()
+                                    "
+                                    class="cw-row"
+                                    style="
+                                        justify-content: flex-start;
+                                        gap: 8px;
+                                        flex-wrap: wrap;
+                                        margin-top: 8px;
+                                    "
+                                >
+                                    <button
+                                        v-for="cyber in quickAmounts"
+                                        :key="cyber.toString()"
+                                        type="button"
+                                        class="cw-chip"
+                                        :disabled="
+                                            quickFill(order, cyber) === null
+                                        "
+                                        @click="selectQuickFill(order, cyber)"
+                                    >
+                                        ≤ {{ cyber.toString() }} CYBER
+                                    </button>
+                                </div>
                             </template>
                             <div
                                 v-if="takePay !== null"
@@ -945,7 +990,11 @@ resetLegs();
                                         t('otcYouPay')
                                     }}</span>
                                     <span class="cw-kv-val">{{
-                                        amount(takePay, order.buy)
+                                        amount(
+                                            takePay,
+                                            order.buy,
+                                            order.buy.decimals,
+                                        )
                                     }}</span>
                                 </div>
                                 <div class="cw-kv">
@@ -953,7 +1002,11 @@ resetLegs();
                                         t('otcYouGet')
                                     }}</span>
                                     <span class="cw-kv-val">{{
-                                        amount(takeAmount ?? 0n, order.sell)
+                                        amount(
+                                            takeAmount ?? 0n,
+                                            order.sell,
+                                            order.sell.decimals,
+                                        )
                                     }}</span>
                                 </div>
                                 <div class="cw-kv">

@@ -11,6 +11,7 @@ import {
     fillAllowed,
     isOpen,
     payFor,
+    quickCyberFill,
 } from '@/lib/wallet/otc';
 
 /**
@@ -56,6 +57,39 @@ test('fillAllowed mirrors the contract: all-or-nothing, minFill, the remainder',
     assert.equal(fillAllowed(parts, 0n), false);
     // What remains can always be taken, even below minFill.
     assert.equal(fillAllowed({ ...parts, remaining: 10n }, 10n), true);
+});
+
+test('quick CYBER budgets respect rounding, minimums, remaining stock and payment asset', () => {
+    const order = {
+        priceSell: 3n,
+        priceBuy: 10n,
+        remaining: 1_000n,
+        minFill: 1n,
+        partialFill: true,
+        buy: { address: NATIVE },
+    };
+    for (const budget of [100n, 200n, 500n]) {
+        const fill = quickCyberFill(order, budget);
+        assert.equal(fill, (budget * 3n) / 10n);
+        assert.ok(payFor(order, fill) <= budget);
+    }
+    assert.equal(quickCyberFill({ ...order, minFill: 31n }, 100n), null);
+    assert.equal(
+        quickCyberFill({ ...order, remaining: 5n, minFill: 10n }, 100n),
+        5n,
+    );
+    assert.equal(quickCyberFill({ ...order, partialFill: false }, 100n), null);
+    assert.equal(
+        quickCyberFill(
+            {
+                ...order,
+                buy: { address: '0x0000000000000000000000000000000000000001' },
+            },
+            100n,
+        ),
+        null,
+    );
+    assert.equal(quickCyberFill({ ...order, priceBuy: 0n }, 100n), null);
 });
 
 test('isOpen drops closed, sold-out and expired offers', () => {

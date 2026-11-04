@@ -7,6 +7,7 @@ use App\Models\Post;
 use App\Services\GamificationService;
 use App\Services\Social\PostAnnouncer;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,6 +30,8 @@ class PostController extends Controller
         PostAnnouncer $announcer,
     ): RedirectResponse {
         $post = $request->user()->posts()->create($request->validated());
+        Cache::forget('wallet.feed.all');
+        Cache::forget('wallet.feed.posts');
 
         // The wall paid nothing until now, which made it the one place on this
         // site where taking part was worth less than opening a page. Keyed by

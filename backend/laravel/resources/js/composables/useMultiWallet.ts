@@ -133,6 +133,8 @@ import type { SwapQuote, SwapReceipt } from '@/lib/wallet/swap';
 import type { AdminRequest } from '@/lib/wallet/tokenAdmin';
 import { submitOperation } from '@/lib/wallet/tokenAdmin';
 import { buyVpnPass } from '@/lib/wallet/vpn';
+import { executeV4, v4Provider } from '@/lib/wallet/v4';
+import type { V4Quote } from '@/lib/wallet/v4';
 import { executeWrap } from '@/lib/wallet/wrap';
 import type { WrapQuote } from '@/lib/wallet/wrap';
 
@@ -1415,6 +1417,36 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
     };
 
+    const swapV4 = async (
+        quote: V4Quote,
+        onSubmitted?: (step: 'approval' | 'swap', hash: string) => void,
+        onConfirmed?: (step: 'approval', hash: string, outcome: 'confirmed' | 'failed') => void,
+    ): Promise<string> => {
+        const chainId: WalletChainId = 'cyberia_fuji';
+        const account = accounts.value.find(
+            (candidate) => candidate.chain === chainId,
+        );
+        if (
+            !account ||
+            account.address.toLowerCase() !== quote.owner.toLowerCase()
+        ) {
+            throw new Error('This quote belongs to another account');
+        }
+        busy.value = true;
+        try {
+            return await executeV4(
+                sourceFor(chainId),
+                v4Provider(rpcFor(chainId)),
+                quote,
+                undefined,
+                onSubmitted,
+                onConfirmed,
+            );
+        } finally {
+            busy.value = false;
+        }
+    };
+
     /**
      * A swap that leaves the chain.
      *
@@ -2231,6 +2263,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         mintNft,
         gasPrice,
         swap,
+        swapV4,
         crossSwap,
         farm,
         pool,

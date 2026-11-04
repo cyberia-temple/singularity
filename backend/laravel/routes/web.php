@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\WalletDailyController;
 use App\Http\Controllers\Api\WalletDaoVoteController;
 use App\Http\Controllers\Api\WalletLainController;
 use App\Http\Controllers\Api\WalletPostController;
+use App\Http\Controllers\Api\WalletFeedInteractionController;
 use App\Http\Controllers\Api\WalletSocialController;
 use App\Http\Controllers\Api\WalletSyncController;
 use App\Http\Controllers\ApiController;
@@ -532,6 +533,8 @@ Route::prefix('api/wallet/chat')->name('wallet.chat.')->group(function () {
 Route::prefix('api/wallet')->name('wallet.social.')->group(function () {
     Route::get('feed', [WalletSocialController::class, 'feed'])
         ->middleware('throttle:60,1')->name('feed');
+    Route::get('feed/{post}/replies', [WalletFeedInteractionController::class, 'replies'])->whereNumber('post')->middleware('throttle:60,1')->name('replies');
+    Route::post('feed/{post}/view', [WalletFeedInteractionController::class, 'view'])->whereNumber('post')->middleware('throttle:120,1')->name('view');
     Route::get('dao', [WalletSocialController::class, 'dao'])
         ->middleware('throttle:60,1')->name('dao');
     Route::get('dao/proposals/{proposal}', [WalletSocialController::class, 'proposal'])
@@ -567,6 +570,8 @@ Route::middleware(['auth'])->group(function () {
      * account is a session. The wallet gets one by signing the site's login
      * challenge, which is the one thing it can prove.
      */
+    Route::post('api/wallet/feed/{post}/reaction', [WalletFeedInteractionController::class, 'reaction'])->whereNumber('post')->middleware('throttle:60,1')->name('wallet.social.reaction');
+    Route::post('api/wallet/feed/{post}/replies', [WalletFeedInteractionController::class, 'reply'])->whereNumber('post')->middleware('throttle:20,1')->name('wallet.social.reply');
     Route::post('api/wallet/feed', [WalletPostController::class, 'store'])
         ->middleware('throttle:10,1')->name('wallet.social.post');
     // Reporting a post from the wallet (store requirement for anything people

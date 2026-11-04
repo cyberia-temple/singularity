@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "chainId": "49407",
+  "sender": "0xfA41267C5E2390E941A12b0b8e566448539A5179",
+  "owner": "0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393",
+  "startNonce": 2,
+  "steps": [
+    {
+      "name": "PoolManager",
+      "address": "0x176C70dD7CF17056596D8c4C7E2b1f2537df978F",
+      "nonce": 2,
+      "initcodeHash": "0x5dfde70b571c2ceda48f05b6007d1cdee6e1bdd20eadafbf27f818726622dbbf",
+      "status": "confirmed",
+      "hash": "0xb833c33147e0a87ae03dc18887efc4da54fce5188474400b1d4dcc4dc92a7b9c",
+      "blockNumber": 146,
+      "gasUsed": "5243607"
+    },
+    {
+      "name": "Permit2",
+      "address": "0x78272aAd03E4b9d7A9134e874BA6d419B534F6c9",
+      "nonce": 3,
+      "initcodeHash": "0xec8b52adcb3cf916a9ddbe1015e62d250957eb1c5b045f1c4f2435e8285c371c",
+      "status": "confirmed",
+      "hash": "0xe29dc7410e2a9cef8ea4a68d989a61bb3ae690ae1e66b6fd2a7693606472755b",
+      "blockNumber": 147,
+      "gasUsed": "2021718"
+    },
+    {
+      "name": "WCYBER",
+      "address": "0x8bECfB12Ab113586D8deD3D343aEfFd8eD54FD62",
+      "nonce": 4,
+      "initcodeHash": "0x87e4600ed8ceaf7d89fae23b139161505b027e7c7462ec9c2c0d175199d4818d",
+      "status": "confirmed",
+      "hash": "0xfcb775ab3d7276b04650690311e438b39fcd627d8ed4810a31fb168379735caf",
+      "blockNumber": 148,
+      "gasUsed": "584425"
+    },
+    {
+      "name": "PositionDescriptor",
+      "address": "0xefc661f338D7e9D9BEd6d33F40AFa2ccF5414Af6",
+      "nonce": 5,
+      "initcodeHash": "0x6fb458e15024fefc45aa52853a9e8cba89157b787c3811a8db3008f9089fdd63",
+      "status": "confirmed",
+      "hash": "0xbfa66f3e58e8c6495a2ecf9122f923a8f2125190ece4d51113a974985f1f2f9e",
+      "blockNumber": 149,
+      "gasUsed": "5260163"
+    },
+    {
+      "name": "PositionManager",
+      "address": "0xFaaC392f2228805D57Ed78018AD59Afc7231a9bB",
+      "nonce": 6,
+      "initcodeHash": "0xfd61ab3b5e2902d74d5414d3c48fac73f3342b26b11303520c8127ea9750c2ef",
+      "status": "confirmed",
+      "hash": "0xd1b153150b59211319b9fcd3eef6d9ff36ac59a25c189dd93cfc7105c6c5b05d",
+      "blockNumber": 150,
+      "gasUsed": "5255155"
+    },
+    {
+      "name": "StateView",
+      "address": "0xfA97C3659958983bD68431CAEf23fa2e9DDcc551",
+      "nonce": 7,
+      "initcodeHash": "0x40c18fae5f1473ba294c72c384f16f2583dff14f9d1e641d7a3d33ecf298850b",
+      "status": "confirmed",
+      "hash": "0x6a06d26db21a4aca78989396988ccbad2bd4aae922c055335bdcdf0dc95bde24",
+      "blockNumber": 151,
+      "gasUsed": "812653"
+    },
+    {
+      "name": "V4Quoter",
+      "address": "0xCCA4Ae05A6bf4c8Fcb50eE0B771428DC6A0693D3",
+      "nonce": 8,
+      "initcodeHash": "0xe63888f39ca004b58146c6d1ddb98f38e40fa01b3cfc1a9aedab0f06d439f628",
+      "status": "confirmed",
+      "hash": "0x2ef4e6a603fb3a3de138e5f967da5361a9b0a070eefa8eb9047e9050d5c7ff77",
+      "blockNumber": 152,
+      "gasUsed": "1370175"
+    },
+    {
+      "name": "UniversalRouter",
+      "address": "0x4A769e45654ECeEc46CF2764C7a47EbCfb1CF23c",
+      "nonce": 9,
+      "initcodeHash": "0x4be404dda7f221cf1b4ac32dea77a4f84870749fe302817e3c64a3450bc4fe46",
+      "status": "confirmed",
+      "hash": "0x46d866a21b8a11a1bfac1a515ce22b22ee23e12a91e31b6580ca8c3fa1553553",
+      "blockNumber": 153,
+      "gasUsed": "4067740"
+    }
+  ]
+}

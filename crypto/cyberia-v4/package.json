@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "@uniswap/universal-router": "2.1.0",
+    "@uniswap/v4-core": "1.0.2",
+    "@uniswap/v4-periphery": "1.0.3",
+    "ethers": "6.16.0",
+    "hardhat": "3.21.1",
+    "solc": "0.8.26",
+    "solc-0-8-17": "npm:solc@0.8.17"
+  },
+  "type": "module",
+  "name": "cyberia-v4-prototype",
+  "private": true,
+  "scripts": {
+    "test": "node plan-test.mjs && node deploy-test.mjs && node --import ../../backend/laravel/tests/Frontend/alias-hook.mjs smoke.mjs"
+  }
+}

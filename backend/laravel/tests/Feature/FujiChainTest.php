@@ -5,7 +5,7 @@ use App\Services\WalletPriceService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
-const FUJI_CHAIN_OPERATOR = '0xae8f9c21b082d09857622824ada365d71b18b44b';
+const FUJI_CHAIN_OPERATOR = '0x472725293d97dff80ea34c22840872832edbe8dc';
 const FUJI_CHAIN_STRANGER = '0x3333333333333333333333333333333333333333';
 const FUJI_CHAIN_TREASURY = '0x96cd117786ebc0fdbef56a6559feb2bd2bae3393';
 const FUJI_CHAIN_MINTER = '0x386f2a822653f4af8a35774d3fbe80bf87adc71f';
@@ -76,6 +76,7 @@ beforeEach(function () {
     config()->set('fuji.chain.pchain_rpc_url', 'https://pchain.test/ext/bc/P');
     config()->set('fuji.chain.ethereum_rpc_url', 'https://eth.test/rpc');
     config()->set('fuji.treasury', FUJI_CHAIN_TREASURY);
+    config()->set('fuji.chain.operator', FUJI_CHAIN_OPERATOR);
     config()->set('fuji.faucet.private_key', '');
     config()->set('services.bridge.relayer_address', '0x4444444444444444444444444444444444444444');
 
@@ -105,6 +106,8 @@ it('reads the fee rules, where fees go, who may mint and the validator runway fr
         ->assertJsonPath('validator.balance', '86400000')
         ->assertJsonPath('validator.secondsLeft', 86400)
         ->assertJsonPath('wallets.0.key', 'bridge')
+        ->assertJsonPath('wallets.2.key', 'operator')
+        ->assertJsonPath('wallets.2.address', FUJI_CHAIN_OPERATOR)
         ->assertJsonMissingPath('roles');
 });
 
@@ -112,6 +115,15 @@ it('reads the fee rules, where fees go, who may mint and the validator runway fr
  * Ethereum gas 50,000,000 wei × $2,000 ÷ $0.00002 per CYBER: the minimum base
  * fee at which a CYBER transfer costs what an ETH transfer costs.
  */
+it('does not label a configured address as admin without an on-chain admin role', function () {
+    fakeFujiNetworks();
+    config()->set('fuji.chain.operator', FUJI_CHAIN_STRANGER);
+
+    $this->getJson('/api/fuji/chain')
+        ->assertOk()
+        ->assertJsonMissing(['key' => 'operator']);
+});
+
 it('works out the minimum base fee that prices a transfer like Ethereum', function () {
     fakeFujiNetworks();
 

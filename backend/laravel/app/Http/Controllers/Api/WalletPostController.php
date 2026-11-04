@@ -47,6 +47,8 @@ class WalletPostController extends Controller
 
         $user = $request->user();
         $post = $user->posts()->create($validated);
+        Cache::forget('wallet.feed.all');
+        Cache::forget('wallet.feed.posts');
 
         // Keyed by the post, so a retry of a request whose answer was lost
         // cannot pay twice — the same rule the site's form follows.
@@ -142,6 +144,7 @@ class WalletPostController extends Controller
             ],
             'text' => $post->body,
             'meta' => null,
+            'engagement' => ['likes' => 0, 'reposts' => 0, 'replies' => 0, 'views' => 0, 'liked' => false, 'reposted' => false],
             'url' => route('feed'),
         ];
     }

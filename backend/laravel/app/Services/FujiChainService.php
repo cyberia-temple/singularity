@@ -206,9 +206,17 @@ class FujiChainService
         $out = [];
 
         foreach ($wallets as $key => $address) {
-            if (is_string($address) && preg_match('/^0x[a-fA-F0-9]{40}$/', $address) === 1) {
-                $out[] = ['key' => $key, 'address' => $address, 'balance' => $this->rpc->balance($address)];
+            if (! is_string($address) || preg_match('/^0x[a-fA-F0-9]{40}$/', $address) !== 1) {
+                continue;
             }
+
+            if ($key === 'operator'
+                && $this->role(self::FEE_MANAGER, $address) !== 2
+                && $this->role(self::REWARD_MANAGER, $address) !== 2) {
+                continue;
+            }
+
+            $out[] = ['key' => $key, 'address' => $address, 'balance' => $this->rpc->balance($address)];
         }
 
         return $out;

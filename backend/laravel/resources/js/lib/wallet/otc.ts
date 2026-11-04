@@ -216,6 +216,33 @@ export const fillAllowed = (
     (amount === order.remaining ||
         (order.partialFill && amount >= order.minFill));
 
+/** Largest valid partial fill for a CYBER budget, without exceeding it. */
+export const quickCyberFill = (
+    order: Pick<
+        OtcOrder,
+        | 'priceSell'
+        | 'priceBuy'
+        | 'remaining'
+        | 'minFill'
+        | 'partialFill'
+        | 'buy'
+    >,
+    budget: bigint,
+): bigint | null => {
+    if (
+        !order.partialFill ||
+        order.buy.address.toLowerCase() !== NATIVE.toLowerCase() ||
+        budget <= 0n ||
+        order.priceBuy <= 0n ||
+        order.priceSell <= 0n
+    ) {
+        return null;
+    }
+
+    const value = affordable(order, budget);
+    return fillAllowed(order, value) ? value : null;
+};
+
 /** An offer a taker can still act on at `now` (unix seconds). */
 export const isOpen = (
     order: { closed: boolean; remaining: bigint; expiry: bigint },

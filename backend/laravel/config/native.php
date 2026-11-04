@@ -14,7 +14,7 @@ return [
     */
 
     'android' => [
-        'package' => env('APP_ANDROID_PACKAGE', 'church.cyberia.app'),
+        'package' => env('APP_ANDROID_PACKAGE', 'cyberia.app'),
 
         // SHA-256 of the signing certificate, colon separated. List both the
         // upload key and the Play app-signing key, comma separated.

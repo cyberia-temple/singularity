@@ -9,7 +9,7 @@ it('hides the association files until an app identity is configured', function (
 });
 
 it('delegates Android app links to the configured package', function () {
-    config()->set('native.android.package', 'church.cyberia.app');
+    config()->set('native.android.package', 'cyberia.app');
     config()->set('native.android.fingerprints', 'aa:bb:cc , dd:ee:ff');
 
     $this->get('/.well-known/assetlinks.json')
@@ -18,7 +18,7 @@ it('delegates Android app links to the configured package', function () {
             'relation' => ['delegate_permission/common.handle_all_urls'],
             'target' => [
                 'namespace' => 'android_app',
-                'package_name' => 'church.cyberia.app',
+                'package_name' => 'cyberia.app',
                 'sha256_cert_fingerprints' => ['AA:BB:CC', 'DD:EE:FF'],
             ],
         ]]);
