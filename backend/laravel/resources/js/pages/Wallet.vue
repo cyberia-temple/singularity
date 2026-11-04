@@ -43,6 +43,7 @@ import WalletFeed from '@/components/wallet/WalletFeed.vue';
 import WalletGallery from '@/components/wallet/WalletGallery.vue';
 import WalletGasStation from '@/components/wallet/WalletGasStation.vue';
 import WalletImportAccount from '@/components/wallet/WalletImportAccount.vue';
+import WalletInvite from '@/components/wallet/WalletInvite.vue';
 import WalletIpfs from '@/components/wallet/WalletIpfs.vue';
 import WalletLain from '@/components/wallet/WalletLain.vue';
 import WalletLaunchpad from '@/components/wallet/WalletLaunchpad.vue';
@@ -121,6 +122,7 @@ import { parsePaymentUri } from '@/lib/wallet/paymentUri';
 import type { PlayerTrack } from '@/lib/wallet/player';
 import { NO_CHANGES } from '@/lib/wallet/priceChange';
 import type { PriceChanges } from '@/lib/wallet/priceChange';
+import { rememberInvite } from '@/lib/wallet/referrals';
 import type { SwipeIntent } from '@/lib/wallet/swipe';
 import { signInWithTelegram } from '@/lib/wallet/sync';
 import { canStream, torrentBridge } from '@/lib/wallet/torrent';
@@ -258,6 +260,7 @@ type Section =
     | 'arena'
     | 'agents'
     | 'daily'
+    | 'invite'
     | 'browse'
     | 'domains'
     | 'shop'
@@ -391,6 +394,7 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             { id: 'arena', label: () => arenaT('nav') },
             { id: 'otc', label: () => t('otcTitle') },
             { id: 'daily', label: () => t('dailyTitle') },
+            { id: 'invite', label: () => t('inviteTitle') },
             { id: 'browse', label: () => t('browseTitle') },
             { id: 'gas', label: () => t('gasStation') },
             // Listed, but last and marked: no provider is configured yet, so
@@ -487,6 +491,7 @@ const TAB_OF: Record<Section, Section> = {
     arena: 'portfolio',
     agents: 'portfolio',
     daily: 'portfolio',
+    invite: 'portfolio',
     browse: 'portfolio',
     developer: 'portfolio',
     chain: 'portfolio',
@@ -1111,6 +1116,35 @@ const takeScanned = (text: string): void => {
     } else {
         openSendTo(scanned.address);
     }
+};
+
+/**
+ * A shared invite: `/r/CODE` lands here as `?section=invite&invite=CODE`.
+ *
+ * The code is kept in this browser rather than in the address, because the
+ * person following an invite usually has no account yet — it is accepted by
+ * the invite screen the moment there is one. Deleted from the address like
+ * `?swap=`: a refresh should not re-announce an invite already taken in.
+ */
+const takeInviteRequest = (): void => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('invite');
+
+    if (code === null) {
+        return;
+    }
+
+    rememberInvite(code);
+    url.searchParams.delete('invite');
+    window.history.replaceState(
+        window.history.state,
+        '',
+        url.pathname + url.search + url.hash,
+    );
 };
 
 const takeSwapRequest = (): void => {
@@ -1935,6 +1969,7 @@ onMounted(() => {
     greetConsole();
     void signInInsideTelegram();
     void startFresh();
+    takeInviteRequest();
     takeSectionRequest();
     takeScanRequest();
     takeWrapRequest();
@@ -2684,6 +2719,17 @@ watch(
                         @back="openSection(dailyFrom)"
                         @gas="openSection('gas')"
                         @go="openQuest"
+                    />
+
+                    <!--
+                      Invite friends: a share of the fee Cyberia collected
+                      from them. An account screen like the daily board — a
+                      referral links two people, not two keys.
+                    -->
+                    <WalletInvite
+                        v-else-if="section === 'invite'"
+                        :wallet="wallet"
+                        @back="openSection('portfolio')"
                     />
 
                     <!--

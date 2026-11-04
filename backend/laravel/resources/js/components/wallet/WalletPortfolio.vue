@@ -848,6 +848,7 @@ const recent = computed(() =>
                 'browse',
                 'domains',
                 'daily',
+                'invite',
                 'analytics',
                 'tracker',
                 'ipfs',

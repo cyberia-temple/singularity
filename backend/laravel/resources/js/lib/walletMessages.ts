@@ -640,6 +640,67 @@ export const walletMessages: Messages = {
         signSentenceToken:
             'Transfer {amount} {symbol} from your {chain} account to {to} on {network}, paying up to {fee} {gas} in network fees.',
 
+        // Invite friends (WalletInvite). The first sentence is the rule the
+        // rest follows from: a share of a fee a friend actually paid, never a
+        // bounty — so no language may make it sound like pay for trading.
+        inviteTitle: 'Invite friends',
+        tileInvite: 'Invite',
+        inviteTag: '{share} OF FEES',
+        inviteLoading: 'Reading your invites…',
+        inviteLead:
+            'Bring a friend to Cyberia and get {share} of the swap fees we collect from them.',
+        inviteBody:
+            'Cross-chain swaps in this wallet carry a small fee. When a friend you invited makes one, part of that fee goes to you. It comes out of money they already paid us — nothing is minted and nobody is charged extra.',
+        inviteNotCollecting:
+            'This server is not collecting a swap fee right now, so invites cannot earn anything yet. Your link still works and friends you bring now will count once it is on.',
+        inviteOff: 'Invites are switched off right now.',
+        inviteYouWereInvited: 'You were invited',
+        inviteAcceptBody:
+            'Accept to make this person your inviter. It is set once and never changes.',
+        inviteAcceptAnonBody:
+            'Sign in with this wallet below and the invite is accepted automatically.',
+        inviteAccept: 'Accept invite',
+        inviteAccepting: 'Accepting…',
+        inviteAccepted: 'Invite accepted. Welcome to Cyberia.',
+        inviteRefused_signed_out:
+            'Sign in with this wallet to accept the invite.',
+        inviteRefused_disabled: 'Invites are switched off right now.',
+        inviteRefused_unknown_code: 'That invite code does not exist.',
+        inviteRefused_own_code: 'That is your own invite code.',
+        inviteRefused_already_invited: 'This account already has an inviter.',
+        inviteRefused_too_old:
+            'Invites are for new accounts, and this one has been here a while.',
+        inviteRefused_circular:
+            'You invited this person, so they cannot invite you back.',
+        inviteAnonBody:
+            'An invite links two Cyberia accounts, not two addresses — one person holds several wallets. Prove this address with its own key to get your link and see what it has earned.',
+        inviteYourLink: 'Your invite link',
+        inviteCopy: 'Copy link',
+        inviteCopied: 'Copied',
+        inviteShare: 'Share',
+        inviteShareText: 'Join me on Cyberia — one wallet for every chain.',
+        inviteInvited: 'Friends invited',
+        inviteEarned: 'Earned',
+        invitePending: 'Waiting for payout',
+        invitePaid: 'Paid out',
+        inviteRewards: 'Rewards',
+        inviteNoRewards:
+            'Nothing yet. A reward appears here after an invited friend’s cross-chain swap settles.',
+        inviteRewardTitle: 'Referral reward',
+        inviteRewardBody: 'You earned {amount} from a friend’s swap fees',
+        inviteState_accrued: 'earned',
+        inviteState_scheduled: 'in payout',
+        inviteState_paid: 'paid',
+        inviteRules: 'How it works',
+        inviteRuleShare:
+            'You get {share} of the fee Cyberia actually collected on your friends’ cross-chain swaps.',
+        inviteRuleNew:
+            'Invites are for new accounts (up to {days} days old). Each account has one inviter, for good.',
+        inviteRuleSelf:
+            'Inviting your own second wallet earns nothing: you would pay the whole fee to get a part of it back.',
+        inviteRulePayout:
+            'Paid weekly in {asset} to this account’s address after a manual review, once the balance reaches {minimum}.',
+
         // The gas station as a place rather than an offer: what it is, and
         // where this address stands with it.
         /*
@@ -3263,6 +3324,66 @@ export const walletMessages: Messages = {
         signSentenceToken:
             'Перевод {amount} {symbol} со счёта {chain} на {to} в сети {network}, комиссия сети — до {fee} {gas}.',
 
+        inviteTitle: 'Пригласить друзей',
+        tileInvite: 'Пригласить',
+        inviteTag: '{share} КОМИССИЙ',
+        inviteLoading: 'Читаем приглашения…',
+        inviteLead:
+            'Приведи друга в Сайберию и получай {share} комиссии, которую мы берём с его свопов.',
+        inviteBody:
+            'С кроссчейн-свопов в этом кошельке берётся небольшая комиссия. Когда приглашённый тобой друг делает своп, часть этой комиссии достаётся тебе. Она платится из денег, которые он уже заплатил нам: ничего не чеканится, и никто не платит больше.',
+        inviteNotCollecting:
+            'Сейчас этот сервер не берёт комиссию со свопов, поэтому приглашения пока ничего не приносят. Ссылка работает, и друзья, которых ты приведёшь сейчас, засчитаются, когда комиссию включат.',
+        inviteOff: 'Приглашения сейчас выключены.',
+        inviteYouWereInvited: 'Тебя пригласили',
+        inviteAcceptBody:
+            'Прими приглашение, и этот человек станет тем, кто тебя пригласил. Это задаётся один раз и больше не меняется.',
+        inviteAcceptAnonBody:
+            'Войди этим кошельком ниже — приглашение примется само.',
+        inviteAccept: 'Принять приглашение',
+        inviteAccepting: 'Принимаем…',
+        inviteAccepted: 'Приглашение принято. Добро пожаловать в Сайберию.',
+        inviteRefused_signed_out:
+            'Войди этим кошельком, чтобы принять приглашение.',
+        inviteRefused_disabled: 'Приглашения сейчас выключены.',
+        inviteRefused_unknown_code: 'Такого кода приглашения нет.',
+        inviteRefused_own_code: 'Это твой собственный код.',
+        inviteRefused_already_invited:
+            'У этого аккаунта уже есть пригласивший.',
+        inviteRefused_too_old:
+            'Приглашения — для новых аккаунтов, а этот здесь уже давно.',
+        inviteRefused_circular:
+            'Ты пригласил этого человека, поэтому он не может пригласить тебя.',
+        inviteAnonBody:
+            'Приглашение связывает два аккаунта Сайберии, а не два адреса: у одного человека бывает несколько кошельков. Подтверди этот адрес его же ключом, чтобы получить ссылку и увидеть, что она принесла.',
+        inviteYourLink: 'Твоя ссылка',
+        inviteCopy: 'Скопировать',
+        inviteCopied: 'Скопировано',
+        inviteShare: 'Поделиться',
+        inviteShareText:
+            'Присоединяйся к Сайберии — один кошелёк для всех сетей.',
+        inviteInvited: 'Приглашено',
+        inviteEarned: 'Заработано',
+        invitePending: 'Ждёт выплаты',
+        invitePaid: 'Выплачено',
+        inviteRewards: 'Награды',
+        inviteNoRewards:
+            'Пока ничего. Награда появится здесь, когда кроссчейн-своп приглашённого друга завершится.',
+        inviteRewardTitle: 'Реферальная награда',
+        inviteRewardBody: 'Ты заработал {amount} на комиссиях друга',
+        inviteState_accrued: 'начислено',
+        inviteState_scheduled: 'в выплате',
+        inviteState_paid: 'выплачено',
+        inviteRules: 'Как это работает',
+        inviteRuleShare:
+            'Ты получаешь {share} комиссии, которую Сайберия действительно собрала с кроссчейн-свопов твоих друзей.',
+        inviteRuleNew:
+            'Приглашения — для новых аккаунтов (не старше {days} дней). У каждого аккаунта один пригласивший, навсегда.',
+        inviteRuleSelf:
+            'Пригласить свой второй кошелёк невыгодно: ты заплатишь всю комиссию, чтобы вернуть её часть.',
+        inviteRulePayout:
+            'Выплата раз в неделю в {asset} на адрес этого аккаунта после ручной проверки, когда набирается {minimum}.',
+
         // Газовая станция как место, а не как разовое предложение.
         // Ежедневное: чем оплачивается день. Опыт принадлежит аккаунту,
         // а кран — адресу; в тексте эти две вещи не смешиваются.
@@ -5797,6 +5918,60 @@ export const walletMessages: Messages = {
         sponsorUnreadable: '暂时读不到 Cyberia，加油站没有回应。请稍后再试。',
         signSentenceToken:
             '从你的 {chain} 账户向 {network} 上的 {to} 转账 {amount} {symbol}，网络手续费最多 {fee} {gas}。',
+
+        inviteTitle: '邀请好友',
+        tileInvite: '邀请',
+        inviteTag: '手续费的 {share}',
+        inviteLoading: '正在读取邀请…',
+        inviteLead:
+            '邀请好友加入 Cyberia，即可获得我们从其兑换中收取手续费的 {share}。',
+        inviteBody:
+            '本钱包的跨链兑换会收取少量手续费。你邀请的好友每完成一次兑换，这笔手续费的一部分归你。它来自好友已经支付给我们的费用：不增发任何代币，也不向任何人多收。',
+        inviteNotCollecting:
+            '本服务器目前未收取兑换手续费，因此邀请暂时不会产生收益。你的链接依然有效，现在邀请的好友会在开启收费后计入。',
+        inviteOff: '邀请功能目前已关闭。',
+        inviteYouWereInvited: '你收到了邀请',
+        inviteAcceptBody:
+            '接受后，此人将成为你的邀请人。只能设置一次，之后不会更改。',
+        inviteAcceptAnonBody: '在下方用此钱包登录，邀请会自动接受。',
+        inviteAccept: '接受邀请',
+        inviteAccepting: '正在接受…',
+        inviteAccepted: '已接受邀请。欢迎来到 Cyberia。',
+        inviteRefused_signed_out: '请用此钱包登录以接受邀请。',
+        inviteRefused_disabled: '邀请功能目前已关闭。',
+        inviteRefused_unknown_code: '该邀请码不存在。',
+        inviteRefused_own_code: '这是你自己的邀请码。',
+        inviteRefused_already_invited: '该账户已有邀请人。',
+        inviteRefused_too_old: '邀请仅适用于新账户，而此账户已注册较久。',
+        inviteRefused_circular: '你邀请了此人，因此对方不能反过来邀请你。',
+        inviteAnonBody:
+            '邀请关联的是两个 Cyberia 账户，而不是两个地址——一个人可能持有多个钱包。用此地址自己的私钥证明它，即可获得你的链接并查看收益。',
+        inviteYourLink: '你的邀请链接',
+        inviteCopy: '复制链接',
+        inviteCopied: '已复制',
+        inviteShare: '分享',
+        inviteShareText: '和我一起加入 Cyberia —— 一个钱包，所有链。',
+        inviteInvited: '已邀请',
+        inviteEarned: '已赚取',
+        invitePending: '待发放',
+        invitePaid: '已发放',
+        inviteRewards: '奖励',
+        inviteNoRewards:
+            '暂无奖励。受邀好友的跨链兑换完成后，奖励会显示在这里。',
+        inviteRewardTitle: '邀请奖励',
+        inviteRewardBody: '你从好友的兑换手续费中赚取了 {amount}',
+        inviteState_accrued: '已计入',
+        inviteState_scheduled: '发放中',
+        inviteState_paid: '已发放',
+        inviteRules: '规则说明',
+        inviteRuleShare:
+            '你将获得 Cyberia 从好友跨链兑换中实际收取手续费的 {share}。',
+        inviteRuleNew:
+            '邀请仅适用于新账户（注册不超过 {days} 天）。每个账户只有一个邀请人，永久不变。',
+        inviteRuleSelf:
+            '邀请自己的第二个钱包毫无收益：你需支付全部手续费，只能拿回其中一部分。',
+        inviteRulePayout:
+            '经人工审核后，每周以 {asset} 发放到此账户的地址，余额需达到 {minimum}。',
 
         // 加油站：一个地方，而不是一次性的提议。
         // 每日：今天能挣到什么。经验属于账户，水龙头属于地址，文案不混同。
