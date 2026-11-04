@@ -22,7 +22,8 @@ import { ethers } from "ethers";
 import { waitForReceipt } from "./lib/wait-receipt";
 import { broadcastWithRecovery } from "./lib/send-tx";
 
-const RELAYER_PK = process.env.BRIDGE_RELAYER_PRIVATE_KEY || process.env.DEPLOYER_PK;
+const RELAYER_PK =
+  process.env.BRIDGE_RELAYER_PRIVATE_KEY || process.env.DEPLOYER_PK;
 
 if (!RELAYER_PK) {
   console.error("BRIDGE_RELAYER_PRIVATE_KEY or DEPLOYER_PK not set");
@@ -37,9 +38,7 @@ const RPC_URL =
 const CHAIN_ID = Number(process.env.EVM_CHAIN_ID || 49406);
 const CHAIN_NAME = process.env.EVM_NETWORK_NAME || "evm";
 
-const BURNABLE_ABI = [
-  "function burnFrom(address from, uint256 amount)",
-];
+const BURNABLE_ABI = ["function burnFrom(address from, uint256 amount)"];
 
 async function main() {
   const [, , tokenAddr, amountWei] = process.argv;
@@ -49,7 +48,9 @@ async function main() {
     process.exit(1);
   }
 
-  const pk = (RELAYER_PK!.startsWith("0x") ? RELAYER_PK! : `0x${RELAYER_PK}`) as `0x${string}`;
+  const pk = (
+    RELAYER_PK!.startsWith("0x") ? RELAYER_PK! : `0x${RELAYER_PK}`
+  ) as `0x${string}`;
   const network = new ethers.Network(CHAIN_NAME, CHAIN_ID);
   const provider = new ethers.JsonRpcProvider(RPC_URL, network, {
     staticNetwork: network,
@@ -66,6 +67,11 @@ async function main() {
     wallet,
     provider,
     await token.burnFrom.populateTransaction(wallet.address, BigInt(amountWei)),
+    {
+      onSigned: (hash) => {
+        console.log(JSON.stringify({ broadcastTxHash: hash }));
+      },
+    },
   );
   const receipt = await waitForReceipt(provider, hash);
 
