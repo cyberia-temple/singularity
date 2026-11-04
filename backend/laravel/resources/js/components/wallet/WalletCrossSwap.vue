@@ -5,6 +5,7 @@ import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { formatUnits, parseUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
+import { knownChain, shippedChainByEvmId } from '@/lib/wallet/chains';
 import {
     CROSS_NATIVE,
     crossDestinationProblem,
@@ -117,6 +118,51 @@ const sources = computed(() =>
 /** Networks a route can end on: routed, and address-checkable by this wallet. */
 const destinations = computed(() =>
     chains.value.filter((chain) => crossDestinationProblem(chain) === null),
+);
+
+/**
+ * Networks the router can start from that this wallet ships but has switched off — the
+ * one tap between "nothing to spend from" and a quote. Robinhood first: ETH there into
+ * bitcoin is the swap people come here for.
+ */
+const SOURCE_ORDER = [4663, 1, 8453, 42161, 10, 137, 43114];
+const enableableSources = computed(() =>
+    chains.value
+        .filter(
+            (chain) =>
+                chain.vm === 'evm' &&
+                chain.deposits &&
+                walletChainOf(chain.id) === null &&
+                shippedChainByEvmId(chain.id) !== null,
+        )
+        .sort((a, b) => {
+            const rank = (id: number) =>
+                SOURCE_ORDER.includes(id) ? SOURCE_ORDER.indexOf(id) : 99;
+
+            return rank(a.id) - rank(b.id);
+        })
+        .slice(0, 4),
+);
+
+const enableSource = (chainId: number): void => {
+    const shipped = shippedChainByEvmId(chainId);
+
+    if (!shipped) {
+        return;
+    }
+
+    props.wallet.enableNetwork(shipped.id);
+    sourceChainId.value = chainId;
+};
+
+/** Bitcoin is on the router's list but off in this wallet: switching it on gives an address to receive at. */
+const bitcoinOff = computed(
+    () =>
+        destination.value?.vm === 'bvm' &&
+        knownChain('bitcoin') !== null &&
+        !props.wallet.accounts.value.some(
+            (account) => account.chain === 'bitcoin',
+        ),
 );
 
 const refusedSources = computed(() =>
@@ -564,6 +610,26 @@ watch(sourceChainId, () => {
             >
                 <span>{{ t('crossNoSources') }}</span>
             </div>
+            <div
+                v-if="sources.length === 0 && enableableSources.length"
+                style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 12px;
+                "
+            >
+                <button
+                    v-for="chain in enableableSources"
+                    :key="chain.id"
+                    type="button"
+                    class="cw-ghost"
+                    data-test="cross-enable-source"
+                    @click="enableSource(chain.id)"
+                >
+                    {{ t('crossEnable', { name: chain.name }) }}
+                </button>
+            </div>
 
             <template v-else>
                 <!-- From -->
@@ -659,6 +725,17 @@ watch(sourceChainId, () => {
                     @click="openPicker('dest')"
                 >
                     {{ toToken?.symbol ?? '—' }} · {{ t('crossPickToken') }}
+                </button>
+
+                <button
+                    v-if="bitcoinOff"
+                    type="button"
+                    class="cw-ghost"
+                    style="margin-top: 8px; width: 100%"
+                    data-test="cross-enable-bitcoin"
+                    @click="props.wallet.enableNetwork('bitcoin')"
+                >
+                    {{ t('crossEnableBitcoin') }}
                 </button>
 
                 <input

@@ -1313,6 +1313,8 @@ export const walletMessages: Messages = {
             'Cyberia takes {percent}% of what you send. It comes out of the input on the source chain, and the exact amount is in the quote below before you sign anything.',
         crossFeeNone:
             'This host has no fee address configured, so Cyberia takes nothing on these routes. The router still charges its own fee, and it is in the quote.',
+        crossEnable: 'Switch on {name}',
+        crossEnableBitcoin: 'Switch on Bitcoin in this wallet to receive at your own address',
         crossNoSources:
             'None of the networks you have switched on can start a route. Switch on one the router serves — Ethereum, Arbitrum, Optimism, Polygon and Avalanche all are.',
         crossFrom: 'From',
@@ -3979,6 +3981,8 @@ export const walletMessages: Messages = {
             'Cyberia берёт {percent}% от отправленного. Она удерживается из входящей суммы в исходной сети, и точная величина видна в расчёте ниже — до того, как вы что-либо подпишете.',
         crossFeeNone:
             'На этом хосте не задан адрес для комиссии, поэтому Cyberia на этих маршрутах не берёт ничего. Свою комиссию маршрутизатор всё равно берёт, и она указана в расчёте.',
+        crossEnable: 'Включить {name}',
+        crossEnableBitcoin: 'Включить Bitcoin в кошельке — получить на свой адрес',
         crossNoSources:
             'Ни одна включённая сеть не может быть началом маршрута. Включите ту, которую маршрутизатор обслуживает, — Ethereum, Arbitrum, Optimism, Polygon и Avalanche подходят.',
         crossFrom: 'Откуда',
@@ -6536,6 +6540,8 @@ export const walletMessages: Messages = {
             'Cyberia 收取您发送金额的 {percent}%，从源链的输入金额中扣除；在您签名之前，确切金额已列在下方报价中。',
         crossFeeNone:
             '本主机未配置收费地址，因此这些路线上 Cyberia 分文不取。路由方仍会收取自己的费用，报价中已列出。',
+        crossEnable: '启用 {name}',
+        crossEnableBitcoin: '在此钱包中启用 Bitcoin，以自己的地址接收',
         crossNoSources:
             '您开启的网络都无法作为路线起点。请开启一条路由方支持的网络——以太坊、Arbitrum、Optimism、Polygon 和 Avalanche 都可以。',
         crossFrom: '从',
