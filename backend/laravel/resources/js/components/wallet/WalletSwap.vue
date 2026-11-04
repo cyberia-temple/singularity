@@ -66,8 +66,8 @@ import {
     announceWalletEvent,
     playWalletSound,
 } from '@/lib/wallet/notifications';
-import { walletMessages } from '@/lib/walletMessages';
 import { V4_FUJI } from '@/lib/wallet/v4';
+import { walletMessages } from '@/lib/walletMessages';
 
 /**
  * Trading inside the wallet: swap two assets, or wrap the network's coin.
@@ -125,6 +125,8 @@ const emit = defineEmits<{
     markets: [];
     /** The daily board, from the one line of it this screen shows. */
     daily: [];
+    /** The cross-chain screen: the same question asked for another network. */
+    crosschain: [];
 }>();
 
 const { locale, t } = useLocale(walletMessages);
@@ -231,6 +233,7 @@ const tradable = computed(() => {
         if (candidate.chain === 'cyberia_fuji' && V4_FUJI !== null) {
             return true;
         }
+
         if (hasSwap(walletChain(candidate.chain).chainId)) {
             return true;
         }
@@ -1602,6 +1605,31 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
             >
                 {{ t('swapEyebrow') }}
             </div>
+
+            <!--
+              The eyebrow promises any network, and the pools below are one
+              network's. ETH on Robinhood into bitcoin is the cross-chain
+              screen's job, so the way there sits where the question is asked
+              rather than among the places nobody scrolls to.
+            -->
+            <button
+                v-if="mode !== 'wrap'"
+                type="button"
+                class="cw-line-row"
+                data-test="swap-other-chain"
+                style="
+                    margin-top: 12px;
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 2px;
+                "
+                @click="emit('crosschain')"
+            >
+                <span>{{ t('swapOtherChain') }} →</span>
+                <span style="color: var(--cw-dim); font-size: 12px">{{
+                    t('swapOtherChainHint')
+                }}</span>
+            </button>
 
             <div
                 v-if="tradable.length > 1"

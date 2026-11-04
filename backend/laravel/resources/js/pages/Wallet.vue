@@ -2436,6 +2436,7 @@ watch(
                         @swapped="load()"
                         @markets="openSection('markets')"
                         @daily="openSection('daily')"
+                        @crosschain="openSection('crosschain')"
                     />
 
                     <WalletReceive

@@ -2039,6 +2039,9 @@ export const walletMessages: Messages = {
          * what this screen actually does rather than a slogan.
          */
         swapEyebrow: 'Any asset · any network · one route',
+        swapOtherChain: 'To another network — BTC, SOL, Base and more',
+        swapOtherChainHint:
+            'Routed by Relay in one deposit; the fee is in the quote before you sign.',
         swapVenue: '{chain} pools · {hops} hop(s)',
         swapKindCoin: "{chain}'s own coin",
         swapKindToken: 'Token on {chain}',
@@ -4668,6 +4671,9 @@ export const walletMessages: Messages = {
         // Мебель экрана обмена. Три разные фразы про опыт: есть ли аккаунт,
         // зачтён ли уже день — это разные состояния, и они не сливаются.
         swapEyebrow: 'Любой актив · любая сеть · один маршрут',
+        swapOtherChain: 'В другую сеть — BTC, SOL, Base и другие',
+        swapOtherChainHint:
+            'Одним депозитом через Relay; комиссия видна в котировке до подписи.',
         swapVenue: 'Пулы {chain} · переходов: {hops}',
         swapKindCoin: 'Собственная монета сети {chain}',
         swapKindToken: 'Токен в сети {chain}',
@@ -7180,6 +7186,8 @@ export const walletMessages: Messages = {
         // 兑换界面的框架文案。关于经验有三句不同的话：有没有账户、今天是否
         // 已计入，这是不同的状态，不能混为一谈。
         swapEyebrow: '任意资产 · 任意网络 · 一条路由',
+        swapOtherChain: '兑换到其他网络 — BTC、SOL、Base 等',
+        swapOtherChainHint: '通过 Relay 一次存入完成；签名前报价中即显示手续费。',
         swapVenue: '{chain} 池 · {hops} 跳',
         swapKindCoin: '{chain} 的原生币',
         swapKindToken: '{chain} 上的代币',

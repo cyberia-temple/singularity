@@ -14,6 +14,7 @@ import {
     crossSwapStatus,
     fetchCrossTokens,
     fetchCrosschainConfig,
+    preferredDestination,
     quoteCrossSwap,
 } from '@/lib/wallet/crosschain';
 import type {
@@ -477,7 +478,7 @@ onMounted(async () => {
         );
 
         destChainId.value =
-            own[0]?.id ??
+            preferredDestination(own)?.id ??
             destinations.value.find((chain) => chain.id !== sourceChainId.value)
                 ?.id ??
             null;

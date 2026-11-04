@@ -231,6 +231,19 @@ export const routerNativeCurrency = (id: WalletChainId): string => {
     }
 };
 
+/**
+ * The destination a cross-chain swap opens on, among the chains this wallet
+ * holds an account on: bitcoin first, then any other non-EVM chain, then the
+ * first EVM one. Bitcoin is what no pool on an EVM network can give, which is
+ * what people open this screen for (ETH on Robinhood into BTC).
+ */
+export const preferredDestination = <T extends { vm: CrossVm }>(
+    own: T[],
+): T | undefined =>
+    own.find((chain) => chain.vm === 'bvm') ??
+    own.find((chain) => chain.vm !== 'evm') ??
+    own[0];
+
 export const crossDestinationValidator = (
     chain: CrossChainRow,
 ): ((address: string) => boolean) | null => {

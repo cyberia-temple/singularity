@@ -7,6 +7,7 @@ import {
     crossFeeShareBps,
     crossSourceProblem,
     parseCrossQuote,
+    preferredDestination,
 } from '@/lib/wallet/crosschain';
 
 /**
@@ -223,4 +224,15 @@ test('the wire form becomes bigints, and an absent price stays absent', () => {
 
 test('the coin of a chain is addressed the way the router addresses it', () => {
     assert.equal(CROSS_NATIVE, '0x0000000000000000000000000000000000000000');
+});
+
+test('a cross-chain swap opens on bitcoin when the wallet holds a bitcoin account', () => {
+    const base = { id: 8453, vm: 'evm' };
+    const solana = { id: 792703809, vm: 'svm' };
+    const bitcoin = { id: 8253038, vm: 'bvm' };
+
+    assert.equal(preferredDestination([base, solana, bitcoin]), bitcoin);
+    assert.equal(preferredDestination([base, solana]), solana);
+    assert.equal(preferredDestination([base]), base);
+    assert.equal(preferredDestination([]), undefined);
 });
