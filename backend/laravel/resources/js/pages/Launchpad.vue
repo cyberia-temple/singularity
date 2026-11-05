@@ -684,7 +684,7 @@ const totalCyberLocked = computed(() =>
 );
 
 type SortKey = 'new' | 'mcap' | 'liq';
-const sortBy = ref<SortKey>('new');
+const sortBy = ref<SortKey>('mcap');
 const sortTabs: { key: SortKey; label: string }[] = [
     { key: 'new', label: 'Newest' },
     { key: 'mcap', label: 'Market cap' },
@@ -1215,7 +1215,7 @@ const loadRecent = async (): Promise<void> => {
             return;
         }
 
-        const CAP = 25;
+        const CAP = v2Length + v3Length;
         const v3Indices: number[] = [];
 
         for (let i = v3Length - 1; i >= 0 && v3Indices.length < CAP; i--) {
@@ -1504,6 +1504,13 @@ const submitMetadata = async (
 
 const swapUrlFor = (tokenAddress: string): string =>
     `${SWAP_BASE_URL}?inputCurrency=ETH&outputCurrency=${tokenAddress}`;
+
+const quickTradeUrl = (
+    token: string,
+    direction: 'buy' | 'sell',
+    cyber: string,
+): string =>
+    `/swap?chain=49406&${direction === 'buy' ? 'out' : 'in'}=${encodeURIComponent(token)}&direction=${direction}&cyber=${cyber}`;
 
 const explorerAddressUrl = (address: string): string =>
     `${EXPLORER_BASE_URL}/address/${address}`;
@@ -2530,6 +2537,27 @@ onMounted(async () => {
                                         Swap →
                                     </a>
                                 </div>
+                            </div>
+                            <div
+                                class="flex flex-wrap gap-2"
+                                style="margin-top: 10px"
+                            >
+                                <a
+                                    v-for="value in ['1', '5', '10']"
+                                    :key="'buy' + value"
+                                    class="swapBtn"
+                                    :href="quickTradeUrl(t.token, 'buy', value)"
+                                    >Buy {{ value }} CYBER</a
+                                >
+                                <a
+                                    v-for="value in ['1', '5', '10']"
+                                    :key="'sell' + value"
+                                    class="swapBtn"
+                                    :href="
+                                        quickTradeUrl(t.token, 'sell', value)
+                                    "
+                                    >Sell {{ value }} CYBER</a
+                                >
                             </div>
                             <p v-if="t.description" class="tokenDesc">
                                 {{ t.description }}

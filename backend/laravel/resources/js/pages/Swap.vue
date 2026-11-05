@@ -2310,6 +2310,26 @@ const takeLinkedPair = (): boolean => {
         }
     }
 
+    const quick = params.get('cyber');
+    const direction = params.get('direction');
+    if (
+        activeChainId.value === 49406 &&
+        quick &&
+        ['1', '5', '10'].includes(quick)
+    ) {
+        if (
+            direction === 'buy' &&
+            tokenIn.value === NATIVE &&
+            tokenOut.value !== NATIVE
+        ) {
+            amountIn.value = quick;
+            onAmountEdited('in');
+        } else if (direction === 'sell' && tokenIn.value !== NATIVE) {
+            tokenOut.value = NATIVE;
+            amountOut.value = quick;
+            onAmountEdited('out');
+        }
+    }
     return chose;
 };
 
@@ -2436,7 +2456,9 @@ onBeforeUnmount(() => {
                           nothing in.
                         -->
                         <h2 class="font-semibold">
-                            {{ showsIndexedChart ? 'Market' : 'Cyberia market' }}
+                            {{
+                                showsIndexedChart ? 'Market' : 'Cyberia market'
+                            }}
                             <!--
                               The pair the chart is *of*, not the pair being
                               traded. They are usually the same and sometimes
@@ -2474,8 +2496,8 @@ onBeforeUnmount(() => {
                                 — a different pair from the one being traded.
                             </template>
                             <template v-else-if="chartedPool">
-                                No pool holds both sides of this trade, so
-                                these are {{ drawnBase }}'s own candles against
+                                No pool holds both sides of this trade, so these
+                                are {{ drawnBase }}'s own candles against
                                 {{ drawnQuote }} — rebuilt from that pool's
                                 trades, and a different pair from the one being
                                 swapped.
@@ -2823,6 +2845,29 @@ onBeforeUnmount(() => {
                     />
                 </div>
 
+                <div
+                    v-if="
+                        activeChainId === 49406 &&
+                        tokenIn === NATIVE &&
+                        tokenOut !== NATIVE
+                    "
+                    class="flex flex-wrap gap-2"
+                    aria-label="CYBER buy amounts"
+                >
+                    <button
+                        v-for="preset in ['1', '5', '10']"
+                        :key="preset"
+                        type="button"
+                        class="rounded-md border px-3 py-2 text-sm"
+                        @click="
+                            amountIn = preset;
+                            onAmountEdited('in');
+                        "
+                    >
+                        {{ preset }} CYBER
+                    </button>
+                </div>
+
                 <!-- flip -->
                 <div class="flex justify-center">
                     <button
@@ -2898,6 +2943,29 @@ onBeforeUnmount(() => {
                             class="absolute top-1/2 right-2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
                         />
                     </div>
+                </div>
+
+                <div
+                    v-if="
+                        activeChainId === 49406 &&
+                        tokenOut === NATIVE &&
+                        tokenIn !== NATIVE
+                    "
+                    class="flex flex-wrap gap-2"
+                    aria-label="CYBER sell amounts"
+                >
+                    <button
+                        v-for="preset in ['1', '5', '10']"
+                        :key="preset"
+                        type="button"
+                        class="rounded-md border px-3 py-2 text-sm"
+                        @click="
+                            amountOut = preset;
+                            onAmountEdited('out');
+                        "
+                    >
+                        {{ preset }} CYBER
+                    </button>
                 </div>
 
                 <!-- quote details -->

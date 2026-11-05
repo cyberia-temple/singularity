@@ -234,9 +234,13 @@ const shortOfFunds = computed(
         takePay.value > budget.value,
 );
 
-const quickAmounts = [100n, 200n, 500n] as const;
+const quickAmounts = [1n, 5n, 10n] as const;
 const quickFill = (order: OtcOrder, cyber: bigint): bigint | null =>
-    quickCyberFill(order, cyber * 10n ** BigInt(order.buy.decimals));
+    order.sell.address.toLowerCase() === NATIVE.toLowerCase()
+        ? fillAllowed(order, cyber * 10n ** BigInt(order.sell.decimals))
+            ? cyber * 10n ** BigInt(order.sell.decimals)
+            : null
+        : quickCyberFill(order, cyber * 10n ** BigInt(order.buy.decimals));
 const selectQuickFill = (order: OtcOrder, cyber: bigint): void => {
     const value = quickFill(order, cyber);
     if (value !== null) {
@@ -957,7 +961,9 @@ resetLegs();
                                 <div
                                     v-if="
                                         order.buy.address.toLowerCase() ===
-                                        NATIVE.toLowerCase()
+                                            NATIVE.toLowerCase() ||
+                                        order.sell.address.toLowerCase() ===
+                                            NATIVE.toLowerCase()
                                     "
                                     class="cw-row"
                                     style="
@@ -977,7 +983,12 @@ resetLegs();
                                         "
                                         @click="selectQuickFill(order, cyber)"
                                     >
-                                        ≤ {{ cyber.toString() }} CYBER
+                                        {{
+                                            order.buy.address.toLowerCase() ===
+                                            NATIVE.toLowerCase()
+                                                ? '≤ '
+                                                : ''
+                                        }}{{ cyber.toString() }} CYBER
                                     </button>
                                 </div>
                             </template>

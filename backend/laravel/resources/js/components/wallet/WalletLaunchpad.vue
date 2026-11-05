@@ -49,6 +49,37 @@ const emit = defineEmits<{
 const { locale, t } = useLocale(walletMessages);
 
 const launches = ref<WalletLaunch[]>([]);
+const images = ref<Record<string, string>>({});
+const failedImages = ref<Record<string, boolean>>({});
+
+const loadImages = async (): Promise<void> => {
+    try {
+        const response = await fetch('/api/launchpad/tokens', {
+            headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+            tokens: {
+                chain_id: number;
+                address: string;
+                image_url: string | null;
+            }[];
+        };
+        const chainId = chain.value?.chain.chainId;
+        images.value = Object.fromEntries(
+            data.tokens
+                .filter(
+                    (token) => token.chain_id === chainId && token.image_url,
+                )
+                .map((token) => [
+                    token.address.toLowerCase(),
+                    token.image_url!,
+                ]),
+        );
+    } catch {
+        // Token metadata is optional; the on-chain list remains available.
+    }
+};
 const selected = ref<string | null>(null);
 /** The launch composer is open instead of the list. */
 const creating = ref(false);
@@ -58,7 +89,7 @@ const failure = ref<string | null>(null);
  * Newest reads one page; by market cap reads every launch, because a ranking
  * of the newest twelve is not a ranking of the launchpad.
  */
-const order = ref<'new' | 'cap'>('new');
+const order = ref<'new' | 'cap'>('cap');
 
 const shown = computed(() =>
     order.value === 'cap' ? byMarketCap(launches.value) : launches.value,
@@ -133,6 +164,7 @@ const load = async (): Promise<void> => {
     loading.value = true;
     failure.value = null;
     void loadHomepages();
+    void loadImages();
 
     const wanted = order.value;
 
@@ -188,7 +220,20 @@ onMounted(load);
                     margin: 22px 0 18px;
                 "
             >
+                <img
+                    v-if="
+                        images[detail.address.toLowerCase()] &&
+                        !failedImages[detail.address.toLowerCase()]
+                    "
+                    :src="images[detail.address.toLowerCase()]"
+                    :alt="detail.symbol"
+                    width="40"
+                    height="40"
+                    style="object-fit: cover; border-radius: 50%"
+                    @error="failedImages[detail.address.toLowerCase()] = true"
+                />
                 <span
+                    v-else
                     style="
                         display: flex;
                         min-width: 40px;
@@ -310,6 +355,31 @@ onMounted(load);
                 }}</span>
             </p>
 
+            <div
+                class="cw-row"
+                style="
+                    justify-content: flex-start;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                    margin-top: 12px;
+                "
+            >
+                <a
+                    v-for="value in ['1', '5', '10']"
+                    :key="'buy' + value"
+                    class="cw-chip"
+                    :href="`/swap?chain=49406&out=${detail.address}&direction=buy&cyber=${value}`"
+                    >Buy {{ value }} CYBER</a
+                >
+                <a
+                    v-for="value in ['1', '5', '10']"
+                    :key="'sell' + value"
+                    class="cw-chip"
+                    :href="`/swap?chain=49406&in=${detail.address}&direction=sell&cyber=${value}`"
+                    >Sell {{ value }} CYBER</a
+                >
+            </div>
+
             <p class="cw-note cw-note-warn" style="margin-top: 12px">
                 <span>{{ t('launchRisk') }}</span>
             </p>
@@ -425,7 +495,23 @@ onMounted(load);
                     @click="selected = launch.address"
                 >
                     <div style="display: flex; align-items: center; gap: 12px">
+                        <img
+                            v-if="
+                                images[launch.address.toLowerCase()] &&
+                                !failedImages[launch.address.toLowerCase()]
+                            "
+                            :src="images[launch.address.toLowerCase()]"
+                            :alt="launch.symbol"
+                            width="34"
+                            height="34"
+                            style="object-fit: cover; border-radius: 50%"
+                            @error="
+                                failedImages[launch.address.toLowerCase()] =
+                                    true
+                            "
+                        />
                         <span
+                            v-else
                             style="
                                 display: flex;
                                 min-width: 34px;

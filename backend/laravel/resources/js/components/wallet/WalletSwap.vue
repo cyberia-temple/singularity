@@ -148,6 +148,7 @@ const outcome = ref<Outcome>('signing');
 const direction = ref<WrapDirection>(props.initialDirection ?? 'wrap');
 
 const amount = ref('');
+const quickSelling = ref(false);
 const slippageBps = ref(50);
 const quote = ref<SwapQuote | null>(null);
 const wrapQuote = ref<WrapQuote | null>(null);
@@ -397,6 +398,7 @@ const canSign = computed(() => account.value?.capabilities.send ?? false);
 const ready = computed(
     () =>
         canSign.value &&
+        !quickSelling.value &&
         shortfall.value === null &&
         gasShortfall.value === null &&
         (mode.value === 'wrap'
@@ -697,6 +699,37 @@ const traits = () => ({
                   ] ?? null),
         ) ?? undefined,
 });
+
+// Sell presets choose a token input whose live quote does not exceed the
+// selected CYBER amount. The normal quote and review still precede signing.
+const quickSell = async (cyber: string): Promise<void> => {
+    const config = dex.value;
+    const owner = account.value;
+    const target = parseUnits(cyber, 18);
+    const available = balanceOf(payAsset.value);
+    if (!config || !owner || !to.value || available === null || available <= 0n) return;
+    const originalFrom = from.value;
+    const originalTo = to.value;
+    quickSelling.value = true;
+    quote.value = null;
+    try {
+        const price = gasPrice.value ?? await loadGasPrice();
+        if (price === null) throw new Error(t('feeUnavailable'));
+        let low = 0n;
+        let high = available;
+        for (let i = 0; i < 16 && low < high; i++) {
+            const mid = (low + high + 1n) / 2n;
+            const candidate = await quoteSwap({ chainId: config.chainId, from: originalFrom, to: originalTo, amountIn: mid, slippageBps: slippageBps.value, account: owner.address, gasPrice: price });
+            if (candidate.amountOut <= target) low = mid;
+            else high = mid - 1n;
+        }
+        if (from.value === originalFrom && to.value === originalTo && low > 0n) amount.value = formatUnits(low, originalFrom.decimals, originalFrom.decimals);
+    } catch (error) {
+        failure.value = failureReason(error);
+    } finally {
+        quickSelling.value = false;
+    }
+};
 
 const refreshQuote = async (): Promise<void> => {
     quote.value = null;
@@ -2042,9 +2075,9 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
 
                     <div
                         v-if="
-                            props.chain === 'cyberia_fuji' &&
+                            props.chain === 'cyberia' &&
                             mode === 'swap' &&
-                            payAsset.address === null
+                            (payAsset.address === null || receiveAsset?.address === null)
                         "
                         class="cw-row"
                         style="
@@ -2055,15 +2088,16 @@ watch([amount, from, to, slippageBps, mode, direction], scheduleQuote);
                         "
                     >
                         <button
-                            v-for="preset in ['100', '200', '500']"
+                            v-for="preset in ['1', '5', '10']"
                             :key="preset"
                             type="button"
                             class="cw-chip"
                             :class="{ 'cw-chip-on': amount === preset }"
-                            :aria-pressed="amount === preset"
-                            @click="amount = preset"
+                            :aria-pressed="payAsset.address === null && amount === preset"
+                            :disabled="quickSelling"
+                            @click="payAsset.address === null ? amount = preset : quickSell(preset)"
                         >
-                            {{ preset }} CYBER
+                            {{ payAsset.address === null ? '' : '≤ ' }}{{ preset }} CYBER
                         </button>
                     </div>
 

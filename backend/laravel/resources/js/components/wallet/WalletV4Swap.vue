@@ -77,10 +77,44 @@ const canReview = computed(
         !!account.value?.capabilities.send &&
         sufficient.value &&
         !loading.value &&
+        !quickSelling.value &&
         !unsupported.value,
 );
 const paySymbol = computed(() => (nativeIn.value ? 'CYBER' : 'AVAX.FUJI'));
 const receiveSymbol = computed(() => (nativeIn.value ? 'AVAX.FUJI' : 'CYBER'));
+
+const quickSelling = ref(false);
+const quickSell = async (cyber: string): Promise<void> => {
+    const owner = account.value?.address;
+    if (!config || !owner || nativeIn.value) return;
+    quickSelling.value = true;
+    quote.value = null;
+    try {
+        const available = await v4Balances(provider, config, owner);
+        const target = parseUnits(cyber, 18);
+        let low = 0n;
+        let high = available.token;
+        for (let i = 0; i < 16 && low < high; i++) {
+            const mid = (low + high + 1n) / 2n;
+            const candidate = await quoteV4(
+                provider,
+                config,
+                owner,
+                false,
+                mid,
+            );
+            if (candidate.amountOut <= target) low = mid;
+            else high = mid - 1n;
+        }
+        if (!nativeIn.value && account.value?.address === owner && low > 0n) {
+            amount.value = formatUnits(low, 18, 18);
+        }
+    } catch {
+        quoteError.value = true;
+    } finally {
+        quickSelling.value = false;
+    }
+};
 
 watch(
     [amount, nativeIn, () => account.value?.address],
@@ -231,7 +265,6 @@ const sign = async (): Promise<void> => {
                     :disabled="phase !== 'compose'"
                 />
                 <div
-                    v-if="nativeIn"
                     class="cw-row"
                     style="
                         justify-content: flex-start;
@@ -241,16 +274,18 @@ const sign = async (): Promise<void> => {
                     "
                 >
                     <button
-                        v-for="preset in ['100', '200', '500']"
+                        v-for="preset in ['1', '5', '10']"
                         :key="preset"
                         type="button"
                         class="cw-chip"
                         :class="{ 'cw-chip-on': amount === preset }"
                         :aria-pressed="amount === preset"
-                        :disabled="phase !== 'compose'"
-                        @click="amount = preset"
+                        :disabled="phase !== 'compose' || quickSelling"
+                        @click="
+                            nativeIn ? (amount = preset) : quickSell(preset)
+                        "
                     >
-                        {{ preset }} CYBER
+                        {{ nativeIn ? '' : '≤ ' }}{{ preset }} CYBER
                     </button>
                 </div>
             </div>
