@@ -4,20 +4,32 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
+function validSideShiftSignature(Request $request): bool
+{
+    $timestamp = $request->header('x-sideshift-timestamp')[0] ?? '';
+    $public = hex2bin($request->header('x-sideshift-key')[0] ?? '');
+    $signature = hex2bin($request->header('x-sideshift-signature')[0] ?? '');
+    $url = parse_url($request->url());
+    $path = ($url['path'] ?? '').(isset($url['query']) ? '?'.$url['query'] : '');
+    $body = $request->method() === 'GET' ? '' : $request->body();
+
+    return is_string($public) && is_string($signature) && sodium_crypto_sign_verify_detached($signature, $timestamp.$request->method().$path.$body, $public);
+}
+
 it('sets the affiliate and two percent commission on SideShift requests on the server', function () {
-    config(['services.sideshift.secret' => 'test-secret']);
+    config(['services.sideshift.private_key' => str_repeat('01', 32)]);
     Http::fake(['sideshift.ai/*' => Http::response(['id' => 'private', 'depositAddress' => 'address'], 201)]);
     $this->postJson('/api/wallet/sideshift', [
         'depositCoin' => 'ETH', 'depositNetwork' => 'ethereum', 'settleCoin' => 'BTC', 'settleNetwork' => 'bitcoin',
         'settleAddress' => 'recipient', 'refundAddress' => 'refund', 'commissionRate' => '0', 'affiliateId' => 'other',
     ])->assertOk();
-    Http::assertSent(fn (Request $r) => $r['affiliateId'] === 'x0hU9rQwn' && $r['commissionRate'] === '0.02' && $r->hasHeader('x-sideshift-secret', 'test-secret') && $r->hasHeader('x-user-ip'));
+    Http::assertSent(fn (Request $r) => $r['affiliateId'] === 'x0hU9rQwn' && $r['commissionRate'] === '0.02' && validSideShiftSignature($r) && $r->hasHeader('x-user-ip'));
 });
 
 it('refuses to create a shift without a refund address or server secret', function () {
-    config(['services.sideshift.secret' => 'test-secret']);
+    config(['services.sideshift.private_key' => str_repeat('01', 32)]);
     $this->postJson('/api/wallet/sideshift', ['depositCoin' => 'ETH', 'depositNetwork' => 'ethereum', 'settleCoin' => 'BTC', 'settleNetwork' => 'bitcoin', 'settleAddress' => 'recipient'])->assertUnprocessable();
-    config(['services.sideshift.secret' => '']);
+    config(['services.sideshift.private_key' => '']);
     $this->getJson('/api/wallet/sideshift/pair?depositCoin=ETH&depositNetwork=ethereum&settleCoin=BTC&settleNetwork=bitcoin')->assertStatus(503);
 });
 
@@ -30,8 +42,8 @@ it('requests the expanded Robinhood catalogue and marks unverified assets', func
 });
 
 it('keeps the affiliate and commission on SideShift rate requests', function () {
-    config(['services.sideshift.secret' => 'test-secret']);
+    config(['services.sideshift.private_key' => str_repeat('01', 32)]);
     Http::fake(['sideshift.ai/*' => Http::response(['min' => '0.01', 'max' => '1', 'rate' => '2'])]);
     $this->getJson('/api/wallet/sideshift/pair?depositCoin=ETH&depositNetwork=ethereum&settleCoin=BTC&settleNetwork=bitcoin&amount=0.1&commissionRate=0')->assertOk();
-    Http::assertSent(fn (Request $r) => $r['commissionRate'] === '0.02' && $r['affiliateId'] === 'x0hU9rQwn');
+    Http::assertSent(fn (Request $r) => $r['commissionRate'] === '0.02' && $r['affiliateId'] === 'x0hU9rQwn' && validSideShiftSignature($r));
 });

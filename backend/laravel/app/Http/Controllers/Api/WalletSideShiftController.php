@@ -19,13 +19,26 @@ class WalletSideShiftController extends Controller
 
     private function call(Request $request, string $path, array $data = [], bool $post = false): JsonResponse
     {
-        $secret = config('services.sideshift.secret');
-        if (! is_string($secret) || $secret === '') {
+        $seed = config('services.sideshift.private_key');
+        if (! is_string($seed) || ! preg_match('/^[0-9a-fA-F]{64}$/D', $seed) || ! extension_loaded('sodium')) {
             return response()->json(['error' => 'SideShift is not configured.'], 503);
         }
         try {
-            $http = Http::timeout(20)->acceptJson()->withHeaders(['x-sideshift-secret' => $secret, 'x-user-ip' => $request->ip()]);
-            $response = $post ? $http->post(self::API.$path, $data) : $http->get(self::API.$path, $data);
+            $method = $post ? 'POST' : 'GET';
+            $body = $post ? json_encode($data, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) : '';
+            $query = $post ? '' : http_build_query($data, '', '&', PHP_QUERY_RFC3986);
+            $signedPath = '/api/v2'.$path.($query !== '' ? '?'.$query : '');
+            $timestamp = (string) ((int) floor(microtime(true) * 1000));
+            $keypair = sodium_crypto_sign_seed_keypair(hex2bin($seed));
+            $signature = sodium_crypto_sign_detached($timestamp.$method.$signedPath.$body, sodium_crypto_sign_secretkey($keypair));
+            $http = Http::timeout(20)->acceptJson()->withHeaders([
+                'x-sideshift-key' => bin2hex(sodium_crypto_sign_publickey($keypair)),
+                'x-sideshift-timestamp' => $timestamp,
+                'x-sideshift-signature' => bin2hex($signature),
+                'x-user-ip' => $request->ip(),
+            ]);
+            $url = 'https://sideshift.ai'.$signedPath;
+            $response = $post ? $http->withBody($body, 'application/json')->post($url) : $http->get($url);
             if (! $response->successful()) {
                 return response()->json(['error' => (string) ($response->json('error.message') ?? 'SideShift could not process this request.')], 502);
             }

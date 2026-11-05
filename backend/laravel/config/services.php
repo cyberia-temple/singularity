@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'sideshift' => ['secret' => env('SIDESHIFT_SECRET', '')],
+    'sideshift' => ['private_key' => env('SIDESHIFT_PRIVATE_KEY', '')],
 
     /*
     |--------------------------------------------------------------------------
