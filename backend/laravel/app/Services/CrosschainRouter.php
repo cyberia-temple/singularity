@@ -206,7 +206,7 @@ class CrosschainRouter
         }
 
         $term = trim($term);
-        $key = 'crosschain.tokens.v1.'.$chainId.'.'.strtolower($term);
+        $key = 'crosschain.tokens.v2.'.$chainId.'.'.strtolower($term);
 
         return Cache::remember($key, 300, function () use ($chainId, $term): array {
             $response = Http::timeout($this->timeout())
@@ -214,8 +214,8 @@ class CrosschainRouter
                 ->post($this->api().'/currencies/v1', array_filter([
                     'chainIds' => [$chainId],
                     'term' => $term === '' ? null : $term,
-                    'limit' => 30,
-                    'verified' => $term === '',
+                    'limit' => $chainId === 4663 ? 100 : 30,
+                    'verified' => $chainId !== 4663 && $term === '',
                     'useExternalSearch' => $term !== '',
                     'depositAddressOnly' => false,
                 ], fn ($value) => $value !== null));

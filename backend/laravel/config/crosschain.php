@@ -78,8 +78,8 @@ return [
          */
         'address' => (string) env('CROSSCHAIN_FEE_ADDRESS', ''),
 
-        /** Basis points of the input amount. 75 = 0.75%. */
-        'bps' => (int) env('CROSSCHAIN_FEE_BPS', 75),
+        /** Basis points of the input amount. 200 = 2%. */
+        'bps' => (int) env('CROSSCHAIN_FEE_BPS', 200),
 
         /**
          * The ceiling this app will send, whatever the environment says.

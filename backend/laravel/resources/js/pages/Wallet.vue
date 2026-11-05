@@ -67,6 +67,7 @@ import WalletReceive from '@/components/wallet/WalletReceive.vue';
 import WalletSecurity from '@/components/wallet/WalletSecurity.vue';
 import WalletSend from '@/components/wallet/WalletSend.vue';
 import WalletShop from '@/components/wallet/WalletShop.vue';
+import WalletSideShift from '@/components/wallet/WalletSideShift.vue';
 import WalletStocks from '@/components/wallet/WalletStocks.vue';
 import WalletSwap from '@/components/wallet/WalletSwap.vue';
 import WalletToken from '@/components/wallet/WalletToken.vue';
@@ -257,6 +258,7 @@ type Section =
     | 'bridge'
     | 'buy'
     | 'crosschain'
+    | 'sideshift'
     | 'arena'
     | 'agents'
     | 'daily'
@@ -379,6 +381,8 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
         heading: () => t('railInWallet'),
         items: [
             { id: 'portfolio', label: () => t('navPortfolio') },
+            { id: 'crosschain', label: () => t('crossTile') },
+            { id: 'sideshift', label: () => 'SideShift' },
             { id: 'tokens', label: () => t('tokens') },
             { id: 'markets', label: () => t('markets') },
             { id: 'stocks', label: () => t('stocks') },
@@ -387,7 +391,6 @@ const RAIL: { heading: () => string; items: RailEntry[] }[] = [
             // Three things done *with* a balance rather than three ways of
             // reading one, which is why they sit apart from the screens above.
             { id: 'bridge', label: () => t('bridgeTitle') },
-            { id: 'crosschain', label: () => t('crossTile') },
             { id: 'earn', label: () => t('earnTitle') },
             { id: 'liquidity', label: () => t('poolTitle') },
             { id: 'agents', label: () => agentsT('nav') },
@@ -488,6 +491,7 @@ const TAB_OF: Record<Section, Section> = {
     bridge: 'portfolio',
     buy: 'portfolio',
     crosschain: 'portfolio',
+    sideshift: 'portfolio',
     arena: 'portfolio',
     agents: 'portfolio',
     daily: 'portfolio',
@@ -2700,6 +2704,11 @@ watch(
                       for, routed by somebody who does, for a fee that is in
                       the quote before anything is signed.
                     -->
+                    <WalletSideShift
+                        v-else-if="section === 'sideshift'"
+                        @back="openSection('portfolio')"
+                    />
+
                     <WalletCrossSwap
                         v-else-if="section === 'crosschain'"
                         :wallet="wallet"

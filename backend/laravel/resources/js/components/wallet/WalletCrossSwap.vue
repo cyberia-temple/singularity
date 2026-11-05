@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import CrossTokenIcon from '@/components/wallet/CrossTokenIcon.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
@@ -570,7 +571,9 @@ const pickChain = async (chainId: number): Promise<void> => {
     await loadTokens();
 };
 
+let tokenRequest = 0;
 const loadTokens = async (): Promise<void> => {
+    const request = ++tokenRequest;
     const chain =
         pickerChain.value ??
         (picker.value === 'dest' ? destination.value : source.value);
@@ -582,13 +585,31 @@ const loadTokens = async (): Promise<void> => {
     tokenLoading.value = true;
 
     try {
-        tokenRows.value = await fetchCrossTokens(chain.id, tokenQuery.value);
+        const rows = await fetchCrossTokens(chain.id, tokenQuery.value);
+
+        if (request === tokenRequest) {
+            tokenRows.value = rows;
+        }
     } catch {
-        tokenRows.value = [];
+        if (request === tokenRequest) {
+            tokenRows.value = [];
+        }
     } finally {
-        tokenLoading.value = false;
+        if (request === tokenRequest) {
+            tokenLoading.value = false;
+        }
     }
 };
+
+let tokenSearchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(tokenQuery, () => {
+    clearTimeout(tokenSearchTimer);
+    tokenSearchTimer = setTimeout(() => {
+        if (picker.value) {
+            void loadTokens();
+        }
+    }, 300);
+});
 
 const pickToken = (token: CrossToken | null): void => {
     const chainId = pickerChainId.value;
@@ -830,9 +851,7 @@ watch(sourceChainId, () => {
                             data-test="cross-pick-source"
                             @click="openPicker('source')"
                         >
-                            <span class="cx-coin">{{
-                                (fromToken?.symbol ?? '?').slice(0, 3)
-                            }}</span>
+                            <CrossTokenIcon :token="fromToken" />
                             <span class="cx-chip-text">
                                 <b>{{
                                     fromToken?.symbol ?? t('crossPickToken')
@@ -889,9 +908,7 @@ watch(sourceChainId, () => {
                             data-test="cross-pick-dest"
                             @click="openPicker('dest')"
                         >
-                            <span class="cx-coin">{{
-                                (toToken?.symbol ?? '?').slice(0, 3)
-                            }}</span>
+                            <CrossTokenIcon :token="toToken" />
                             <span class="cx-chip-text">
                                 <b>{{
                                     toToken?.symbol ?? t('crossPickToken')
@@ -1039,9 +1056,7 @@ watch(sourceChainId, () => {
                                             )
                                         "
                                     >
-                                        <span class="cx-coin">{{
-                                            token.symbol.slice(0, 3)
-                                        }}</span>
+                                        <CrossTokenIcon :token="token" />
                                         <span class="cx-chip-text"
                                             ><b>{{ token.symbol }}</b
                                             ><small>{{
@@ -1061,9 +1076,13 @@ watch(sourceChainId, () => {
                                     class="cx-token"
                                     @click="pickToken(null)"
                                 >
-                                    <span class="cx-coin">{{
-                                        (pickerChain?.symbol ?? '?').slice(0, 3)
-                                    }}</span>
+                                    <CrossTokenIcon
+                                        :token="
+                                            pickerChain
+                                                ? nativeToken(pickerChain)
+                                                : null
+                                        "
+                                    />
                                     <span class="cx-chip-text"
                                         ><b>{{ pickerChain?.symbol }}</b
                                         ><small>{{
@@ -1081,9 +1100,7 @@ watch(sourceChainId, () => {
                                     class="cx-token"
                                     @click="pickToken(token)"
                                 >
-                                    <span class="cx-coin">{{
-                                        token.symbol.slice(0, 3)
-                                    }}</span>
+                                    <CrossTokenIcon :token="token" />
                                     <span class="cx-chip-text">
                                         <b>{{ token.symbol }}</b>
                                         <small

@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\WalletIpfsController;
 use App\Http\Controllers\Api\WalletMoneroSwapController;
 use App\Http\Controllers\Api\WalletOnrampController;
 use App\Http\Controllers\Api\WalletPushController;
+use App\Http\Controllers\Api\WalletSideShiftController;
 use App\Http\Controllers\Api\WalletStocksController;
 use App\Http\Controllers\Api\WalletTelegramLinkController;
 use App\Http\Controllers\BoardController;
@@ -92,6 +93,9 @@ Route::prefix('wallet')->group(function () {
      * and identical for every visitor, while a quote is a live call to the
      * router for one person's amount.
      */
+    Route::get('sideshift/coins', [WalletSideShiftController::class, 'coins'])->middleware('throttle:60,1');
+    Route::get('sideshift/pair', [WalletSideShiftController::class, 'pair'])->middleware('throttle:30,1');
+    Route::post('sideshift', [WalletSideShiftController::class, 'create'])->middleware('throttle:10,1');
     Route::get('crosschain', [WalletCrosschainController::class, 'index'])->middleware('throttle:60,1');
     Route::get('crosschain/tokens', [WalletCrosschainController::class, 'tokens'])->middleware('throttle:60,1');
     Route::post('crosschain/quote', [WalletCrosschainController::class, 'quote'])->middleware('throttle:30,1');
