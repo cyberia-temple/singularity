@@ -115,10 +115,11 @@ const payBalances = ref<Record<string, bigint>>({});
 
 const isConfigured = computed(() => !!NFT_CONTRACT && !!NFT_MARKET);
 
-const readProvider = new JsonRpcProvider(cyberiaReadRpcUrl(), {
-    chainId: CYBERIA_CHAIN_ID,
-    name: 'cyberia',
-});
+const readProvider = new JsonRpcProvider(
+    cyberiaReadRpcUrl(),
+    { chainId: CYBERIA_CHAIN_ID, name: 'cyberia' },
+    { batchMaxCount: 10 },
+);
 
 const ipfsToHttp = (uri: string): string => {
     if (uri.startsWith('ipfs://')) {
@@ -132,6 +133,7 @@ const fetchJson = async (url: string): Promise<NFTMetadata | undefined> => {
     try {
         const res = await fetch(url, {
             headers: { Accept: 'application/json' },
+            signal: AbortSignal.timeout(8000),
         });
 
         if (!res.ok) {
@@ -209,11 +211,14 @@ const loadBalances = async (listings: Listing[]): Promise<void> => {
     payBalances.value = next;
 };
 
+let galleryGeneration = 0;
+
 const loadGallery = async (): Promise<void> => {
     if (!isConfigured.value) {
         return;
     }
 
+    const generation = ++galleryGeneration;
     loading.value = true;
     error.value = null;
 
@@ -227,39 +232,6 @@ const loadGallery = async (): Promise<void> => {
         ]);
         const nextId = Number(nextIdBn);
         const listingsLen = Number(listingsLenBn);
-
-        const tokenIds = Array.from({ length: nextId }, (_, i) =>
-            BigInt(i + 1),
-        );
-        const tokens = await Promise.all(
-            tokenIds.map(async (id) => {
-                try {
-                    const [owner, uri] = await Promise.all([
-                        nft.ownerOf(id),
-                        nft.tokenURI(id),
-                    ]);
-
-                    return { tokenId: id, owner, tokenURI: uri } as NFTItem;
-                } catch {
-                    return null;
-                }
-            }),
-        );
-
-        const withMetadata = await Promise.all(
-            tokens
-                .filter((t): t is NFTItem => !!t)
-                .map(async (t) => {
-                    const httpUri = ipfsToHttp(t.tokenURI);
-                    const md = await fetchJson(httpUri);
-
-                    return {
-                        ...t,
-                        metadata: md,
-                        imageUrl: md?.image ? ipfsToHttp(md.image) : undefined,
-                    };
-                }),
-        );
 
         const rawListings = await Promise.all(
             Array.from({ length: listingsLen }, (_, i) => market.listings(i)),
@@ -297,18 +269,94 @@ const loadGallery = async (): Promise<void> => {
             byTokenId.set(l.tokenId.toString(), l);
         }
 
-        items.value = withMetadata
-            .map((t) => ({
-                ...t,
-                listing: byTokenId.get(t.tokenId.toString()),
-            }))
-            .reverse();
+        if (generation !== galleryGeneration) {
+            return;
+        }
+
+        items.value = [];
+        let failed = 0;
+
+        // Keep RPC batches small and show each page as soon as it arrives.
+        // A single unavailable token must not hide the entire collection.
+        for (let end = nextId; end > 0; end -= 10) {
+            const ids = Array.from({ length: Math.min(10, end) }, (_, i) =>
+                BigInt(end - i),
+            );
+            const tokens = await Promise.all(
+                ids.map(async (id) => {
+                    try {
+                        const [owner, uri] = await Promise.all([
+                            nft.ownerOf(id),
+                            nft.tokenURI(id),
+                        ]);
+
+                        return {
+                            tokenId: id,
+                            owner,
+                            tokenURI: uri,
+                            listing: byTokenId.get(id.toString()),
+                        } as NFTItem;
+                    } catch {
+                        failed++;
+
+                        return null;
+                    }
+                }),
+            );
+
+            if (generation !== galleryGeneration) {
+                return;
+            }
+
+            items.value.push(
+                ...tokens.filter((token): token is NFTItem => token !== null),
+            );
+        }
+
+        if (failed) {
+            error.value = `Could not load ${failed} NFT${failed === 1 ? '' : 's'} from the network. Reload to retry.`;
+        }
 
         await loadBalances(activeListings);
+
+        // Metadata gateways can be slow or unavailable. They must never block
+        // ownership or listing display, and should not receive 400 requests at once.
+        const metadataItems = [...items.value];
+        let cursor = 0;
+        const loadMetadata = async (): Promise<void> => {
+            while (
+                cursor < metadataItems.length &&
+                generation === galleryGeneration
+            ) {
+                const item = metadataItems[cursor++];
+                const metadata = await fetchJson(ipfsToHttp(item.tokenURI));
+
+                if (generation !== galleryGeneration) {
+                    return;
+                }
+
+                if (!metadata && !error.value) {
+                    error.value =
+                        'Some NFT details could not be loaded from their metadata source. Reload to retry.';
+                }
+
+                if (metadata) {
+                    item.metadata = metadata;
+                    item.imageUrl = metadata.image
+                        ? ipfsToHttp(metadata.image)
+                        : undefined;
+                }
+            }
+        };
+        void Promise.all(Array.from({ length: 8 }, () => loadMetadata()));
     } catch (e) {
-        error.value = (e as Error).message ?? String(e);
+        if (generation === galleryGeneration) {
+            error.value = (e as Error).message ?? String(e);
+        }
     } finally {
-        loading.value = false;
+        if (generation === galleryGeneration) {
+            loading.value = false;
+        }
     }
 };
 
@@ -745,7 +793,10 @@ const formatPrice = (p: bigint, decimals: number): string => {
                 <div v-if="status" class="hint">{{ status }}</div>
                 <div v-if="error" class="hint hint--err">{{ error }}</div>
 
-                <div v-if="!items.length && !loading" class="muted small">
+                <div
+                    v-if="!items.length && !loading && !error"
+                    class="muted small"
+                >
                     No NFTs minted yet.
                 </div>
 
