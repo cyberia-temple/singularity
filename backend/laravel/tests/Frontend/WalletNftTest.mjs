@@ -123,3 +123,43 @@ test('speeds and times read as measurements, and absence reads as absence', () =
     assert.equal(formatEta(Infinity), null);
     assert.equal(formatEta(0), null);
 });
+
+test('the public gallery returns other owners and a pagination cursor', async () => {
+    const { fetchNftGallery } = await import('@/lib/wallet/nft');
+    const original = globalThis.fetch;
+    let requested;
+    globalThis.fetch = async (url) => {
+        requested = String(url);
+        return {
+            ok: true,
+            json: async () => ({
+                items: [
+                    {
+                        id: '42',
+                        owner: { hash: '0x1234' },
+                        metadata: {
+                            name: 'Example',
+                            external_url: 'https://t.me/c/42',
+                        },
+                    },
+                ],
+                next_page_params: { unique_token: 41 },
+            }),
+        };
+    };
+    try {
+        const result = await fetchNftGallery(
+            {
+                collection: '0x546462FAbf30734E63b64f32B30EC8ADD9B6EBa7',
+                explorerUrl: 'https://example.org',
+            },
+            '92',
+        );
+        assert.match(requested, /unique_token=92/);
+        assert.equal(result.next, '41');
+        assert.equal(result.items[0].owner, '0x1234');
+        assert.equal(result.items[0].externalUrl, 'https://t.me/c/42');
+    } finally {
+        globalThis.fetch = original;
+    }
+});

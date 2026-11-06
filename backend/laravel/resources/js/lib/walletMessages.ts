@@ -2190,6 +2190,10 @@ export const walletMessages: Messages = {
         tileIpfsHint: 'Pin a file · a page',
         tileTorrentHint: 'DHT · desktop app',
 
+        nftAll: 'All NFTs',
+        nftAllEmpty: 'No NFTs in this collection yet.',
+        nftMore: 'Load more',
+        nftOwner: 'Owner',
         nftTitle: 'NFT',
         nftBody:
             'One collection anyone can mint into. What a token *is* lives entirely in the address it points at — usually a file in IPFS, sometimes just a link.',
@@ -4829,6 +4833,10 @@ export const walletMessages: Messages = {
         tileIpfsHint: 'Файл · страница',
         tileTorrentHint: 'DHT · десктоп',
 
+        nftAll: 'Все NFT',
+        nftAllEmpty: 'В этой коллекции пока нет NFT.',
+        nftMore: 'Показать ещё',
+        nftOwner: 'Владелец',
         nftTitle: 'NFT',
         nftBody:
             'Одна коллекция, минтить в неё может кто угодно. Чем токен *является*, целиком решает адрес, на который он указывает: обычно это файл в IPFS, иногда просто ссылка.',
@@ -7351,6 +7359,10 @@ export const walletMessages: Messages = {
         tileIpfsHint: '固定一个文件 · 一个页面',
         tileTorrentHint: 'DHT · 桌面版',
 
+        nftAll: '所有 NFT',
+        nftAllEmpty: '此合集尚无 NFT。',
+        nftMore: '加载更多',
+        nftOwner: '持有者',
         nftTitle: 'NFT',
         nftBody:
             '一个人人都能铸造进去的合集。一个代币究竟*是*什么，完全取决于它指向的那个地址 — 通常是 IPFS 里的一个文件，有时只是一个链接。',

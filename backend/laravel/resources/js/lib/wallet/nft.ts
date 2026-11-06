@@ -69,6 +69,7 @@ export type WalletNft = {
     explorerUrl: string;
     /** Minted into this wallet's own shared collection rather than elsewhere. */
     native: boolean;
+    owner?: string | null;
 };
 
 /** ERC-721 metadata as this wallet writes it. */
@@ -421,3 +422,89 @@ export const waitForMintedToken = async (
 /** Where a freshly minted token can be looked at, before any index has it. */
 export const mintTxUrl = (target: NftChain, hash: string): string =>
     `${target.explorerUrl}/tx/${hash}`;
+
+/** A page of the shared collection, including tokens held by other people. */
+export const fetchNftGallery = async (
+    target: NftChain,
+    cursor: string | null = null,
+): Promise<{ items: WalletNft[]; next: string | null }> => {
+    if (!target.collection) throw new Error('NFT collection is not configured');
+    const url = new URL(
+        `${target.explorerUrl}/api/v2/tokens/${target.collection}/instances`,
+    );
+    if (cursor) url.searchParams.set('unique_token', cursor);
+    const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw explorerFailure(response.status);
+    const body = (await response.json()) as {
+        items?: (BlockscoutNft & { owner?: { hash?: string } })[];
+        next_page_params?: { unique_token?: number | string } | null;
+    };
+    if (!Array.isArray(body.items))
+        throw new Error('Invalid NFT catalogue response');
+    const address = getAddress(target.collection);
+    const items: WalletNft[] = body.items.map((item) => ({
+        contract: address,
+        tokenId: String(item.id),
+        collection: 'NFT',
+        symbol: 'NFT',
+        standard: 'ERC-721',
+        amount: '1',
+        name: item.metadata?.name || `#${item.id}`,
+        description: item.metadata?.description || '',
+        imageUrl:
+            ipfsHttpUrl(item.metadata?.image, 'https://gateway.pinata.cloud') ??
+            ipfsHttpUrl(item.image_url),
+        uri: null,
+        externalUrl: ipfsHttpUrl(item.metadata?.external_url),
+        attributes: [],
+        explorerUrl: `${target.explorerUrl}/token/${address}/instance/${item.id}`,
+        native: true,
+        owner: item.owner?.hash ?? null,
+    }));
+    return {
+        items,
+        next:
+            body.next_page_params?.unique_token != null
+                ? String(body.next_page_params.unique_token)
+                : null,
+    };
+};
+
+/** Resolve a catalogue entry from the contract when the index has no metadata. */
+export const hydrateNftGalleryItem = async (
+    item: WalletNft,
+    target: NftChain,
+): Promise<Partial<WalletNft>> => {
+    const nft = new Contract(
+        item.contract,
+        NFT_ABI,
+        new JsonRpcProvider(nftReadRpcUrl(target), target.chain.chainId, {
+            staticNetwork: true,
+            batchMaxCount: 10,
+        }),
+    );
+    const uri = String(await nft.tokenURI(item.tokenId));
+    const url = ipfsHttpUrl(uri, 'https://gateway.pinata.cloud');
+    if (!url) return { uri };
+    const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return { uri };
+    const metadata = (await response.json()) as Partial<NftMetadata>;
+    return {
+        uri,
+        name: text(metadata.name, 120) || item.name,
+        description: text(metadata.description, 2000),
+        imageUrl: ipfsHttpUrl(metadata.image, 'https://gateway.pinata.cloud'),
+        externalUrl: ipfsHttpUrl(metadata.external_url),
+        attributes: (metadata.attributes ?? [])
+            .slice(0, 12)
+            .map((a) => ({
+                trait: text(a.trait_type, 40),
+                value: text(a.value, 60),
+            })),
+    };
+};

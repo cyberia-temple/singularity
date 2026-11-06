@@ -278,6 +278,38 @@ const loadGallery = async (): Promise<void> => {
 
         items.value = [];
         let failed = 0;
+        const metadataQueue: NFTItem[] = [];
+        let activeMetadata = 0;
+        const pumpMetadata = (): void => {
+            while (
+                activeMetadata < 6 &&
+                metadataQueue.length &&
+                generation === galleryGeneration
+            ) {
+                const item = metadataQueue.shift()!;
+                activeMetadata++;
+                void fetchJson(item.tokenURI)
+                    .then((metadata) => {
+                        if (generation !== galleryGeneration) return;
+                        if (metadata) {
+                            item.metadata = metadata;
+                            item.imageUrl = metadata.image
+                                ? nftMetadataUrls(
+                                      metadata.image,
+                                      IPFS_GATEWAY,
+                                  )[0]
+                                : undefined;
+                        } else if (!error.value) {
+                            error.value =
+                                'Some NFT details could not be loaded from their metadata source. Reload to retry.';
+                        }
+                    })
+                    .finally(() => {
+                        activeMetadata--;
+                        pumpMetadata();
+                    });
+            }
+        };
 
         // Keep RPC batches small and show each page as soon as it arrives.
         // A single unavailable token must not hide the entire collection.
@@ -311,9 +343,12 @@ const loadGallery = async (): Promise<void> => {
                 return;
             }
 
+            const start = items.value.length;
             items.value.push(
                 ...tokens.filter((token): token is NFTItem => token !== null),
             );
+            metadataQueue.push(...items.value.slice(start));
+            pumpMetadata();
         }
 
         if (failed) {
@@ -321,37 +356,6 @@ const loadGallery = async (): Promise<void> => {
         }
 
         await loadBalances(activeListings);
-
-        // Metadata gateways can be slow or unavailable. They must never block
-        // ownership or listing display, and should not receive 400 requests at once.
-        const metadataItems = [...items.value];
-        let cursor = 0;
-        const loadMetadata = async (): Promise<void> => {
-            while (
-                cursor < metadataItems.length &&
-                generation === galleryGeneration
-            ) {
-                const item = metadataItems[cursor++];
-                const metadata = await fetchJson(item.tokenURI);
-
-                if (generation !== galleryGeneration) {
-                    return;
-                }
-
-                if (!metadata && !error.value) {
-                    error.value =
-                        'Some NFT details could not be loaded from their metadata source. Reload to retry.';
-                }
-
-                if (metadata) {
-                    item.metadata = metadata;
-                    item.imageUrl = metadata.image
-                        ? nftMetadataUrls(metadata.image, IPFS_GATEWAY)[0]
-                        : undefined;
-                }
-            }
-        };
-        void Promise.all(Array.from({ length: 8 }, () => loadMetadata()));
     } catch (e) {
         if (generation === galleryGeneration) {
             error.value = (e as Error).message ?? String(e);

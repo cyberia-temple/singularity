@@ -7,7 +7,11 @@ import { mintableChains } from '@/lib/nftChains';
 import { hiddenInStore } from '@/lib/storeEdition';
 import { walletChains } from '@/lib/wallet';
 import { shortAddress } from '@/lib/wallet/format';
-import { fetchOwnedNfts } from '@/lib/wallet/nft';
+import {
+    fetchOwnedNfts,
+    fetchNftGallery,
+    hydrateNftGalleryItem,
+} from '@/lib/wallet/nft';
 import type { WalletNft } from '@/lib/wallet/nft';
 import { walletMessages } from '@/lib/walletMessages';
 
@@ -42,6 +46,9 @@ const { t } = useLocale(walletMessages);
 const items = ref<WalletNft[]>([]);
 const selected = ref<string | null>(null);
 const loading = ref(true);
+const view = ref<'all' | 'owned'>('all');
+const next = ref<string | null>(null);
+let generation = 0;
 const failure = ref<string | null>(null);
 
 /** The one chain with a collection deployed. Mint and list are both about it. */
@@ -71,29 +78,65 @@ const detail = computed(
         ) ?? null,
 );
 
-const load = async (): Promise<void> => {
-    const owner = account.value?.address;
+const load = async (more = false): Promise<void> => {
     const chain = target.value;
-
-    if (!owner || !chain) {
+    const current = more ? generation : ++generation;
+    if (!chain) {
         loading.value = false;
-
         return;
     }
-
     loading.value = true;
     failure.value = null;
-
     try {
-        items.value = await fetchOwnedNfts(owner, chain);
+        if (view.value === 'owned') {
+            const owned = account.value
+                ? await fetchOwnedNfts(account.value.address, chain)
+                : [];
+            if (current !== generation) return;
+            items.value = owned;
+            next.value = null;
+        } else {
+            const page = await fetchNftGallery(chain, more ? next.value : null);
+            if (current !== generation) return;
+            items.value = more ? [...items.value, ...page.items] : page.items;
+            next.value = page.next;
+            const added = items.value.slice(
+                items.value.length - page.items.length,
+            );
+            let index = 0;
+            const hydrate = async (): Promise<void> => {
+                while (index < added.length && current === generation) {
+                    const item = added[index++];
+                    try {
+                        Object.assign(
+                            item,
+                            await hydrateNftGalleryItem(item, chain),
+                        );
+                    } catch {
+                        /* The token remains visible if metadata is unavailable. */
+                    }
+                }
+            };
+            void Promise.all(Array.from({ length: 6 }, hydrate));
+        }
     } catch (error) {
-        failure.value = error instanceof Error ? error.message : String(error);
+        if (current === generation)
+            failure.value =
+                error instanceof Error ? error.message : String(error);
     } finally {
-        loading.value = false;
+        if (current === generation) loading.value = false;
     }
 };
 
-onMounted(load);
+const setView = (value: 'all' | 'owned'): void => {
+    view.value = value;
+    selected.value = null;
+    items.value = [];
+    next.value = null;
+    void load();
+};
+
+onMounted(() => void load());
 
 // A different account owns different tokens, and the ones on screen belonged
 // to the previous one.
@@ -157,6 +200,12 @@ watch(
                     <span class="cw-kv-key">{{ t('nftContract') }}</span>
                     <span class="cw-kv-val">{{
                         shortAddress(detail.contract, 10, 8)
+                    }}</span>
+                </div>
+                <div v-if="detail.owner" class="cw-kv">
+                    <span class="cw-kv-key">{{ t('nftOwner') }}</span>
+                    <span class="cw-kv-val">{{
+                        shortAddress(detail.owner, 10, 8)
                     }}</span>
                 </div>
                 <div v-if="detail.uri" class="cw-kv">
@@ -282,13 +331,32 @@ watch(
                 </button>
             </div>
 
+            <div class="cw-row" style="gap: 8px; margin-top: 18px">
+                <button
+                    type="button"
+                    class="cw-chip"
+                    :aria-pressed="view === 'all'"
+                    @click="setView('all')"
+                >
+                    {{ t('nftAll') }}
+                </button>
+                <button
+                    type="button"
+                    class="cw-chip"
+                    :aria-pressed="view === 'owned'"
+                    @click="setView('owned')"
+                >
+                    {{ t('nftOwned') }}
+                </button>
+            </div>
+
             <p
                 v-if="failure"
                 class="cw-note cw-note-bad"
                 style="margin-top: 18px"
             >
                 <span style="flex: 1">{{ t('nftUnreadable') }}</span>
-                <button type="button" class="cw-back" @click="load">
+                <button type="button" class="cw-back" @click="load()">
                     {{ t('retry') }}
                 </button>
             </p>
@@ -306,12 +374,14 @@ watch(
                 class="cw-prose"
                 style="margin-top: 18px"
             >
-                {{ t('nftEmpty') }}
+                {{ view === 'all' ? t('nftAllEmpty') : t('nftEmpty') }}
             </p>
 
             <template v-else>
                 <div class="cw-row" style="margin: 22px 0 10px">
-                    <span class="cw-label">{{ t('nftOwned') }}</span>
+                    <span class="cw-label">{{
+                        view === 'all' ? t('nftAll') : t('nftOwned')
+                    }}</span>
                     <span class="cw-label" style="color: var(--cw-faint)">{{
                         items.length
                     }}</span>
@@ -395,6 +465,16 @@ watch(
                     </button>
                 </div>
 
+                <button
+                    v-if="view === 'all' && next"
+                    type="button"
+                    class="cw-btn cw-btn-secondary"
+                    :disabled="loading"
+                    style="margin-top: 16px"
+                    @click="load(true)"
+                >
+                    {{ t('nftMore') }}
+                </button>
                 <p class="cw-note" style="margin-top: 14px">
                     <span>{{ t('nftGatewayNote') }}</span>
                 </p>
