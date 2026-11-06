@@ -12,6 +12,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useWallet } from '@/composables/useWallet';
+import { nftExternalUrl, nftMetadataUrls } from '@/lib/nftMarketMetadata';
 import {
     CYBERIA_CHAIN_ID,
     cyberiaReadRpcUrl,
@@ -26,7 +27,8 @@ const NFT_CONTRACT =
     env.VITE_NFT_CONTRACT || '0x546462FAbf30734E63b64f32B30EC8ADD9B6EBa7';
 const NFT_MARKET =
     env.VITE_NFT_MARKET || '0x12C3EC2019E814be06Bf6386df0F22aBB673Db90';
-const IPFS_GATEWAY = env.VITE_IPFS_GATEWAY ?? 'https://ipfs.io/ipfs/';
+const IPFS_GATEWAY =
+    env.VITE_IPFS_GATEWAY ?? 'https://gateway.pinata.cloud/ipfs/';
 const CYBER_SOL_ADDRESS = '0x7DcDa19Cf984ca708E5fA228AC148e7d82D508BA';
 
 const NFT_ABI = [
@@ -62,6 +64,7 @@ type NFTMetadata = {
     name?: string;
     description?: string;
     image?: string;
+    external_url?: string;
 };
 
 type Listing = {
@@ -121,29 +124,29 @@ const readProvider = new JsonRpcProvider(
     { batchMaxCount: 10 },
 );
 
-const ipfsToHttp = (uri: string): string => {
-    if (uri.startsWith('ipfs://')) {
-        return IPFS_GATEWAY + uri.replace(/^ipfs:\/\//, '');
+const fetchJson = async (uri: string): Promise<NFTMetadata | undefined> => {
+    for (const url of nftMetadataUrls(uri, IPFS_GATEWAY)) {
+        try {
+            const res = await fetch(url, {
+                headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(8000),
+            });
+            if (res.ok) return (await res.json()) as NFTMetadata;
+        } catch {
+            // Try another gateway.
+        }
     }
-
-    return uri;
+    return undefined;
 };
 
-const fetchJson = async (url: string): Promise<NFTMetadata | undefined> => {
-    try {
-        const res = await fetch(url, {
-            headers: { Accept: 'application/json' },
-            signal: AbortSignal.timeout(8000),
-        });
-
-        if (!res.ok) {
-            return undefined;
-        }
-
-        return (await res.json()) as NFTMetadata;
-    } catch {
-        return undefined;
-    }
+const retryImage = (event: Event, item: NFTItem): void => {
+    const image = event.target as HTMLImageElement;
+    const urls = item.metadata?.image
+        ? nftMetadataUrls(item.metadata.image, IPFS_GATEWAY)
+        : [];
+    const next = urls.indexOf(image.src) + 1;
+    if (next > 0 && next < urls.length) image.src = urls[next];
+    else item.imageUrl = undefined;
 };
 
 const erc20Cache = new Map<string, { symbol: string; decimals: number }>();
@@ -329,7 +332,7 @@ const loadGallery = async (): Promise<void> => {
                 generation === galleryGeneration
             ) {
                 const item = metadataItems[cursor++];
-                const metadata = await fetchJson(ipfsToHttp(item.tokenURI));
+                const metadata = await fetchJson(item.tokenURI);
 
                 if (generation !== galleryGeneration) {
                     return;
@@ -343,7 +346,7 @@ const loadGallery = async (): Promise<void> => {
                 if (metadata) {
                     item.metadata = metadata;
                     item.imageUrl = metadata.image
-                        ? ipfsToHttp(metadata.image)
+                        ? nftMetadataUrls(metadata.image, IPFS_GATEWAY)[0]
                         : undefined;
                 }
             }
@@ -810,7 +813,12 @@ const formatPrice = (p: bigint, decimals: number): string => {
                             <img
                                 v-if="item.imageUrl"
                                 :src="item.imageUrl"
-                                :alt="item.metadata?.name"
+                                :alt="
+                                    item.metadata?.name ||
+                                    `Token #${item.tokenId.toString()}`
+                                "
+                                loading="lazy"
+                                @error="retryImage($event, item)"
                             />
                             <span v-else class="nftImgFallback"
                                 >#{{ item.tokenId.toString() }}</span
@@ -832,6 +840,20 @@ const formatPrice = (p: bigint, decimals: number): string => {
                             >
                                 {{ item.metadata.description }}
                             </div>
+
+                            <a
+                                v-if="
+                                    nftExternalUrl(item.metadata?.external_url)
+                                "
+                                :href="
+                                    nftExternalUrl(
+                                        item.metadata?.external_url,
+                                    ) ?? undefined
+                                "
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                >Open original post ↗</a
+                            >
 
                             <div v-if="item.listing" class="priceRow">
                                 <strong>
