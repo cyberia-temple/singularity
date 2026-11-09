@@ -132,6 +132,8 @@ import { executeSwap } from '@/lib/wallet/swap';
 import type { SwapQuote, SwapReceipt } from '@/lib/wallet/swap';
 import type { AdminRequest } from '@/lib/wallet/tokenAdmin';
 import { submitOperation } from '@/lib/wallet/tokenAdmin';
+import { executeTokenAction } from '@/lib/wallet/tokenControl';
+import type { TokenActionQuote } from '@/lib/wallet/tokenControl';
 import { buyVpnPass } from '@/lib/wallet/vpn';
 import { executeV4, v4Provider } from '@/lib/wallet/v4';
 import type { V4Quote } from '@/lib/wallet/v4';
@@ -1772,6 +1774,28 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         }
     };
 
+    /**
+     * One action on a Cyberia 2.0 token — mint, hand minting on, burn,
+     * collect its fees, open a part of its kit — as quoted.
+     */
+    const tokenAction = async (
+        chainId: WalletChainId,
+        quote: TokenActionQuote,
+    ): Promise<string> => {
+        const source = sourceFor(chainId);
+
+        busy.value = true;
+
+        try {
+            return await executeTokenAction(source, {
+                quote,
+                rpcUrl: rpcFor(chainId),
+            });
+        } finally {
+            busy.value = false;
+        }
+    };
+
     /* ------------------------------------------------------------- domains --- */
 
     /**
@@ -2274,6 +2298,7 @@ export const useMultiWallet = (rpc: WalletRpcEndpoints = {}) => {
         otcDeskFor,
         shop,
         launchToken,
+        tokenAction,
         domains,
         chainAdmin,
         /** Encrypted chat: the public identity, and sealing under it. */

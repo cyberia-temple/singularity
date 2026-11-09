@@ -6,6 +6,7 @@ import {
     ZeroHash,
     formatUnits,
     hexlify,
+    isAddress,
     parseUnits,
     randomBytes,
 } from 'ethers';
@@ -47,6 +48,13 @@ import type { WalletKeySource } from '@/lib/wallet/keys';
  * venue): the same locked v3 position and fee split, one struct for its
  * arguments, and the token's lending markets, farm and DAO opened by the same
  * transaction.
+ *
+ * Beside it runs `TokenStudio` (the `studio` venue): the same launchpad with
+ * a second way in, for a token its creator describes — part of the supply
+ * minted straight to addresses, a minter who may mint more up to a ceiling,
+ * the parts of the kit picked one by one. One form serves both: a token that
+ * asks for none of that is a plain launch and goes to the launchpad, which
+ * alone can open a domain zone (`formVenue`).
  */
 
 const LAUNCHPAD_ABI = [
@@ -102,13 +110,38 @@ const LAUNCH_V3_ABI = [
  * It keeps no `poolOf`: everything a launch opened is one `Economy` record,
  * so the pool and the kit are read together. `Id` is Morpho's bytes32.
  */
+const ECONOMY_OF =
+    'function economyOf(address) view returns ((address creator, uint64 launchedAt, address pool, uint256 positionId, address vault, address gauge, address tokenOracle, address cyberOracle, bytes32 borrowCyberMarket, bytes32 borrowTokenMarket, bytes32 borrowAgainstLpMarket, address governor, address timelock, bool zone, string metadataURI))';
+
+const LAUNCHED_EVENT =
+    'event Launched(address indexed token, address indexed creator, address pool, string name, string symbol, uint256 totalSupply, uint256 cyberLiquidity)';
+
 const LAUNCH_KIT_ABI = [
     'function minLiquidity() view returns (uint256)',
     'function allTokensLength() view returns (uint256)',
     'function allTokens(uint256) view returns (address)',
-    'function economyOf(address) view returns ((address creator, uint64 launchedAt, address pool, uint256 positionId, address vault, address gauge, address tokenOracle, address cyberOracle, bytes32 borrowCyberMarket, bytes32 borrowTokenMarket, bytes32 borrowAgainstLpMarket, address governor, address timelock, bool zone, string metadataURI))',
+    ECONOMY_OF,
     'function launch((string name, string symbol, uint256 totalSupply, uint24 creatorFee, uint16 holdersShareBps, bytes32 salt, uint8 kit, string metadataURI)) payable returns (address)',
-    'event Launched(address indexed token, address indexed creator, address pool, string name, string symbol, uint256 totalSupply, uint256 cyberLiquidity)',
+    LAUNCHED_EVENT,
+];
+
+/**
+ * The Cyberia 2.0 token studio: the launchpad's registry and event, and
+ * `create` for a token with a supply of its creator's design.
+ */
+const LAUNCH_STUDIO_ABI = [
+    'function minLiquidity() view returns (uint256)',
+    'function allTokensLength() view returns (uint256)',
+    'function allTokens(uint256) view returns (address)',
+    ECONOMY_OF,
+    'function create((string name, string symbol, uint256 poolSupply, (address to, uint256 amount)[] allocations, address minter, uint256 maxSupply, uint24 creatorFee, uint16 holdersShareBps, bytes32 salt, uint8 kit, string metadataURI)) payable returns (address)',
+    LAUNCHED_EVENT,
+];
+
+/** A studio token's supply rules. */
+const STUDIO_TOKEN_READ_ABI = [
+    'function minter() view returns (address)',
+    'function maxSupply() view returns (uint256)',
 ];
 
 /**
@@ -117,6 +150,39 @@ const LAUNCH_KIT_ABI = [
  * a zone the name does not spell, so asking for all of it never fails a launch.
  */
 export const KIT_ALL = 15;
+
+export const KIT_CREDIT = 1;
+export const KIT_FARM = 2;
+export const KIT_ZONE = 4;
+export const KIT_DAO = 8;
+
+/** The parts of the kit a creator picks; the zone follows from the name. */
+export type KitChoice = { credit: boolean; farm: boolean; dao: boolean };
+
+/**
+ * The kit flags a launch asks for. No choice is all of it. The zone bit is
+ * asked of the launchpad whatever was picked — it opens a zone only for a name
+ * that spells one — and never of the studio, where `Domains` would refuse it.
+ */
+export const kitFlags = (
+    choice: KitChoice | undefined,
+    venue: LaunchVenue,
+): number => {
+    const picked = choice ?? { credit: true, farm: true, dao: true };
+
+    return (
+        (picked.credit ? KIT_CREDIT : 0) |
+        (picked.farm ? KIT_FARM : 0) |
+        (venue === 'kit' ? KIT_ZONE : 0) |
+        (picked.dao ? KIT_DAO : 0)
+    );
+};
+
+/** The most of a studio token that can exist: StudioToken.MAX_SUPPLY, a trillion. */
+export const STUDIO_MAX_SUPPLY = 10n ** 30n;
+
+/** StudioToken.MAX_ALLOCATIONS: addresses a creation may mint to besides the pool. */
+export const STUDIO_MAX_ALLOCATIONS = 16;
 
 const POOL_V3_ABI = [
     'function token0() view returns (address)',
@@ -131,7 +197,7 @@ const PAIR_ABI = [
     'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
 ];
 
-export type LaunchVenue = 'v2' | 'v3' | 'kit';
+export type LaunchVenue = 'v2' | 'v3' | 'kit' | 'studio';
 
 /** What a Cyberia 2.0 launch opened beside its pool. */
 export type LaunchKit = {
@@ -155,6 +221,16 @@ export type WalletLaunch = {
     feePct: number | null;
     /** What the launch opened beside its pool — Cyberia 2.0 only. */
     kit: LaunchKit | null;
+    /** Who launched it, where the registry says (Cyberia 2.0); null elsewhere. */
+    creator: string | null;
+    /** Unix seconds of the launch, where the registry says; null elsewhere. */
+    launchedAt: number | null;
+    /**
+     * A studio token's supply rules: who may mint (the zero address once
+     * nobody may) and the ceiling. Null for every other launch, whose supply
+     * was fixed the moment it was made.
+     */
+    minting: { minter: string; maxSupply: bigint } | null;
     name: string;
     symbol: string;
     /** Everything in existence, in the token's own units (always 18 here). */
@@ -310,9 +386,26 @@ export const fetchLaunches = async (
 
     const provider = providerFor(target);
 
-    // Cyberia 2.0 has the one launchpad, and nothing older beside it.
+    /*
+     * Cyberia 2.0 has its launchpad and the studio beside it, and nothing
+     * older. Both are read and merged by launch time; a studio that cannot be
+     * read leaves the launchpad's list standing rather than failing it.
+     */
     if (target.launchpadKit) {
-        return readVenue(provider, target, 'kit', target.launchpadKit, limit);
+        const [launched, made] = await Promise.all([
+            readVenue(provider, target, 'kit', target.launchpadKit, limit),
+            target.tokenStudio
+                ? readVenue(
+                      provider,
+                      target,
+                      'studio',
+                      target.tokenStudio,
+                      limit,
+                  ).catch(() => [])
+                : Promise.resolve([]),
+        ]);
+
+        return newestFirst([...launched, ...made]).slice(0, limit);
     }
 
     /*
@@ -337,6 +430,21 @@ export const fetchLaunches = async (
     return [...v3, ...v2];
 };
 
+/** Launches by time, newest first; an undated one keeps its place at the end. */
+export const newestFirst = (launches: WalletLaunch[]): WalletLaunch[] =>
+    launches
+        .map((launch, index) => ({ launch, index }))
+        .sort(
+            (a, b) =>
+                (b.launch.launchedAt ?? -1) - (a.launch.launchedAt ?? -1) ||
+                a.index - b.index,
+        )
+        .map(({ launch }) => launch);
+
+/** Whether a venue's registry is the Cyberia 2.0 `Economy` record. */
+const hasEconomy = (venue: LaunchVenue): boolean =>
+    venue === 'kit' || venue === 'studio';
+
 /** The newest `limit` launches of one launchpad contract, newest first. */
 const readVenue = async (
     provider: JsonRpcProvider,
@@ -347,7 +455,7 @@ const readVenue = async (
 ): Promise<WalletLaunch[]> => {
     const launchpad = new Contract(
         contract,
-        venue === 'kit'
+        hasEconomy(venue)
             ? LAUNCH_KIT_ABI
             : venue === 'v3'
               ? LAUNCHPAD_V3_READ_ABI
@@ -373,11 +481,11 @@ const readVenue = async (
     return Promise.all(
         addresses.map(async (address): Promise<WalletLaunch> => {
             const token = new Contract(address, ERC20_ABI, provider);
-            const [name, symbol, supply, economy] = await Promise.all([
+            const [name, symbol, supply, economy, minting] = await Promise.all([
                 (token.name() as Promise<string>).catch(() => ''),
                 (token.symbol() as Promise<string>).catch(() => ''),
                 (token.totalSupply() as Promise<bigint>).catch(() => 0n),
-                (venue === 'kit'
+                (hasEconomy(venue)
                     ? (launchpad.economyOf(address) as Promise<EconomyRead>)
                     : (
                           (venue === 'v3'
@@ -385,13 +493,14 @@ const readVenue = async (
                               : launchpad.pairOf(address)) as Promise<string>
                       ).then((pool) => ({ pool }) as EconomyRead)
                 ).catch(() => null),
+                venue === 'studio' ? readMinting(provider, address) : null,
             ]);
 
             const market = economy?.pool ?? ZeroAddress;
             const listed = Boolean(market) && market !== ZeroAddress;
             const pool = !listed
                 ? null
-                : venue === 'v3' || venue === 'kit'
+                : venue !== 'v2'
                   ? await poolV3Price(
                         provider,
                         market,
@@ -408,7 +517,16 @@ const readVenue = async (
                 address,
                 venue,
                 feePct: pool?.feePct ?? null,
-                kit: venue === 'kit' && economy ? kitOf(economy) : null,
+                kit: hasEconomy(venue) && economy ? kitOf(economy) : null,
+                creator:
+                    economy?.creator && economy.creator !== ZeroAddress
+                        ? economy.creator
+                        : null,
+                launchedAt:
+                    economy?.launchedAt === undefined
+                        ? null
+                        : Number(economy.launchedAt),
+                minting,
                 name: String(name).slice(0, 40),
                 symbol: String(symbol).slice(0, 12),
                 supply,
@@ -430,10 +548,30 @@ const readVenue = async (
  */
 type EconomyRead = {
     pool: string;
+    creator?: string;
+    launchedAt?: bigint;
     gauge?: string;
     tokenOracle?: string;
     governor?: string;
     zone?: boolean;
+};
+
+/** A studio token's minter and ceiling, or null when they cannot be read. */
+const readMinting = async (
+    provider: JsonRpcProvider,
+    token: string,
+): Promise<WalletLaunch['minting']> => {
+    try {
+        const contract = new Contract(token, STUDIO_TOKEN_READ_ABI, provider);
+        const [minter, maxSupply] = await Promise.all([
+            contract.minter() as Promise<string>,
+            contract.maxSupply() as Promise<bigint>,
+        ]);
+
+        return { minter, maxSupply };
+    } catch {
+        return null;
+    }
 };
 
 /** What a Cyberia 2.0 economy record says was opened, from its addresses. */
@@ -448,16 +586,19 @@ export const kitOf = (economy: EconomyRead): LaunchKit => ({
 export const readKit = async (
     chainId: number,
     token: string,
+    /** The registry that made it: the launchpad unless named. */
+    registry?: string,
 ): Promise<LaunchKit | null> => {
     const target = launchpadChain(chainId);
+    const contract = registry ?? target?.launchpadKit;
 
-    if (!target?.launchpadKit) {
+    if (!target || !contract) {
         return null;
     }
 
     try {
         const economy = (await new Contract(
-            target.launchpadKit,
+            contract,
             LAUNCH_KIT_ABI,
             providerFor(target),
         ).economyOf(token)) as EconomyRead;
@@ -523,6 +664,9 @@ export const LAUNCH_GAS = {
     // 13.0M measured for the first Fuji launch with the whole kit
     // (49407.smoke.json); the block takes 20M.
     kit: { fallback: 16_000_000n, cap: 19_000_000n },
+    // 13.04M estimated on Fuji for a studio token with credit, farm, DAO and
+    // one address minted to; each further address is a transfer on top.
+    studio: { fallback: 16_000_000n, cap: 19_000_000n },
 } as const;
 
 /** Headroom over a live estimate, for the drift between quote and mine. */
@@ -543,7 +687,10 @@ export const LAUNCH_SYMBOL_MAX = 12;
 export type LaunchForm = {
     name: string;
     symbol: string;
-    /** Whole tokens, as typed. All of it goes into the pool. */
+    /**
+     * Whole tokens, as typed, that go into the pool. On a plain launch that is
+     * the whole supply; a studio token adds what `allocations` mint.
+     */
     supply: string;
     /** Native coin, as typed. All of it goes into the pool, for good. */
     liquidity: string;
@@ -551,6 +698,16 @@ export type LaunchForm = {
     creatorFeePct: string;
     /** Percent of the creator's fee that goes to holders, as typed — v3 only. */
     holdersSharePct: string;
+    /** Cyberia 2.0: whether more can be minted after the launch. */
+    mintable?: boolean;
+    /** Cyberia 2.0: who may mint, when mintable. */
+    minter?: string;
+    /** Cyberia 2.0: the ceiling minting can reach, whole tokens; '' for none of its own. */
+    maxSupply?: string;
+    /** Cyberia 2.0: whole tokens minted straight to addresses, beside the pool. */
+    allocations?: { to: string; amount: string }[];
+    /** Cyberia 2.0: which parts of the kit to open; all of it when absent. */
+    kit?: KitChoice;
 };
 
 /** Why a form cannot become a launch yet. Each has a sentence in the UI. */
@@ -561,7 +718,10 @@ export type LaunchProblem =
     | 'liquidity'
     | 'liquidityMin'
     | 'fee'
-    | 'share';
+    | 'share'
+    | 'allocation'
+    | 'minter'
+    | 'cap';
 
 /** A decimal string as 18-decimal units, or null when it is not one. */
 const units = (value: string): bigint | null => {
@@ -682,6 +842,14 @@ export const launchProblem = (
         return 'supply';
     }
 
+    if (venue === 'studio') {
+        const studio = studioProblem(form, supply);
+
+        if (studio !== null) {
+            return studio;
+        }
+    }
+
     const liquidity = units(form.liquidity);
 
     if (liquidity === null || liquidity === 0n) {
@@ -692,7 +860,7 @@ export const launchProblem = (
         return 'liquidityMin';
     }
 
-    if (venue === 'v3' || venue === 'kit') {
+    if (venueHasFee(venue)) {
         if (percent(form.creatorFeePct, MAX_CREATOR_FEE_PCT) === null) {
             return 'fee';
         }
@@ -704,6 +872,89 @@ export const launchProblem = (
 
     return null;
 };
+
+/** The addresses and amounts a studio form mints to, or null when one is not. */
+export const formAllocations = (
+    form: LaunchForm,
+): { to: string; amount: bigint }[] | null => {
+    const rows = form.allocations ?? [];
+    const parsed: { to: string; amount: bigint }[] = [];
+
+    for (const row of rows) {
+        const amount = units(row.amount);
+
+        if (!isAddress(row.to.trim()) || amount === null || amount === 0n) {
+            return null;
+        }
+
+        parsed.push({ to: row.to.trim(), amount });
+    }
+
+    return parsed;
+};
+
+/** Everything a studio form would make: the pool's part and the addresses'. */
+export const formTotalSupply = (form: LaunchForm): bigint | null => {
+    const supply = units(form.supply);
+    const allocations = formAllocations(form);
+
+    return supply === null || allocations === null
+        ? null
+        : allocations.reduce((sum, row) => sum + row.amount, supply);
+};
+
+/** The ceiling a mintable form names, 0n for the token's own, null when unreadable. */
+const formCap = (form: LaunchForm): bigint | null =>
+    (form.maxSupply ?? '').trim() === '' ? 0n : units(form.maxSupply ?? '');
+
+const studioProblem = (
+    form: LaunchForm,
+    supply: bigint,
+): LaunchProblem | null => {
+    const allocations = formAllocations(form);
+
+    if (allocations === null || allocations.length > STUDIO_MAX_ALLOCATIONS) {
+        return 'allocation';
+    }
+
+    const total = allocations.reduce((sum, row) => sum + row.amount, supply);
+
+    if (total > STUDIO_MAX_SUPPLY) {
+        return 'supply';
+    }
+
+    if (form.mintable) {
+        if (!isAddress((form.minter ?? '').trim())) {
+            return 'minter';
+        }
+
+        const cap = formCap(form);
+
+        if (
+            cap === null ||
+            (cap !== 0n && (cap < total || cap > STUDIO_MAX_SUPPLY))
+        ) {
+            return 'cap';
+        }
+    }
+
+    return null;
+};
+
+/** Whether a form asks for anything only the studio makes. */
+export const wantsStudio = (form: LaunchForm): boolean =>
+    form.mintable === true || (form.allocations ?? []).length > 0;
+
+/**
+ * Where this form's token is made: the studio when it asks for a minter or
+ * addresses to mint to and the chain runs one; otherwise the chain's newest
+ * launchpad, as before.
+ */
+export const formVenue = (
+    target: LaunchpadChain,
+    form: LaunchForm,
+): LaunchVenue | null =>
+    target.tokenStudio && wantsStudio(form) ? 'studio' : launchVenue(target);
 
 /** Which launchpad a chain launches on: the newest one it has. */
 export const launchVenue = (target: LaunchpadChain): LaunchVenue | null =>
@@ -717,28 +968,34 @@ export const launchVenue = (target: LaunchpadChain): LaunchVenue | null =>
 
 /** Whether a venue's pool charges a fee its creator chose. */
 export const venueHasFee = (venue: LaunchVenue | null): boolean =>
-    venue === 'v3' || venue === 'kit';
+    venue === 'v3' || venue === 'kit' || venue === 'studio';
 
 const LAUNCH_ABI: Record<LaunchVenue, string[]> = {
     v2: LAUNCH_V2_ABI,
     v3: LAUNCH_V3_ABI,
     kit: LAUNCH_KIT_ABI,
+    studio: LAUNCH_STUDIO_ABI,
 };
+
+/** The function a venue launches with: the studio `create`s. */
+const launchFunction = (venue: LaunchVenue): 'launch' | 'create' =>
+    venue === 'studio' ? 'create' : 'launch';
 
 /** The contract a venue launches through on this chain. */
 const venueAddress = (target: LaunchpadChain, venue: LaunchVenue): string =>
-    (venue === 'kit'
-        ? target.launchpadKit
-        : venue === 'v3'
-          ? target.launchpadV3
-          : target.launchpad)!;
+    (venue === 'studio'
+        ? target.tokenStudio
+        : venue === 'kit'
+          ? target.launchpadKit
+          : venue === 'v3'
+            ? target.launchpadV3
+            : target.launchpad)!;
 
 /** The contract's floor for the coin a launch must be paired with. */
 export const readMinLiquidity = async (
     target: LaunchpadChain,
+    venue: LaunchVenue | null = launchVenue(target),
 ): Promise<bigint | null> => {
-    const venue = launchVenue(target);
-
     if (venue === null) {
         return null;
     }
@@ -763,11 +1020,20 @@ export type LaunchQuote = {
     launchpad: string;
     name: string;
     symbol: string;
+    /** What goes into the pool: the whole supply, except a studio token's. */
     supply: bigint;
     /** Native coin paired with the supply, in wei — spent for good. */
     liquidity: bigint;
     creatorFee: number;
     holdersShareBps: number;
+    /** Studio only: minted straight to these addresses. Empty elsewhere. */
+    allocations: { to: string; amount: bigint }[];
+    /** Studio only: who may mint more; the zero address for nobody. */
+    minter: string;
+    /** Studio only: the ceiling minting can reach; 0n for the token's own. */
+    maxSupply: bigint;
+    /** Cyberia 2.0: the KIT_* flags asked for. */
+    kit: number;
     /**
      * Cyberia 2.0 only: picks the token's address among the creator's, so it
      * is drawn once per quote and the call, the estimate and the signature
@@ -803,31 +1069,54 @@ export const launchArgs = (quote: {
     creatorFee: number;
     holdersShareBps: number;
     salt: string;
+    kit?: number;
+    allocations?: { to: string; amount: bigint }[];
+    minter?: string;
+    maxSupply?: bigint;
 }): unknown[] =>
-    quote.venue === 'kit'
+    quote.venue === 'studio'
         ? [
               {
                   name: quote.name,
                   symbol: quote.symbol,
-                  totalSupply: quote.supply,
+                  poolSupply: quote.supply,
+                  allocations: (quote.allocations ?? []).map((row) => ({
+                      to: row.to,
+                      amount: row.amount,
+                  })),
+                  minter: quote.minter ?? ZeroAddress,
+                  maxSupply: quote.maxSupply ?? 0n,
                   creatorFee: quote.creatorFee,
                   holdersShareBps: quote.holdersShareBps,
                   salt: quote.salt,
-                  kit: KIT_ALL,
-                  // The description and logo are kept by the server, as on
-                  // Cyberia; the creator can still point this at IPFS later.
+                  kit: quote.kit ?? KIT_ALL,
                   metadataURI: '',
               },
           ]
-        : quote.venue === 'v3'
+        : quote.venue === 'kit'
           ? [
-                quote.name,
-                quote.symbol,
-                quote.supply,
-                quote.creatorFee,
-                quote.holdersShareBps,
+                {
+                    name: quote.name,
+                    symbol: quote.symbol,
+                    totalSupply: quote.supply,
+                    creatorFee: quote.creatorFee,
+                    holdersShareBps: quote.holdersShareBps,
+                    salt: quote.salt,
+                    kit: quote.kit ?? KIT_ALL,
+                    // The description and logo are kept by the server, as on
+                    // Cyberia; the creator can still point this at IPFS later.
+                    metadataURI: '',
+                },
             ]
-          : [quote.name, quote.symbol, quote.supply];
+          : quote.venue === 'v3'
+            ? [
+                  quote.name,
+                  quote.symbol,
+                  quote.supply,
+                  quote.creatorFee,
+                  quote.holdersShareBps,
+              ]
+            : [quote.name, quote.symbol, quote.supply];
 
 /**
  * Price a launch and prove it would go through, before anything is signed.
@@ -847,13 +1136,13 @@ export const quoteLaunch = async (request: {
     gasPrice: bigint;
 }): Promise<LaunchQuote> => {
     const { target, form, account } = request;
-    const venue = launchVenue(target);
+    const venue = formVenue(target, form);
 
     if (venue === null) {
         throw new LaunchRefused('reverted', 'No launchpad on this network');
     }
 
-    const minLiquidity = await readMinLiquidity(target);
+    const minLiquidity = await readMinLiquidity(target, venue);
     const problem = launchProblem(form, venue, minLiquidity);
 
     if (problem !== null) {
@@ -876,7 +1165,15 @@ export const quoteLaunch = async (request: {
         supply: units(form.supply)!,
         creatorFee: charges ? terms.creatorFee : 0,
         holdersShareBps: charges ? terms.holdersShareBps : 0,
-        salt: venue === 'kit' ? hexlify(randomBytes(32)) : ZeroHash,
+        salt: hasEconomy(venue) ? hexlify(randomBytes(32)) : ZeroHash,
+        kit: hasEconomy(venue) ? kitFlags(form.kit, venue) : 0,
+        allocations: venue === 'studio' ? (formAllocations(form) ?? []) : [],
+        minter:
+            venue === 'studio' && form.mintable
+                ? (form.minter ?? '').trim()
+                : ZeroAddress,
+        maxSupply:
+            venue === 'studio' && form.mintable ? (formCap(form) ?? 0n) : 0n,
     };
     const liquidity = units(form.liquidity)!;
     const gas = LAUNCH_GAS[venue];
@@ -888,8 +1185,10 @@ export const quoteLaunch = async (request: {
         throw new LaunchRefused('funds');
     }
 
+    const method = contract.getFunction(launchFunction(venue));
+
     try {
-        await contract.launch.staticCall(...args, {
+        await method.staticCall(...args, {
             from: account,
             value: liquidity,
             gasLimit: gas.cap,
@@ -899,7 +1198,7 @@ export const quoteLaunch = async (request: {
     }
 
     const estimate = await (
-        contract.launch.estimateGas(...args, {
+        method.estimateGas(...args, {
             from: account,
             value: liquidity,
         }) as Promise<bigint>
@@ -970,11 +1269,14 @@ export const executeLaunch = async (
         signer,
     );
 
-    const tx = await contract.launch(...launchArgs(quote), {
-        value: quote.liquidity,
-        gasLimit: quote.gasLimit,
-        gasPrice: quote.gasPrice,
-    });
+    const tx = await contract.getFunction(launchFunction(quote.venue))(
+        ...launchArgs(quote),
+        {
+            value: quote.liquidity,
+            gasLimit: quote.gasLimit,
+            gasPrice: quote.gasPrice,
+        },
+    );
 
     return tx.hash as string;
 };
@@ -997,7 +1299,7 @@ export const launchedFromLogs = (
     launchpad: string,
 ): { token: string; market: string } | null => {
     const iface = new Interface(LAUNCH_ABI[venue]);
-    const event = venue === 'kit' ? 'Launched' : 'TokenLaunched';
+    const event = hasEconomy(venue) ? 'Launched' : 'TokenLaunched';
 
     for (const log of logs) {
         if (log.address.toLowerCase() !== launchpad.toLowerCase()) {

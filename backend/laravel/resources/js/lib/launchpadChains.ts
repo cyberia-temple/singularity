@@ -46,6 +46,14 @@ export type LaunchpadChain = {
      * struct rather than five arguments, so it is a venue of its own.
      */
     launchpadKit?: string | null;
+    /**
+     * The Cyberia 2.0 token studio (crypto/protocol `TokenStudio.sol`), where
+     * one is deployed: the launchpad's economy for a token its creator
+     * describes — part of the supply minted straight to addresses, a minter
+     * who may mint more up to a ceiling, the parts of the kit chosen. Its
+     * registry reads exactly like `launchpadKit`'s.
+     */
+    tokenStudio?: string | null;
     factory: string;
     /** Wrapped native token the launch pairs against. */
     wrappedNative: string;
@@ -121,6 +129,11 @@ const deployedKitAt = (
     fallback: string | null,
 ): string | null => env[`VITE_LAUNCHPAD_KIT_${chainId}`] ?? fallback;
 
+const deployedStudioAt = (
+    chainId: number,
+    fallback: string | null,
+): string | null => env[`VITE_TOKEN_STUDIO_${chainId}`] ?? fallback;
+
 /**
  * Cyberia 2.0, the Avalanche L1 on Fuji (crypto/protocol/deployments/49407.json).
  *
@@ -137,6 +150,10 @@ export const CYBERIA2_LAUNCHPAD: LaunchpadChain = {
     launchpadKit: deployedKitAt(
         CYBERIA_FUJI_CHAIN_ID,
         '0xea0fbc4634f1ad6a5f82df3e7c9de01f964721c0',
+    ),
+    tokenStudio: deployedStudioAt(
+        CYBERIA_FUJI_CHAIN_ID,
+        '0x62eb11895fce4b4269fef275dd74c1c63bc6f9c6',
     ),
     factory: '0xf5397e55410df25551012757794513aa85071784',
     wrappedNative: '0x000000000000000000000000000000000000c0Fe',

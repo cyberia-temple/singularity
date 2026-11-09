@@ -13,8 +13,8 @@ Cyberia plugs into that economy.
 | Path | What it is |
 | --- | --- |
 | `contracts/access` | `CyberiaAuthority` (OpenZeppelin AccessManager) and `Roles` — one authority for every contract |
-| `contracts/tokens` | `WCYBER`, `Ash` (capped, minted only by the Minter), `LaunchToken` (clone per launch) |
-| `contracts/launch` | `Launchpad` (launch + kit + registry of every token's economy), `LaunchLocker` |
+| `contracts/tokens` | `WCYBER`, `Ash` (capped, minted only by the Minter), `LaunchToken` (clone per launch), `StudioToken` (clone per studio token: a minter and a ceiling, burnable, the same votes and dividend) |
+| `contracts/launch` | `Launchpad` (launch + kit + registry of every token's economy), `TokenStudio` (the launchpad with a second way in: a token of its creator's design — supply minted to addresses beside the pool, a minter, the kit picked part by part), `LaunchLocker` |
 | `contracts/liquidity` | `LiquidityVault` (full-range V3 liquidity as an ERC-20) and its factory |
 | `contracts/lending` | `Lending` (isolated markets, Morpho Blue model), `AdaptiveCurveIrm`, `CreditVault` (ERC-4626 over markets), `LendingViews` |
 | `contracts/oracles` | `V3TwapOracle`, `LiquidityVaultOracle`, `ChainedOracle`, `OracleFactory` |
@@ -33,6 +33,7 @@ Cyberia plugs into that economy.
 | `scripts/validator-manager.ts` | The L1's validator set on the C-Chain: Ava Labs' ValidatorManager (vendored bytecode, `scripts/lib/validator-manager.json`) behind a proxy, PoAManager, a Safe owning both; initializes the set from the P-Chain's signed conversion |
 | `scripts/tokenomics.ts` | The Minter's arithmetic over activity scenarios |
 | `scripts/smoke-launch.ts` | One full-kit launch against a deployment, with its gas |
+| `scripts/deploy-studio.ts` | Adds the `TokenStudio` to a running deployment, wired with the `Launchpad`'s own settings |
 
 ## How the pieces fit
 

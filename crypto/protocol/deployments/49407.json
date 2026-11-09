@@ -38,7 +38,9 @@
     "CommunityTokenFactory": "0x42d96c7404b42167731cdb3e59e39f50690ccffc",
     "PixelBattle": "0xa96d4f312f0ff44aed4dd10f573bd02387d299ca",
     "WiredForge": "0x22832d086de9f0fe7eb74a60dc5aa98a8232718a",
-    "MinecraftLand": "0x6927c153be7248314262c1d77ce2b8f9d7d72b49"
+    "MinecraftLand": "0x6927c153be7248314262c1d77ce2b8f9d7d72b49",
+    "StudioToken": "0x6bd153006019a13e79a425f0ecb7635d2b7f5035",
+    "TokenStudio": "0x62eb11895fce4b4269fef275dd74c1c63bc6f9c6"
   },
   "steps": [
     "Safe.createProxyWithNonce",
@@ -91,7 +93,13 @@
     "grant 5 → 0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393",
     "grant 0 → 0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393",
     "factory.setOwner(authority)",
-    "launchpad.setMinLiquidity(100000)"
+    "launchpad.setMinLiquidity(100000)",
+    "locker.setLauncher(studio)",
+    "studio.setCredit",
+    "studio.setObservationCardinality",
+    "grant 4 → 0x62eb11895fce4b4269fef275dd74c1c63bc6f9c6",
+    "studio.setModules",
+    "studio.setRewardExclusions"
   ],
   "liquidityPolicy": {
     "minimumCyber": "100000",

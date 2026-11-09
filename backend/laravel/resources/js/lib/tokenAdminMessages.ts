@@ -6,7 +6,7 @@ export const tokenAdminMessages = {
         subtitle: 'Cyberia 2.0 · Fuji 49407',
         intro: 'For tokens that stand for an asset held elsewhere — on another network or at a broker. That is why each one needs the origin network and asset IDs. Limits and issuance are managed here too.',
         launchHint:
-            'Want a brand-new token? Launch it in the launchpad: a name, a ticker and the liquidity, no IDs.',
+            'Want a token of your own — mintable, with part of the supply on your addresses, a DAO and lending? Make it in the launchpad, no IDs.',
         launchOpen: 'Cyberia 2.0 launchpad',
         backing:
             'The gateway does not verify brokerage holdings or payouts. Check the underlying evidence before signing.',
@@ -77,7 +77,7 @@ export const tokenAdminMessages = {
         subtitle: 'Cyberia 2.0 · Fuji 49407',
         intro: 'Для токенов, которые представляют актив, хранящийся где-то ещё — в другой сети или у брокера. Поэтому каждому нужны ID исходной сети и актива. Здесь же лимиты и выпуск.',
         launchHint:
-            'Нужен совсем новый токен? Его запускают в лаунчпаде: название, тикер и ликвидность, без всяких ID.',
+            'Нужен свой токен — с допвыпуском, частью эмиссии на ваших адресах, DAO и займами? Его создают в лаунчпаде, без всяких ID.',
         launchOpen: 'Лаунчпад Cyberia 2.0',
         backing:
             'Шлюз не проверяет бумаги у брокера и выплаты. Проверьте подтверждения до подписания.',

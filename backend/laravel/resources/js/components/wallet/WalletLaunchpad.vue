@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { ZeroAddress } from 'ethers';
 import { ExternalLink } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import WalletLaunchCreate from '@/components/wallet/WalletLaunchCreate.vue';
+import WalletTokenControl from '@/components/wallet/WalletTokenControl.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { CYBERIA_CHAIN_ID } from '@/lib/evmChains';
@@ -98,13 +100,29 @@ const loading = ref(true);
 const failure = ref<string | null>(null);
 /**
  * Newest reads one page; by market cap reads every launch, because a ranking
- * of the newest twelve is not a ranking of the launchpad.
+ * of the newest twelve is not a ranking of the launchpad. Mine — on Cyberia
+ * 2.0, whose registry names creators — reads every launch too and keeps the
+ * ones this wallet launched or mints.
  */
-const order = ref<'new' | 'cap'>('cap');
+type Order = 'new' | 'cap' | 'mine';
+const order = ref<Order>('cap');
+
+const isMine = (launch: WalletLaunch): boolean =>
+    [launch.creator, launch.minting?.minter].some(
+        (who) => who && myAddresses.value.includes(who.toLowerCase()),
+    );
 
 const shown = computed(() =>
-    order.value === 'cap' ? byMarketCap(launches.value) : launches.value,
+    order.value === 'cap'
+        ? byMarketCap(launches.value)
+        : order.value === 'mine'
+          ? launches.value.filter(isMine)
+          : launches.value,
 );
+
+/** Whether a launch can still be minted by somebody. */
+const mintable = (launch: WalletLaunch): boolean =>
+    Boolean(launch.minting && launch.minting.minter !== ZeroAddress);
 
 const chains = walletLaunchpadChains();
 const REMEMBERED = 'cw.launchpad.chain';
@@ -138,6 +156,13 @@ const chain = computed(
 
 /** Cyberia 2.0 is on the Fuji testnet: its coin is free and has no price. */
 const testnet = computed(() => Boolean(chain.value?.launchpadKit));
+
+const chainHasCreators = (id: number | null): boolean =>
+    Boolean(chains.find((entry) => entry.chain.chainId === id)?.launchpadKit);
+
+const orders = computed<Order[]>(() =>
+    testnet.value ? ['new', 'cap', 'mine'] : ['new', 'cap'],
+);
 
 const symbol = computed(
     () => chain.value?.chain.nativeCurrency.symbol ?? 'CYBER',
@@ -206,6 +231,10 @@ const isCreator = computed(
         myAddresses.value.includes(homepage.value.creator),
 );
 
+/** A Cyberia 2.0 token: its pool is not in the wallet's swap yet. */
+const onTwo = (launch: WalletLaunch): boolean =>
+    launch.venue === 'kit' || launch.venue === 'studio';
+
 const load = async (): Promise<void> => {
     loading.value = true;
     failure.value = null;
@@ -218,7 +247,7 @@ const load = async (): Promise<void> => {
     try {
         const read = await fetchLaunches(
             on,
-            wanted === 'cap' ? Infinity : undefined,
+            wanted === 'new' ? undefined : Infinity,
         );
 
         // A slower read for the order or network just left must not
@@ -233,7 +262,7 @@ const load = async (): Promise<void> => {
     }
 };
 
-const sortBy = (next: 'new' | 'cap'): void => {
+const sortBy = (next: Order): void => {
     if (order.value !== next) {
         order.value = next;
         void load();
@@ -250,6 +279,11 @@ const pickChain = (next: number): void => {
     creating.value = false;
     launches.value = [];
     images.value = {};
+
+    // Only Cyberia 2.0's registry names creators, so only it can list "mine".
+    if (order.value === 'mine' && !chainHasCreators(next)) {
+        order.value = 'cap';
+    }
 
     try {
         localStorage.setItem(REMEMBERED, String(next));
@@ -388,7 +422,9 @@ onMounted(load);
                     {{ t('launchKitTitle') }}
                 </div>
                 <div
-                    v-for="part in ['credit', 'farm', 'dao', 'zone'] as const"
+                    v-for="part in detail.venue === 'studio'
+                        ? (['credit', 'farm', 'dao'] as const)
+                        : (['credit', 'farm', 'dao', 'zone'] as const)"
                     :key="part"
                     class="cw-kv"
                 >
@@ -408,6 +444,16 @@ onMounted(load);
                     }}</span>
                 </div>
             </div>
+
+            <WalletTokenControl
+                v-if="chain && onTwo(detail)"
+                :key="detail.address"
+                :wallet="wallet"
+                :evm-chain-id="chain.chain.chainId"
+                :token="detail.address"
+                :token-symbol="detail.symbol"
+                @changed="load"
+            />
 
             <div
                 v-if="homepage?.site_url || isCreator"
@@ -454,6 +500,13 @@ onMounted(load);
                     )
                 }}</span>
             </p>
+            <p
+                v-if="mintable(detail)"
+                class="cw-note cw-note-warn"
+                style="margin-top: 12px"
+            >
+                <span>{{ t('launchMintRisk') }}</span>
+            </p>
 
             <div
                 v-if="chain?.chain.chainId === CYBERIA_CHAIN_ID"
@@ -481,11 +534,7 @@ onMounted(load);
                 >
             </div>
 
-            <p
-                v-if="detail.venue === 'kit'"
-                class="cw-note"
-                style="margin-top: 12px"
-            >
+            <p v-if="onTwo(detail)" class="cw-note" style="margin-top: 12px">
                 <span>{{ t('launchKitNoSwap') }}</span>
             </p>
 
@@ -494,11 +543,11 @@ onMounted(load);
             </p>
 
             <div
-                v-if="detail.venue !== 'kit' || detail.explorerUrl"
+                v-if="!onTwo(detail) || detail.explorerUrl"
                 style="display: flex; gap: 8px; margin-top: 20px"
             >
                 <button
-                    v-if="detail.venue !== 'kit'"
+                    v-if="!onTwo(detail)"
                     type="button"
                     class="cw-btn cw-btn-primary"
                     style="flex: 1"
@@ -507,7 +556,7 @@ onMounted(load);
                     {{ t('launchBuy') }}
                 </button>
                 <a
-                    v-if="detail.venue !== 'kit'"
+                    v-if="!onTwo(detail)"
                     class="cw-btn cw-btn-secondary"
                     style="flex: 1; text-decoration: none"
                     :href="detail.swapUrl"
@@ -593,7 +642,7 @@ onMounted(load);
 
             <div class="cw-seg" style="margin-top: 18px">
                 <button
-                    v-for="option in ['new', 'cap'] as const"
+                    v-for="option in orders"
                     :key="option"
                     type="button"
                     class="cw-seg-item"
@@ -601,7 +650,13 @@ onMounted(load);
                     @click="sortBy(option)"
                 >
                     {{
-                        t(option === 'new' ? 'launchSortNew' : 'launchSortCap')
+                        t(
+                            option === 'new'
+                                ? 'launchSortNew'
+                                : option === 'cap'
+                                  ? 'launchSortCap'
+                                  : 'launchSortMine',
+                        )
                     }}
                 </button>
             </div>
@@ -626,11 +681,15 @@ onMounted(load);
             </p>
 
             <p
-                v-else-if="launches.length === 0"
+                v-else-if="shown.length === 0"
                 class="cw-prose"
                 style="margin-top: 18px"
             >
-                {{ t('launchpadEmpty') }}
+                {{
+                    order === 'mine' && launches.length > 0
+                        ? t('launchMineEmpty')
+                        : t('launchpadEmpty')
+                }}
             </p>
 
             <div v-else class="cw-stack" style="gap: 8px; margin-top: 18px">
@@ -690,7 +749,10 @@ onMounted(load);
                                     font-size: 12px;
                                 "
                                 >{{ amount(launch.liquidity, 2) }} {{ symbol }}
-                                {{ t('launchLocked') }}</span
+                                {{ t('launchLocked') }}
+                                <template v-if="mintable(launch)"
+                                    >· {{ t('launchMintableBadge') }}</template
+                                ></span
                             >
                         </span>
                         <span style="text-align: right">

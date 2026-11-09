@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { ZeroAddress } from 'ethers';
 import { ExternalLink } from 'lucide-vue-next';
-import { computed, onMounted, reactive, ref, toRaw } from 'vue';
+import { computed, reactive, ref, toRaw, watch } from 'vue';
 import GasSponsor from '@/components/wallet/GasSponsor.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import { useLocale } from '@/composables/useLocale';
@@ -13,13 +14,20 @@ import {
     zoneFromToken,
     zoneTokenNaming,
 } from '@/lib/wallet/domains';
+import { shortAddress } from '@/lib/wallet/format';
 import {
+    KIT_CREDIT,
+    KIT_DAO,
+    KIT_FARM,
     LAUNCH_NAME_MAX,
     LAUNCH_SYMBOL_MAX,
     LaunchRefused,
     MAX_CREATOR_FEE_PCT,
+    STUDIO_MAX_ALLOCATIONS,
     awaitLaunch,
     feeSplit,
+    formTotalSupply,
+    formVenue,
     hasAbout,
     launchProblem,
     launchTerms,
@@ -62,6 +70,12 @@ import { walletMessages } from '@/lib/walletMessages';
  * On Cyberia 2.0 the launch also opens the token's kit — lending, a farm, a
  * DAO — in the contract itself, so the done screen reads what was opened
  * from the chain instead of asking the server for a DAO.
+ *
+ * Cyberia 2.0 also lets the creator describe the token (Token settings): a
+ * minter who may mint more, part of the supply minted straight to addresses,
+ * the parts of the kit to open. A token that asks for any of that is made by
+ * the TokenStudio instead of the launchpad — the same locked pool, fee split
+ * and kit — and the form says so; one that asks for none is a plain launch.
  */
 
 const props = defineProps<{
@@ -92,12 +106,6 @@ const target = computed(
         launchpadChains()[0] ??
         null,
 );
-const venue = computed(() => (target.value ? launchVenue(target.value) : null));
-/** The pool charges a fee its creator picks: v3 and Cyberia 2.0. */
-const charges = computed(() => venueHasFee(venue.value));
-/** Cyberia 2.0 — a testnet, whose coin comes from the faucet. */
-const isKit = computed(() => venue.value === 'kit');
-
 const form = reactive<LaunchForm>({
     name: '',
     symbol: '',
@@ -105,7 +113,29 @@ const form = reactive<LaunchForm>({
     liquidity: target.value?.defaultLiquidity ?? '10',
     creatorFeePct: '1',
     holdersSharePct: '0',
+    mintable: false,
+    minter: '',
+    maxSupply: '',
+    allocations: [],
+    kit: { credit: true, farm: true, dao: true },
 });
+
+/** Where this form's token is made: the studio once it asks for its settings. */
+const venue = computed(() =>
+    target.value ? formVenue(target.value, form) : null,
+);
+/** The pool charges a fee its creator picks: v3 and Cyberia 2.0. */
+const charges = computed(() => venueHasFee(venue.value));
+/** Cyberia 2.0 — a testnet, whose coin comes from the faucet. */
+const isKit = computed(
+    () => target.value !== null && launchVenue(target.value) === 'kit',
+);
+/** The token's own settings can be described here: Cyberia 2.0 with a studio. */
+const canSetUp = computed(
+    () => isKit.value && Boolean(target.value?.tokenStudio),
+);
+const isStudio = computed(() => venue.value === 'studio');
+const setupOpen = ref(false);
 
 const about = reactive<LaunchAbout>({
     description: '',
@@ -154,6 +184,66 @@ const account = computed(() =>
 );
 
 const canSign = computed(() => account.value?.capabilities.send ?? false);
+
+const myAddress = computed(() => account.value?.address ?? '');
+
+/** Turning minting on starts with this account as the minter. */
+const setMintable = (on: boolean): void => {
+    form.mintable = on;
+
+    if (on && !(form.minter ?? '').trim()) {
+        form.minter = myAddress.value;
+    }
+};
+
+/** The first address added is this account's own: the common case. */
+const addAllocation = (): void => {
+    const rows = form.allocations ?? [];
+
+    if (rows.length >= STUDIO_MAX_ALLOCATIONS) {
+        return;
+    }
+
+    form.allocations = [
+        ...rows,
+        { to: rows.length === 0 ? myAddress.value : '', amount: '' },
+    ];
+};
+
+const removeAllocation = (index: number): void => {
+    form.allocations = (form.allocations ?? []).filter((_, i) => i !== index);
+};
+
+const kitNames = (flags: number): string[] =>
+    [
+        flags & KIT_CREDIT ? t('launchKitCredit') : null,
+        flags & KIT_FARM ? t('launchKitFarm') : null,
+        flags & KIT_DAO ? t('launchKitDao') : null,
+    ].filter((name): name is string => name !== null);
+
+/** One line for the closed settings: what the token will be. */
+const setupSummary = computed(() => {
+    const kit = form.kit ?? { credit: true, farm: true, dao: true };
+    const rows = (form.allocations ?? []).length;
+    const parts = [
+        form.mintable ? t('launchSetupMintable') : t('launchSetupFixed'),
+        rows > 0
+            ? t('launchSetupToAddresses', { count: rows })
+            : t('launchSetupAllPool'),
+        kitNames(
+            (kit.credit ? KIT_CREDIT : 0) |
+                (kit.farm ? KIT_FARM : 0) |
+                (kit.dao ? KIT_DAO : 0),
+        ).join(', ') || t('launchSetupNoKit'),
+    ];
+
+    return parts.join(' · ');
+});
+
+/** Everything the token starts with: the pool's part and the addresses'. */
+const totalSupply = computed(() =>
+    isStudio.value ? formTotalSupply(form) : null,
+);
 
 /**
  * The domain zone this launch opens, when its name and ticker spell one:
@@ -232,6 +322,12 @@ const problemText = computed(() => {
             return t('launchNewErrFee', { max: MAX_CREATOR_FEE_PCT });
         case 'share':
             return t('launchNewErrShare');
+        case 'allocation':
+            return t('launchNewErrAllocation', { max: STUDIO_MAX_ALLOCATIONS });
+        case 'minter':
+            return t('launchNewErrMinter');
+        case 'cap':
+            return t('launchNewErrCap');
         default:
             return null;
     }
@@ -385,7 +481,11 @@ const launch = async (): Promise<void> => {
 
     if (token.value && isKit.value) {
         // The contract opened the DAO itself; the server's watch is Cyberia's.
-        void readKit(quote.value.chainId, token.value).then((opened) => {
+        void readKit(
+            quote.value.chainId,
+            token.value,
+            quote.value.launchpad,
+        ).then((opened) => {
             kit.value = opened;
         });
     } else if (token.value) {
@@ -408,11 +508,20 @@ const launch = async (): Promise<void> => {
     }
 };
 
-onMounted(async () => {
-    if (target.value) {
-        minLiquidity.value = await readMinLiquidity(target.value);
-    }
-});
+/** The floor of whichever contract the form's token would be made by. */
+watch(
+    venue,
+    async (next) => {
+        if (target.value && next) {
+            const read = await readMinLiquidity(target.value, next);
+
+            if (next === venue.value) {
+                minLiquidity.value = read;
+            }
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
@@ -648,7 +757,65 @@ onMounted(async () => {
                         >{{ quote.name }} · {{ quote.symbol }}</span
                     >
                 </div>
-                <div class="cw-kv">
+                <template v-if="quote.venue === 'studio'">
+                    <div class="cw-kv">
+                        <span class="cw-kv-key">{{
+                            t('launchPoolSupply')
+                        }}</span>
+                        <span class="cw-kv-val">{{
+                            amount(quote.supply, 0)
+                        }}</span>
+                    </div>
+                    <div
+                        v-for="(row, index) in quote.allocations"
+                        :key="index"
+                        class="cw-kv"
+                    >
+                        <span class="cw-kv-key">{{
+                            t('launchAllocConfirm', {
+                                address: shortAddress(row.to),
+                            })
+                        }}</span>
+                        <span class="cw-kv-val">{{
+                            amount(row.amount, 0)
+                        }}</span>
+                    </div>
+                    <div class="cw-kv">
+                        <span class="cw-kv-key">{{
+                            t('launchTotalSupply')
+                        }}</span>
+                        <span class="cw-kv-val">{{
+                            amount(
+                                quote.allocations.reduce(
+                                    (sum, row) => sum + row.amount,
+                                    quote.supply,
+                                ),
+                                0,
+                            )
+                        }}</span>
+                    </div>
+                    <div class="cw-kv">
+                        <span class="cw-kv-key">{{
+                            t('launchConfirmMinter')
+                        }}</span>
+                        <span class="cw-kv-val">{{
+                            quote.minter === ZeroAddress
+                                ? t('launchMintFixed')
+                                : shortAddress(quote.minter)
+                        }}</span>
+                    </div>
+                    <div v-if="quote.minter !== ZeroAddress" class="cw-kv">
+                        <span class="cw-kv-key">{{
+                            t('launchConfirmCap')
+                        }}</span>
+                        <span class="cw-kv-val">{{
+                            quote.maxSupply === 0n
+                                ? t('launchConfirmCapNone')
+                                : amount(quote.maxSupply, 0)
+                        }}</span>
+                    </div>
+                </template>
+                <div v-else class="cw-kv">
                     <span class="cw-kv-key">{{ t('launchSupply') }}</span>
                     <span class="cw-kv-val">{{ amount(quote.supply, 0) }}</span>
                 </div>
@@ -704,11 +871,32 @@ onMounted(async () => {
             </p>
 
             <p
-                v-if="quote.venue === 'kit'"
+                v-if="quote.venue === 'studio' && quote.minter !== ZeroAddress"
+                class="cw-note cw-note-warn"
+                style="margin-top: 12px"
+            >
+                <span>{{ t('launchMintRisk') }}</span>
+            </p>
+
+            <p
+                v-if="quote.venue === 'kit' || quote.venue === 'studio'"
                 class="cw-prose"
                 style="margin-top: 12px"
             >
-                {{ t('launchKitConfirm') }}
+                {{
+                    kitNames(quote.kit).length > 0
+                        ? t('launchConfirmKit', {
+                              parts: kitNames(quote.kit).join(', '),
+                          })
+                        : t('launchConfirmNoKit')
+                }}
+            </p>
+            <p
+                v-if="quote.venue === 'studio'"
+                class="cw-data"
+                style="margin-top: 8px"
+            >
+                {{ t('launchStudioNote') }}
             </p>
 
             <p v-if="hasAbout(about)" class="cw-note" style="margin-top: 12px">
@@ -768,6 +956,9 @@ onMounted(async () => {
                               : 'launchNewBodyV2',
                     )
                 }}
+            </p>
+            <p v-if="canSetUp" class="cw-data" style="margin-top: 8px">
+                {{ t('launchNewBodyKitSetup') }}
             </p>
             <p v-if="isKit" class="cw-note" style="margin-top: 12px">
                 <span style="flex: 1">{{ t('launchpadTestnet') }}</span>
@@ -834,7 +1025,7 @@ onMounted(async () => {
             </p>
 
             <label class="cw-label" style="display: block; margin: 14px 0 6px">
-                {{ t('launchSupply') }}
+                {{ isStudio ? t('launchPoolSupply') : t('launchSupply') }}
             </label>
             <input
                 v-model="form.supply"
@@ -842,8 +1033,15 @@ onMounted(async () => {
                 type="text"
                 inputmode="decimal"
             />
-            <p class="cw-data" style="margin-top: 6px">
+            <p v-if="!isStudio" class="cw-data" style="margin-top: 6px">
                 {{ t('launchNewSupplyNote') }}
+            </p>
+            <p
+                v-else-if="totalSupply !== null"
+                class="cw-data"
+                style="margin-top: 6px"
+            >
+                {{ t('launchTotalSupply') }}: {{ amount(totalSupply, 0) }}
             </p>
 
             <label class="cw-label" style="display: block; margin: 14px 0 6px">
@@ -931,6 +1129,222 @@ onMounted(async () => {
                     {{ t('launchNewSplitNote') }}
                 </p>
             </template>
+
+            <!--
+              Cyberia 2.0: the token's own rules. Closed by default, and the
+              summary line says what the defaults make — a fixed token, all of
+              it in the pool, with the whole kit — so nobody has to open it.
+            -->
+            <details
+                v-if="canSetUp"
+                class="cw-card"
+                style="margin-top: 18px; padding: 12px 16px"
+                :open="setupOpen"
+                @toggle="setupOpen = ($event.target as HTMLDetailsElement).open"
+            >
+                <summary
+                    style="
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 4px 12px;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        cursor: pointer;
+                    "
+                >
+                    <span class="cw-label" style="color: var(--cw-text)">{{
+                        t('launchSetupTitle')
+                    }}</span>
+                    <span class="cw-data" style="font-size: 12px">{{
+                        setupSummary
+                    }}</span>
+                </summary>
+
+                <h3 class="cw-label" style="margin: 16px 0 8px">
+                    {{ t('launchMintTitle') }}
+                </h3>
+                <div
+                    class="cw-seg"
+                    role="group"
+                    :aria-label="t('launchMintTitle')"
+                >
+                    <button
+                        type="button"
+                        class="cw-seg-item"
+                        :aria-pressed="!form.mintable"
+                        @click="setMintable(false)"
+                    >
+                        {{ t('launchMintFixed') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="cw-seg-item"
+                        :aria-pressed="form.mintable === true"
+                        @click="setMintable(true)"
+                    >
+                        {{ t('launchMintMore') }}
+                    </button>
+                </div>
+                <p class="cw-data" style="margin-top: 6px">
+                    {{
+                        form.mintable
+                            ? t('launchMintMoreNote')
+                            : t('launchMintFixedNote')
+                    }}
+                </p>
+                <template v-if="form.mintable">
+                    <label
+                        class="cw-label"
+                        style="display: block; margin: 12px 0 6px"
+                    >
+                        {{ t('launchMinter') }}
+                    </label>
+                    <div style="display: flex; gap: 8px">
+                        <input
+                            v-model="form.minter"
+                            class="cw-input"
+                            type="text"
+                            spellcheck="false"
+                            autocomplete="off"
+                            placeholder="0x…"
+                            style="flex: 1; min-width: 0"
+                        />
+                        <button
+                            v-if="myAddress && form.minter !== myAddress"
+                            type="button"
+                            class="cw-chip"
+                            @click="form.minter = myAddress"
+                        >
+                            {{ t('launchMinterMe') }}
+                        </button>
+                    </div>
+                    <label
+                        class="cw-label"
+                        style="display: block; margin: 12px 0 6px"
+                    >
+                        {{ t('launchMaxSupply') }}
+                    </label>
+                    <input
+                        v-model="form.maxSupply"
+                        class="cw-input"
+                        type="text"
+                        inputmode="decimal"
+                        :placeholder="t('launchConfirmCapNone')"
+                    />
+                    <p class="cw-data" style="margin-top: 6px">
+                        {{ t('launchMaxSupplyNote') }}
+                    </p>
+                </template>
+
+                <h3 class="cw-label" style="margin: 20px 0 4px">
+                    {{ t('launchAllocTitle') }}
+                </h3>
+                <p class="cw-data">{{ t('launchAllocNote') }}</p>
+                <div
+                    v-for="(row, index) in form.allocations ?? []"
+                    :key="index"
+                    style="
+                        display: grid;
+                        grid-template-columns: minmax(0, 1fr) 34%;
+                        gap: 8px;
+                        margin-top: 10px;
+                    "
+                >
+                    <input
+                        v-model="row.to"
+                        class="cw-input"
+                        type="text"
+                        spellcheck="false"
+                        autocomplete="off"
+                        placeholder="0x…"
+                        :aria-label="t('tokenMintTo')"
+                    />
+                    <input
+                        v-model="row.amount"
+                        class="cw-input"
+                        type="text"
+                        inputmode="decimal"
+                        :placeholder="t('launchAllocAmount')"
+                        :aria-label="t('launchAllocAmount')"
+                    />
+                    <button
+                        type="button"
+                        class="cw-ghost"
+                        style="
+                            grid-column: 1 / -1;
+                            justify-self: end;
+                            margin: 0;
+                        "
+                        @click="removeAllocation(index)"
+                    >
+                        {{ t('launchAllocRemove') }}
+                    </button>
+                </div>
+                <button
+                    v-if="
+                        (form.allocations ?? []).length < STUDIO_MAX_ALLOCATIONS
+                    "
+                    type="button"
+                    class="cw-btn cw-btn-secondary"
+                    style="height: 40px; margin-top: 10px"
+                    @click="addAllocation"
+                >
+                    {{ t('launchAllocAdd') }}
+                </button>
+
+                <h3 class="cw-label" style="margin: 20px 0 4px">
+                    {{ t('launchKitPick') }}
+                </h3>
+                <label
+                    v-for="part in ['credit', 'farm', 'dao'] as const"
+                    :key="part"
+                    class="cw-row"
+                    style="
+                        align-items: flex-start;
+                        gap: 12px;
+                        margin-top: 10px;
+                        cursor: pointer;
+                    "
+                >
+                    <span style="flex: 1; min-width: 0">
+                        <span style="display: block">{{
+                            t(
+                                part === 'credit'
+                                    ? 'launchKitCredit'
+                                    : part === 'farm'
+                                      ? 'launchKitFarm'
+                                      : 'launchKitDao',
+                            )
+                        }}</span>
+                        <span class="cw-data" style="display: block">{{
+                            t(
+                                part === 'credit'
+                                    ? 'launchKitCreditNote'
+                                    : part === 'farm'
+                                      ? 'launchKitFarmNote'
+                                      : 'launchKitDaoNote',
+                            )
+                        }}</span>
+                    </span>
+                    <input
+                        v-if="form.kit"
+                        v-model="form.kit[part]"
+                        type="checkbox"
+                        style="
+                            width: 20px;
+                            height: 20px;
+                            margin-top: 2px;
+                            accent-color: var(--cw-accent);
+                        "
+                    />
+                </label>
+                <p class="cw-data" style="margin-top: 12px">
+                    {{ t('launchKitZoneNote') }}
+                </p>
+                <p v-if="isStudio" class="cw-note" style="margin-top: 12px">
+                    <span>{{ t('launchStudioNote') }}</span>
+                </p>
+            </details>
 
             <h3 class="cw-label" style="margin: 24px 0 4px">
                 {{ t('launchNewAbout') }}
