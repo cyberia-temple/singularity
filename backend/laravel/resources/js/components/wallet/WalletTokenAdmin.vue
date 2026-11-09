@@ -18,7 +18,7 @@ import {
 import type { AdminRequest, AdminToken } from '@/lib/wallet/tokenAdmin';
 
 const props = defineProps<{ wallet: MultiWallet }>();
-const emit = defineEmits<{ back: [] }>();
+const emit = defineEmits<{ back: []; launchpad: [] }>();
 const { t } = useLocale(tokenAdminMessages);
 const account = computed(
     () =>
@@ -314,6 +314,17 @@ const sign = async () => {
         <p class="cw-label" style="margin-top: 24px">{{ t('subtitle') }}</p>
         <h2 class="cw-title" style="margin: 8px 0">{{ t('title') }}</h2>
         <p class="cw-prose">{{ t('intro') }}</p>
+        <p class="cw-note" style="margin-top: 16px">
+            <span>{{ t('launchHint') }}</span>
+        </p>
+        <button
+            type="button"
+            class="cw-btn cw-btn-secondary"
+            style="margin-top: 10px"
+            @click="emit('launchpad')"
+        >
+            {{ t('launchOpen') }} →
+        </button>
         <p class="cw-note cw-note-warn" style="margin-top: 16px">
             {{ t('backing') }}
         </p>

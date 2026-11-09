@@ -5,6 +5,7 @@ import GasSponsor from '@/components/wallet/GasSponsor.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { launchpadChain } from '@/lib/launchpadChains';
 import { formatUnits, walletChains } from '@/lib/wallet';
 import {
     awaitDomainTx,
@@ -26,13 +27,16 @@ import {
     launchVenue,
     launchpadChains,
     quoteLaunch,
+    readKit,
     readMinLiquidity,
     submitAbout,
+    venueHasFee,
     watchLaunch,
 } from '@/lib/wallet/launchpad';
 import type {
     LaunchAbout,
     LaunchForm,
+    LaunchKit,
     LaunchQuote,
 } from '@/lib/wallet/launchpad';
 import { walletMessages } from '@/lib/walletMessages';
@@ -54,9 +58,17 @@ import { walletMessages } from '@/lib/walletMessages';
  * then attaches the description and links — by signing a message, not a
  * transaction, because the first signature for a token is what makes its
  * page editable by its creator and nobody else.
+ *
+ * On Cyberia 2.0 the launch also opens the token's kit — lending, a farm, a
+ * DAO — in the contract itself, so the done screen reads what was opened
+ * from the chain instead of asking the server for a DAO.
  */
 
-const props = defineProps<{ wallet: MultiWallet }>();
+const props = defineProps<{
+    wallet: MultiWallet;
+    /** EVM chain id of the launchpad to launch on; Cyberia when absent. */
+    evmChainId?: number | null;
+}>();
 
 const emit = defineEmits<{
     back: [];
@@ -74,8 +86,17 @@ const stage = ref<Stage>('compose');
 const busy = ref(false);
 const failure = ref<string | null>(null);
 
-const target = computed(() => launchpadChains()[0] ?? null);
+const target = computed(
+    () =>
+        (props.evmChainId ? launchpadChain(props.evmChainId) : undefined) ??
+        launchpadChains()[0] ??
+        null,
+);
 const venue = computed(() => (target.value ? launchVenue(target.value) : null));
+/** The pool charges a fee its creator picks: v3 and Cyberia 2.0. */
+const charges = computed(() => venueHasFee(venue.value));
+/** Cyberia 2.0 — a testnet, whose coin comes from the faucet. */
+const isKit = computed(() => venue.value === 'kit');
 
 const form = reactive<LaunchForm>({
     name: '',
@@ -108,6 +129,13 @@ const aboutState = ref<'none' | 'saving' | 'saved' | 'failed'>('none');
 const dao = ref<{ id: number; name: string } | null>(null);
 const daoState = ref<'none' | 'opening' | 'opened' | 'later'>('none');
 const aboutError = ref<string | null>(null);
+/** What a Cyberia 2.0 launch opened, read back from the chain. */
+const kit = ref<LaunchKit | null>(null);
+const txUrl = computed(() =>
+    hash.value && quote.value
+        ? launchTxUrl(quote.value.chainId, hash.value)
+        : null,
+);
 
 const chainId = computed(() => {
     const evmChainId = target.value?.chain.chainId;
@@ -236,7 +264,11 @@ const pickImage = (event: Event): void => {
 const refusalText = (error: unknown): string => {
     if (error instanceof LaunchRefused) {
         if (error.code === 'funds') {
-            return t('launchNewErrFunds', { symbol: symbol.value });
+            const short = t('launchNewErrFunds', { symbol: symbol.value });
+
+            return isKit.value
+                ? `${short} ${t('launchNewFundsFaucet')}`
+                : short;
         }
 
         if (error.code === 'gas') {
@@ -351,7 +383,12 @@ const launch = async (): Promise<void> => {
     emit('launched');
     void props.wallet.refreshBalances();
 
-    if (token.value) {
+    if (token.value && isKit.value) {
+        // The contract opened the DAO itself; the server's watch is Cyberia's.
+        void readKit(quote.value.chainId, token.value).then((opened) => {
+            kit.value = opened;
+        });
+    } else if (token.value) {
         daoState.value = 'opening';
         void watchLaunch(token.value).then((opened) => {
             dao.value = opened;
@@ -397,10 +434,10 @@ onMounted(async () => {
             </h2>
             <p class="cw-prose">{{ t('launchNewMiningBody') }}</p>
             <a
-                v-if="hash && quote"
+                v-if="txUrl"
                 class="cw-btn cw-btn-secondary"
                 style="margin-top: 16px; text-decoration: none"
-                :href="launchTxUrl(quote.chainId, hash)"
+                :href="txUrl"
                 target="_blank"
                 rel="noopener noreferrer"
             >
@@ -479,6 +516,41 @@ onMounted(async () => {
                 </button>
             </p>
 
+            <div
+                v-if="kit"
+                class="cw-card"
+                style="margin-top: 14px; padding: 14px 16px"
+            >
+                <div class="cw-label" style="margin-bottom: 6px">
+                    {{ t('launchKitTitle') }}
+                </div>
+                <div class="cw-kv">
+                    <span class="cw-kv-key">{{ t('launchKitCredit') }}</span>
+                    <span class="cw-kv-val">{{
+                        kit.credit ? t('launchKitOpen') : '—'
+                    }}</span>
+                </div>
+                <div class="cw-kv">
+                    <span class="cw-kv-key">{{ t('launchKitFarm') }}</span>
+                    <span class="cw-kv-val">{{
+                        kit.farm ? t('launchKitOpen') : '—'
+                    }}</span>
+                </div>
+                <div class="cw-kv">
+                    <span class="cw-kv-key">{{ t('launchKitDao') }}</span>
+                    <span class="cw-kv-val">{{
+                        kit.dao ? t('launchKitOpen') : '—'
+                    }}</span>
+                </div>
+                <div v-if="kit.zone" class="cw-kv">
+                    <span class="cw-kv-key">{{ t('launchKitZone') }}</span>
+                    <span class="cw-kv-val">{{ t('launchKitOpen') }}</span>
+                </div>
+            </div>
+            <p v-if="token && isKit" class="cw-note" style="margin-top: 14px">
+                <span>{{ t('launchKitNoSwap') }}</span>
+            </p>
+
             <p
                 v-if="daoState === 'opening'"
                 class="cw-label"
@@ -534,7 +606,7 @@ onMounted(async () => {
             </p>
 
             <button
-                v-if="token"
+                v-if="token && !isKit"
                 type="button"
                 class="cw-btn cw-btn-primary"
                 style="margin-top: 18px"
@@ -543,10 +615,10 @@ onMounted(async () => {
                 {{ t('launchBuy') }}
             </button>
             <a
-                v-if="hash && quote"
+                v-if="txUrl"
                 class="cw-btn cw-btn-secondary"
                 style="margin-top: 10px; text-decoration: none"
-                :href="launchTxUrl(quote.chainId, hash)"
+                :href="txUrl"
                 target="_blank"
                 rel="noopener noreferrer"
             >
@@ -590,7 +662,7 @@ onMounted(async () => {
                     <span class="cw-kv-key">{{ t('launchZone') }}</span>
                     <span class="cw-kv-val">.{{ zone }}</span>
                 </div>
-                <div v-if="quote.venue === 'v3' && split" class="cw-kv">
+                <div v-if="venueHasFee(quote.venue) && split" class="cw-kv">
                     <span class="cw-kv-key">{{ t('launchNewTradeFee') }}</span>
                     <span class="cw-kv-val">{{ split.poolFeePct }}%</span>
                 </div>
@@ -620,15 +692,23 @@ onMounted(async () => {
             <p class="cw-note cw-note-warn" style="margin-top: 14px">
                 <span>{{
                     t(
-                        quote.venue === 'v3'
-                            ? 'launchNewPermanentV3'
-                            : 'launchNewPermanentV2',
+                        quote.venue === 'v2'
+                            ? 'launchNewPermanentV2'
+                            : 'launchNewPermanentV3',
                         {
                             amount: amount(quote.liquidity),
                             symbol,
                         },
                     )
                 }}</span>
+            </p>
+
+            <p
+                v-if="quote.venue === 'kit'"
+                class="cw-prose"
+                style="margin-top: 12px"
+            >
+                {{ t('launchKitConfirm') }}
             </p>
 
             <p v-if="hasAbout(about)" class="cw-note" style="margin-top: 12px">
@@ -679,7 +759,19 @@ onMounted(async () => {
                 {{ t('launchNewTitle') }}
             </h2>
             <p class="cw-prose">
-                {{ t(venue === 'v3' ? 'launchNewBodyV3' : 'launchNewBodyV2') }}
+                {{
+                    t(
+                        isKit
+                            ? 'launchNewBodyKit'
+                            : charges
+                              ? 'launchNewBodyV3'
+                              : 'launchNewBodyV2',
+                    )
+                }}
+            </p>
+            <p v-if="isKit" class="cw-note" style="margin-top: 12px">
+                <span style="flex: 1">{{ t('launchpadTestnet') }}</span>
+                <a class="cw-back" href="/fuji">{{ t('launchpadFaucet') }} →</a>
             </p>
 
             <p
@@ -774,7 +866,7 @@ onMounted(async () => {
                 }}
             </p>
 
-            <template v-if="venue === 'v3'">
+            <template v-if="charges">
                 <label
                     class="cw-label"
                     style="display: block; margin: 18px 0 6px"

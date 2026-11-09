@@ -1,6 +1,7 @@
 import {
     CYBERIA_CHAIN,
     CYBERIA_CHAIN_ID,
+    CYBERIA_FUJI_CHAIN_ID,
     EVM_CHAINS,
     cyberiaReadRpcUrl,
 } from '@/lib/evmChains';
@@ -34,10 +35,24 @@ export type LaunchpadChain = {
      * there — they are not a setting that happens to be missing.
      */
     launchpadV3?: string | null;
+    /**
+     * The Cyberia 2.0 launchpad (crypto/protocol `Launchpad.sol`), where one
+     * is deployed.
+     *
+     * Its pool and fee are the v3 launchpad's — a locked full-range position,
+     * the creator's fee up to 10% plus the protocol's 1% — but the launch also
+     * opens the token's "kit" in the same transaction: lending markets, a
+     * farm, a domain zone when the name spells one, and a DAO. It takes one
+     * struct rather than five arguments, so it is a venue of its own.
+     */
+    launchpadKit?: string | null;
     factory: string;
     /** Wrapped native token the launch pairs against. */
     wrappedNative: string;
-    /** Blockscout instance used for log queries and address links. */
+    /**
+     * Blockscout instance used for log queries and address links; empty on a
+     * chain that has no explorer yet, and then no link is drawn.
+     */
     explorerUrl: string;
     /** Built-in swap deep link base; the URL also names the chain. */
     swapUrl: string;
@@ -100,10 +115,42 @@ export const LAUNCHPAD_CHAINS: readonly LaunchpadChain[] = [
     },
 ];
 
+/** The same, for the Cyberia 2.0 launchpad. */
+const deployedKitAt = (
+    chainId: number,
+    fallback: string | null,
+): string | null => env[`VITE_LAUNCHPAD_KIT_${chainId}`] ?? fallback;
+
+/**
+ * Cyberia 2.0, the Avalanche L1 on Fuji (crypto/protocol/deployments/49407.json).
+ *
+ * Kept out of `LAUNCHPAD_CHAINS` on purpose: that list is what `/launchpad`
+ * launches on in one go, and a launch there goes to LaunchpadNative or
+ * LaunchpadV3 — which this chain does not run. The wallet's launchpad offers
+ * it beside Cyberia (`walletLaunchpadChains`).
+ */
+export const CYBERIA2_LAUNCHPAD: LaunchpadChain = {
+    // The wallet calls this network Cyberia 2.0; the registry still says Fuji.
+    chain: { ...evmChain(CYBERIA_FUJI_CHAIN_ID), name: 'Cyberia 2.0' },
+    launchpad: null,
+    launchpadV3: null,
+    launchpadKit: deployedKitAt(
+        CYBERIA_FUJI_CHAIN_ID,
+        '0xea0fbc4634f1ad6a5f82df3e7c9de01f964721c0',
+    ),
+    factory: '0xf5397e55410df25551012757794513aa85071784',
+    wrappedNative: '0x000000000000000000000000000000000000c0Fe',
+    explorerUrl: '',
+    swapUrl: '/swap',
+    defaultLiquidity: '100000',
+};
+
 export const DEFAULT_LAUNCHPAD_CHAIN_ID = CYBERIA_CHAIN_ID;
 
 export const launchpadChain = (chainId: number): LaunchpadChain | undefined =>
-    LAUNCHPAD_CHAINS.find((c) => c.chain.chainId === chainId);
+    [...LAUNCHPAD_CHAINS, CYBERIA2_LAUNCHPAD].find(
+        (c) => c.chain.chainId === chainId,
+    );
 
 /** Chains that can actually take a launch right now. */
 export const deployedLaunchpadChains = (): LaunchpadChain[] =>

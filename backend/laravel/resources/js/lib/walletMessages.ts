@@ -1787,6 +1787,25 @@ export const walletMessages: Messages = {
         launchNewBodyV3:
             'One transaction creates the token and puts its whole supply into a pool against the coin you send. That liquidity is locked forever — you cannot take it out either — and it earns the trading fee you set below. You keep none of the supply: to hold your own token, you buy it like everyone else.',
         launchNewNoLaunchpad: 'There is no launchpad on this network yet.',
+        launchpadNetwork: 'Network',
+        launchpadTestnet:
+            'Fuji testnet. CYBER here is test money, handed out by the faucet.',
+        launchpadFaucet: 'Faucet',
+        launchpadKitBody:
+            'A launch here also opens lending against the token, a farm and a DAO for its holders — in the same transaction.',
+        launchNewBodyKit:
+            'One transaction creates the token and puts the whole supply into a pool against the coin you send. That liquidity is locked for good — you cannot withdraw it either — and earns the trading fee you set below. The same transaction opens lending against the token, a farm and a DAO. You keep nothing for yourself: to hold your token, you buy it like everyone else.',
+        launchKitTitle: 'Opened with the token',
+        launchKitCredit: 'Lending',
+        launchKitFarm: 'Farm',
+        launchKitDao: 'DAO',
+        launchKitZone: 'Domain zone',
+        launchKitOpen: 'open',
+        launchKitConfirm:
+            'The same transaction opens lending against the token, a farm and a DAO.',
+        launchKitNoSwap:
+            'Buying Cyberia 2.0 tokens in the wallet is not connected yet. The token’s pool is already live.',
+        launchNewFundsFaucet: 'Test CYBER comes from the faucet.',
         launchNewNoAccount:
             'This account has no address on Cyberia, so it cannot launch here.',
         launchNewWatchOnly:
@@ -4443,6 +4462,25 @@ export const walletMessages: Messages = {
         launchNewBodyV3:
             'Одна транзакция создаёт токен и кладёт всю эмиссию в пул против монеты, которую вы отправляете. Эта ликвидность заблокирована навсегда — вывести её не сможете и вы — и приносит торговую комиссию, которую вы зададите ниже. Себе вы не оставляете ничего: чтобы держать свой токен, его покупают, как все.',
         launchNewNoLaunchpad: 'В этой сети пока нет лаунчпада.',
+        launchpadNetwork: 'Сеть',
+        launchpadTestnet:
+            'Тестовая сеть Fuji. CYBER здесь тестовые, их выдаёт кран.',
+        launchpadFaucet: 'Кран',
+        launchpadKitBody:
+            'Запуск здесь заодно открывает займы под токен, фарм и DAO его держателей — в той же транзакции.',
+        launchNewBodyKit:
+            'Одна транзакция создаёт токен и кладёт всю эмиссию в пул против монеты, которую вы отправляете. Эта ликвидность заблокирована навсегда — вывести её не сможете и вы — и приносит торговую комиссию, которую вы зададите ниже. Той же транзакцией открываются займы под токен, фарм и DAO. Себе вы не оставляете ничего: чтобы держать свой токен, его покупают, как все.',
+        launchKitTitle: 'Открыто вместе с токеном',
+        launchKitCredit: 'Займы',
+        launchKitFarm: 'Фарм',
+        launchKitDao: 'DAO',
+        launchKitZone: 'Доменная зона',
+        launchKitOpen: 'открыто',
+        launchKitConfirm:
+            'Той же транзакцией откроются займы под токен, фарм и DAO.',
+        launchKitNoSwap:
+            'Покупку токенов Cyberia 2.0 в кошельке ещё не подключили. Пул токена уже работает.',
+        launchNewFundsFaucet: 'Тестовые CYBER выдаёт кран.',
         launchNewNoAccount:
             'У этого счёта нет адреса в Cyberia, запустить отсюда нельзя.',
         launchNewWatchOnly:
@@ -6992,6 +7030,23 @@ export const walletMessages: Messages = {
         launchNewBodyV3:
             '一笔交易创建代币，并把全部供应量和你发送的币一起放进池子。这份流动性永久锁定 — 你也取不出来 — 并按你在下面设定的交易手续费赚钱。你一个代币也不保留：想持有自己的代币，就和别人一样去买。',
         launchNewNoLaunchpad: '这个网络上还没有发射台。',
+        launchpadNetwork: '网络',
+        launchpadTestnet: 'Fuji 测试网。这里的 CYBER 是测试币，由水龙头发放。',
+        launchpadFaucet: '水龙头',
+        launchpadKitBody:
+            '在这里发射，同一笔交易还会为代币开通借贷、农场和持有者 DAO。',
+        launchNewBodyKit:
+            '一笔交易创建代币，并把全部供应量与你发送的币一起放进池子。这笔流动性永久锁定——你自己也无法取出——并按你在下面设定的交易费赚取收入。同一笔交易还会开通以代币为抵押的借贷、农场和 DAO。你不会给自己留下任何代币：想持有，就像其他人一样去买。',
+        launchKitTitle: '随代币一起开通',
+        launchKitCredit: '借贷',
+        launchKitFarm: '农场',
+        launchKitDao: 'DAO',
+        launchKitZone: '域名区',
+        launchKitOpen: '已开通',
+        launchKitConfirm: '同一笔交易会开通借贷、农场和 DAO。',
+        launchKitNoSwap:
+            '钱包里暂时还不能购买 Cyberia 2.0 的代币。代币的池子已经在运行。',
+        launchNewFundsFaucet: '测试 CYBER 由水龙头发放。',
         launchNewNoAccount: '这个账户在 Cyberia 上没有地址，无法在这里发射。',
         launchNewWatchOnly: '这是只读观察账户。它能看到发射，但不能签名发射。',
         launchNewName: '名称',

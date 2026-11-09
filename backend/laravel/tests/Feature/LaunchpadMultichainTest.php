@@ -24,7 +24,8 @@ function launchpadMessage(?int $chainId = null): string
 }
 
 it('keeps one metadata row per chain for the same token address', function () {
-    foreach ([49406, 4663] as $chainId) {
+    // Cyberia, Robinhood and Cyberia 2.0 (Fuji), whose launches the wallet signs too.
+    foreach ([49406, 4663, 49407] as $chainId) {
         $this->post('/api/launchpad/tokens', [
             'address' => MULTICHAIN_TOKEN,
             'chain_id' => $chainId,
@@ -37,11 +38,11 @@ it('keeps one metadata row per chain for the same token address', function () {
             ->assertJsonPath('token.chain_id', $chainId);
     }
 
-    expect(LaunchpadToken::where('address', MULTICHAIN_TOKEN)->count())->toBe(2);
+    expect(LaunchpadToken::where('address', MULTICHAIN_TOKEN)->count())->toBe(3);
 
     $this->getJson('/api/launchpad/tokens')
         ->assertOk()
-        ->assertJsonCount(2, 'tokens');
+        ->assertJsonCount(3, 'tokens');
 });
 
 it('files metadata from single-chain clients under Cyberia', function () {

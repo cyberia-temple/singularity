@@ -3,10 +3,14 @@ import {
     Interface,
     JsonRpcProvider,
     ZeroAddress,
+    ZeroHash,
     formatUnits,
+    hexlify,
     parseUnits,
+    randomBytes,
 } from 'ethers';
 import {
+    CYBERIA2_LAUNCHPAD,
     DEFAULT_LAUNCHPAD_CHAIN_ID,
     LAUNCHPAD_CHAINS,
     launchpadChain,
@@ -38,6 +42,11 @@ import type { WalletKeySource } from '@/lib/wallet/keys';
  * where it has not. Two launchpads means two lists, so `fetchLaunches` reads
  * both; a token launched from this wallet that the wallet then could not find
  * would be the worst possible first impression of the feature.
+ *
+ * Cyberia 2.0 runs a third one, crypto/protocol's `Launchpad` (the `kit`
+ * venue): the same locked v3 position and fee split, one struct for its
+ * arguments, and the token's lending markets, farm and DAO opened by the same
+ * transaction.
  */
 
 const LAUNCHPAD_ABI = [
@@ -87,6 +96,28 @@ const LAUNCH_V3_ABI = [
  * reads what it is told to, so naming the two that matter keeps this correct
  * on both.
  */
+/**
+ * The Cyberia 2.0 launchpad, read and write.
+ *
+ * It keeps no `poolOf`: everything a launch opened is one `Economy` record,
+ * so the pool and the kit are read together. `Id` is Morpho's bytes32.
+ */
+const LAUNCH_KIT_ABI = [
+    'function minLiquidity() view returns (uint256)',
+    'function allTokensLength() view returns (uint256)',
+    'function allTokens(uint256) view returns (address)',
+    'function economyOf(address) view returns ((address creator, uint64 launchedAt, address pool, uint256 positionId, address vault, address gauge, address tokenOracle, address cyberOracle, bytes32 borrowCyberMarket, bytes32 borrowTokenMarket, bytes32 borrowAgainstLpMarket, address governor, address timelock, bool zone, string metadataURI))',
+    'function launch((string name, string symbol, uint256 totalSupply, uint24 creatorFee, uint16 holdersShareBps, bytes32 salt, uint8 kit, string metadataURI)) payable returns (address)',
+    'event Launched(address indexed token, address indexed creator, address pool, string name, string symbol, uint256 totalSupply, uint256 cyberLiquidity)',
+];
+
+/**
+ * Every part of the kit, asked for on every launch: `KIT_CREDIT | KIT_FARM |
+ * KIT_ZONE | KIT_DAO`. The contract skips a part whose module is not set and
+ * a zone the name does not spell, so asking for all of it never fails a launch.
+ */
+export const KIT_ALL = 15;
+
 const POOL_V3_ABI = [
     'function token0() view returns (address)',
     'function slot0() view returns (uint160 sqrtPriceX96, int24 tick)',
@@ -100,7 +131,16 @@ const PAIR_ABI = [
     'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
 ];
 
-export type LaunchVenue = 'v2' | 'v3';
+export type LaunchVenue = 'v2' | 'v3' | 'kit';
+
+/** What a Cyberia 2.0 launch opened beside its pool. */
+export type LaunchKit = {
+    /** Lending markets: borrow CYBER against the token, the token against CYBER, CYBER against LP shares. */
+    credit: boolean;
+    farm: boolean;
+    zone: boolean;
+    dao: boolean;
+};
 
 export type WalletLaunch = {
     /** Contract of the launched token — its identity on this chain. */
@@ -113,6 +153,8 @@ export type WalletLaunch = {
     venue: LaunchVenue;
     /** What a trade in its pool costs, in percent — v3 only, null elsewhere. */
     feePct: number | null;
+    /** What the launch opened beside its pool — Cyberia 2.0 only. */
+    kit: LaunchKit | null;
     name: string;
     symbol: string;
     /** Everything in existence, in the token's own units (always 18 here). */
@@ -262,11 +304,16 @@ export const fetchLaunches = async (
 ): Promise<WalletLaunch[]> => {
     const target = launchpadChain(chainId);
 
-    if (!target?.launchpad) {
+    if (!target || launchVenue(target) === null) {
         return [];
     }
 
     const provider = providerFor(target);
+
+    // Cyberia 2.0 has the one launchpad, and nothing older beside it.
+    if (target.launchpadKit) {
+        return readVenue(provider, target, 'kit', target.launchpadKit, limit);
+    }
 
     /*
      * v3 first. Once a chain has the v3 launchpad every launch from the site
@@ -277,7 +324,7 @@ export const fetchLaunches = async (
         ? await readVenue(provider, target, 'v3', target.launchpadV3, limit)
         : [];
     const v2 =
-        v3.length < limit
+        v3.length < limit && target.launchpad
             ? await readVenue(
                   provider,
                   target,
@@ -300,7 +347,11 @@ const readVenue = async (
 ): Promise<WalletLaunch[]> => {
     const launchpad = new Contract(
         contract,
-        venue === 'v3' ? LAUNCHPAD_V3_READ_ABI : LAUNCHPAD_ABI,
+        venue === 'kit'
+            ? LAUNCH_KIT_ABI
+            : venue === 'v3'
+              ? LAUNCHPAD_V3_READ_ABI
+              : LAUNCHPAD_ABI,
         provider,
     );
     const total = Number((await launchpad.allTokensLength()) as bigint);
@@ -322,21 +373,25 @@ const readVenue = async (
     return Promise.all(
         addresses.map(async (address): Promise<WalletLaunch> => {
             const token = new Contract(address, ERC20_ABI, provider);
-            const [name, symbol, supply, market] = await Promise.all([
+            const [name, symbol, supply, economy] = await Promise.all([
                 (token.name() as Promise<string>).catch(() => ''),
                 (token.symbol() as Promise<string>).catch(() => ''),
                 (token.totalSupply() as Promise<bigint>).catch(() => 0n),
-                (
-                    (venue === 'v3'
-                        ? launchpad.poolOf(address)
-                        : launchpad.pairOf(address)) as Promise<string>
-                ).catch(() => ZeroAddress),
+                (venue === 'kit'
+                    ? (launchpad.economyOf(address) as Promise<EconomyRead>)
+                    : (
+                          (venue === 'v3'
+                              ? launchpad.poolOf(address)
+                              : launchpad.pairOf(address)) as Promise<string>
+                      ).then((pool) => ({ pool }) as EconomyRead)
+                ).catch(() => null),
             ]);
 
+            const market = economy?.pool ?? ZeroAddress;
             const listed = Boolean(market) && market !== ZeroAddress;
             const pool = !listed
                 ? null
-                : venue === 'v3'
+                : venue === 'v3' || venue === 'kit'
                   ? await poolV3Price(
                         provider,
                         market,
@@ -353,17 +408,64 @@ const readVenue = async (
                 address,
                 venue,
                 feePct: pool?.feePct ?? null,
+                kit: venue === 'kit' && economy ? kitOf(economy) : null,
                 name: String(name).slice(0, 40),
                 symbol: String(symbol).slice(0, 12),
                 supply,
                 liquidity: pool?.liquidity ?? 0n,
                 priceNative: price,
                 marketCapNative: price === null ? null : price * whole,
-                explorerUrl: `${target.explorerUrl}/address/${address}`,
+                explorerUrl: target.explorerUrl
+                    ? `${target.explorerUrl}/address/${address}`
+                    : '',
                 swapUrl: `${target.swapUrl}?outputCurrency=${address}`,
             };
         }),
     );
+};
+
+/**
+ * The part of a launchpad's record for one token this file reads. LaunchpadV3
+ * and LaunchpadNative only know the market; Cyberia 2.0 knows the kit too.
+ */
+type EconomyRead = {
+    pool: string;
+    gauge?: string;
+    tokenOracle?: string;
+    governor?: string;
+    zone?: boolean;
+};
+
+/** What a Cyberia 2.0 economy record says was opened, from its addresses. */
+export const kitOf = (economy: EconomyRead): LaunchKit => ({
+    credit: Boolean(economy.tokenOracle && economy.tokenOracle !== ZeroAddress),
+    farm: Boolean(economy.gauge && economy.gauge !== ZeroAddress),
+    zone: economy.zone === true,
+    dao: Boolean(economy.governor && economy.governor !== ZeroAddress),
+});
+
+/** What a Cyberia 2.0 launch opened, read from the chain; null elsewhere or unread. */
+export const readKit = async (
+    chainId: number,
+    token: string,
+): Promise<LaunchKit | null> => {
+    const target = launchpadChain(chainId);
+
+    if (!target?.launchpadKit) {
+        return null;
+    }
+
+    try {
+        const economy = (await new Contract(
+            target.launchpadKit,
+            LAUNCH_KIT_ABI,
+            providerFor(target),
+        ).economyOf(token)) as EconomyRead;
+
+        return economy.pool === ZeroAddress ? null : kitOf(economy);
+    } catch {
+        return null;
+    }
 };
 
 /**
@@ -394,6 +496,15 @@ export const byMarketCap = (launches: WalletLaunch[]): WalletLaunch[] =>
 export const launchpadChains = (): LaunchpadChain[] =>
     LAUNCHPAD_CHAINS.filter((entry) => entry.launchpad !== null);
 
+/**
+ * What the wallet's launchpad offers: Cyberia first, then Cyberia 2.0 — a
+ * second core network beside the old one, never in place of it.
+ */
+export const walletLaunchpadChains = (): LaunchpadChain[] => [
+    ...launchpadChains(),
+    ...(CYBERIA2_LAUNCHPAD.launchpadKit ? [CYBERIA2_LAUNCHPAD] : []),
+];
+
 /* ------------------------------------------------------------- launching --- */
 
 /**
@@ -409,6 +520,9 @@ export const launchpadChains = (): LaunchpadChain[] =>
 export const LAUNCH_GAS = {
     v2: { fallback: 3_600_000n, cap: 4_500_000n },
     v3: { fallback: 10_000_000n, cap: 12_000_000n },
+    // 13.0M measured for the first Fuji launch with the whole kit
+    // (49407.smoke.json); the block takes 20M.
+    kit: { fallback: 16_000_000n, cap: 19_000_000n },
 } as const;
 
 /** Headroom over a live estimate, for the drift between quote and mine. */
@@ -578,7 +692,7 @@ export const launchProblem = (
         return 'liquidityMin';
     }
 
-    if (venue === 'v3') {
+    if (venue === 'v3' || venue === 'kit') {
         if (percent(form.creatorFeePct, MAX_CREATOR_FEE_PCT) === null) {
             return 'fee';
         }
@@ -591,9 +705,33 @@ export const launchProblem = (
     return null;
 };
 
-/** Which launchpad a chain launches on: v3 where it has one. */
+/** Which launchpad a chain launches on: the newest one it has. */
 export const launchVenue = (target: LaunchpadChain): LaunchVenue | null =>
-    target.launchpadV3 ? 'v3' : target.launchpad ? 'v2' : null;
+    target.launchpadKit
+        ? 'kit'
+        : target.launchpadV3
+          ? 'v3'
+          : target.launchpad
+            ? 'v2'
+            : null;
+
+/** Whether a venue's pool charges a fee its creator chose. */
+export const venueHasFee = (venue: LaunchVenue | null): boolean =>
+    venue === 'v3' || venue === 'kit';
+
+const LAUNCH_ABI: Record<LaunchVenue, string[]> = {
+    v2: LAUNCH_V2_ABI,
+    v3: LAUNCH_V3_ABI,
+    kit: LAUNCH_KIT_ABI,
+};
+
+/** The contract a venue launches through on this chain. */
+const venueAddress = (target: LaunchpadChain, venue: LaunchVenue): string =>
+    (venue === 'kit'
+        ? target.launchpadKit
+        : venue === 'v3'
+          ? target.launchpadV3
+          : target.launchpad)!;
 
 /** The contract's floor for the coin a launch must be paired with. */
 export const readMinLiquidity = async (
@@ -606,8 +744,8 @@ export const readMinLiquidity = async (
     }
 
     const contract = new Contract(
-        venue === 'v3' ? target.launchpadV3! : target.launchpad!,
-        venue === 'v3' ? LAUNCH_V3_ABI : LAUNCH_V2_ABI,
+        venueAddress(target, venue),
+        LAUNCH_ABI[venue],
         providerFor(target),
     );
 
@@ -630,6 +768,12 @@ export type LaunchQuote = {
     liquidity: bigint;
     creatorFee: number;
     holdersShareBps: number;
+    /**
+     * Cyberia 2.0 only: picks the token's address among the creator's, so it
+     * is drawn once per quote and the call, the estimate and the signature
+     * all launch the same token. Zero elsewhere.
+     */
+    salt: string;
     gasLimit: bigint;
     gasPrice: bigint;
     fee: bigint;
@@ -651,23 +795,39 @@ export class LaunchRefused extends Error {
  * The launch contract with its arguments, for a call, an estimate or a send.
  * One place, so the three cannot disagree about what is being launched.
  */
-const launchArgs = (quote: {
+export const launchArgs = (quote: {
     venue: LaunchVenue;
     name: string;
     symbol: string;
     supply: bigint;
     creatorFee: number;
     holdersShareBps: number;
+    salt: string;
 }): unknown[] =>
-    quote.venue === 'v3'
+    quote.venue === 'kit'
         ? [
-              quote.name,
-              quote.symbol,
-              quote.supply,
-              quote.creatorFee,
-              quote.holdersShareBps,
+              {
+                  name: quote.name,
+                  symbol: quote.symbol,
+                  totalSupply: quote.supply,
+                  creatorFee: quote.creatorFee,
+                  holdersShareBps: quote.holdersShareBps,
+                  salt: quote.salt,
+                  kit: KIT_ALL,
+                  // The description and logo are kept by the server, as on
+                  // Cyberia; the creator can still point this at IPFS later.
+                  metadataURI: '',
+              },
           ]
-        : [quote.name, quote.symbol, quote.supply];
+        : quote.venue === 'v3'
+          ? [
+                quote.name,
+                quote.symbol,
+                quote.supply,
+                quote.creatorFee,
+                quote.holdersShareBps,
+            ]
+          : [quote.name, quote.symbol, quote.supply];
 
 /**
  * Price a launch and prove it would go through, before anything is signed.
@@ -704,21 +864,19 @@ export const quoteLaunch = async (request: {
         creatorFee: 0,
         holdersShareBps: 0,
     };
-    const address = venue === 'v3' ? target.launchpadV3! : target.launchpad!;
+    const address = venueAddress(target, venue);
     const provider = providerFor(target);
-    const contract = new Contract(
-        address,
-        venue === 'v3' ? LAUNCH_V3_ABI : LAUNCH_V2_ABI,
-        provider,
-    );
+    const contract = new Contract(address, LAUNCH_ABI[venue], provider);
+    const charges = venueHasFee(venue);
 
     const draft = {
         venue,
         name: form.name.trim(),
         symbol: form.symbol.trim(),
         supply: units(form.supply)!,
-        creatorFee: venue === 'v3' ? terms.creatorFee : 0,
-        holdersShareBps: venue === 'v3' ? terms.holdersShareBps : 0,
+        creatorFee: charges ? terms.creatorFee : 0,
+        holdersShareBps: charges ? terms.holdersShareBps : 0,
+        salt: venue === 'kit' ? hexlify(randomBytes(32)) : ZeroHash,
     };
     const liquidity = units(form.liquidity)!;
     const gas = LAUNCH_GAS[venue];
@@ -808,7 +966,7 @@ export const executeLaunch = async (
     const signer = evmSigner(source).connect(provider);
     const contract = new Contract(
         quote.launchpad,
-        quote.venue === 'v3' ? LAUNCH_V3_ABI : LAUNCH_V2_ABI,
+        LAUNCH_ABI[quote.venue],
         signer,
     );
 
@@ -838,7 +996,8 @@ export const launchedFromLogs = (
     venue: LaunchVenue,
     launchpad: string,
 ): { token: string; market: string } | null => {
-    const iface = new Interface(venue === 'v3' ? LAUNCH_V3_ABI : LAUNCH_V2_ABI);
+    const iface = new Interface(LAUNCH_ABI[venue]);
+    const event = venue === 'kit' ? 'Launched' : 'TokenLaunched';
 
     for (const log of logs) {
         if (log.address.toLowerCase() !== launchpad.toLowerCase()) {
@@ -851,12 +1010,12 @@ export const launchedFromLogs = (
                 data: log.data,
             });
 
-            if (parsed?.name === 'TokenLaunched') {
+            if (parsed?.name === event) {
                 return {
                     token: parsed.args.token as string,
-                    market: (venue === 'v3'
-                        ? parsed.args.pool
-                        : parsed.args.pair) as string,
+                    market: (venue === 'v2'
+                        ? parsed.args.pair
+                        : parsed.args.pool) as string,
                 };
             }
         } catch {
@@ -1047,6 +1206,9 @@ export const watchLaunch = async (
     return null;
 };
 
-/** Where a launch transaction can be looked at. */
-export const launchTxUrl = (chainId: number, hash: string): string =>
-    `${launchpadChain(chainId)?.explorerUrl ?? ''}/tx/${hash}`;
+/** Where a launch transaction can be looked at; null with no explorer. */
+export const launchTxUrl = (chainId: number, hash: string): string | null => {
+    const explorer = launchpadChain(chainId)?.explorerUrl ?? '';
+
+    return explorer ? `${explorer}/tx/${hash}` : null;
+};

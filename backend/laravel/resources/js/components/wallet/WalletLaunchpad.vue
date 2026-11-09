@@ -4,12 +4,13 @@ import { computed, onMounted, ref } from 'vue';
 import WalletLaunchCreate from '@/components/wallet/WalletLaunchCreate.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
+import { CYBERIA_CHAIN_ID } from '@/lib/evmChains';
 import { formatUnits } from '@/lib/wallet';
 import { formatUsd, shortAddress } from '@/lib/wallet/format';
 import {
     byMarketCap,
     fetchLaunches,
-    launchpadChains,
+    walletLaunchpadChains,
 } from '@/lib/wallet/launchpad';
 import type { WalletLaunch } from '@/lib/wallet/launchpad';
 import { fetchUnderground } from '@/lib/wallet/underground';
@@ -30,12 +31,18 @@ import { walletMessages } from '@/lib/walletMessages';
  * contract to the swap screen, which reads it from the chain before quoting
  * anything. The DEX link stays alongside it: this screen has no chart, no
  * order book and no depth, and those are real reasons to go there.
+ *
+ * Two networks have one: Cyberia and Cyberia 2.0. The switch at the top picks
+ * which list is read and where a new launch goes; the choice is remembered on
+ * this device, and a screen that sends someone here for a 2.0 token opens on 2.0.
  */
 
 const props = defineProps<{
     wallet: MultiWallet;
     /** Chain id → (lowercased contract → USD price), for pricing the coin. */
     prices: Record<string, number | null>;
+    /** EVM chain id to open on, overriding the remembered one. */
+    initialChainId?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -57,7 +64,11 @@ const loadImages = async (): Promise<void> => {
         const response = await fetch('/api/launchpad/tokens', {
             headers: { Accept: 'application/json' },
         });
-        if (!response.ok) return;
+
+        if (!response.ok) {
+            return;
+        }
+
         const data = (await response.json()) as {
             tokens: {
                 chain_id: number;
@@ -95,14 +106,49 @@ const shown = computed(() =>
     order.value === 'cap' ? byMarketCap(launches.value) : launches.value,
 );
 
-const chain = computed(() => launchpadChains()[0] ?? null);
+const chains = walletLaunchpadChains();
+const REMEMBERED = 'cw.launchpad.chain';
+
+const remembered = (): number | null => {
+    try {
+        const stored = Number(localStorage.getItem(REMEMBERED));
+
+        return Number.isFinite(stored) && stored > 0 ? stored : null;
+    } catch {
+        return null;
+    }
+};
+
+const offered = (id: number | null | undefined): number | null =>
+    chains.some((entry) => entry.chain.chainId === id) ? id! : null;
+
+const chainId = ref<number | null>(
+    offered(props.initialChainId) ??
+        offered(remembered()) ??
+        chains[0]?.chain.chainId ??
+        null,
+);
+
+const chain = computed(
+    () =>
+        chains.find((entry) => entry.chain.chainId === chainId.value) ??
+        chains[0] ??
+        null,
+);
+
+/** Cyberia 2.0 is on the Fuji testnet: its coin is free and has no price. */
+const testnet = computed(() => Boolean(chain.value?.launchpadKit));
 
 const symbol = computed(
     () => chain.value?.chain.nativeCurrency.symbol ?? 'CYBER',
 );
 
 /** USD for the coin the launches are priced in, when the page has a quote. */
-const nativeUsd = computed(() => props.prices.cyberia ?? null);
+const nativeUsd = computed(() =>
+    chain.value?.chain.chainId === CYBERIA_CHAIN_ID
+        ? (props.prices.cyberia ?? null)
+        : null,
+);
 
 const detail = computed(
     () =>
@@ -167,15 +213,17 @@ const load = async (): Promise<void> => {
     void loadImages();
 
     const wanted = order.value;
+    const on = chain.value?.chain.chainId;
 
     try {
         const read = await fetchLaunches(
-            undefined,
+            on,
             wanted === 'cap' ? Infinity : undefined,
         );
 
-        // A slower read for the order just left must not replace this one.
-        if (wanted === order.value) {
+        // A slower read for the order or network just left must not
+        // replace this one.
+        if (wanted === order.value && on === chain.value?.chain.chainId) {
             launches.value = read;
         }
     } catch (error) {
@@ -192,6 +240,26 @@ const sortBy = (next: 'new' | 'cap'): void => {
     }
 };
 
+const pickChain = (next: number): void => {
+    if (next === chainId.value) {
+        return;
+    }
+
+    chainId.value = next;
+    selected.value = null;
+    creating.value = false;
+    launches.value = [];
+    images.value = {};
+
+    try {
+        localStorage.setItem(REMEMBERED, String(next));
+    } catch {
+        // Remembering is a convenience; the switch works without it.
+    }
+
+    void load();
+};
+
 onMounted(load);
 </script>
 
@@ -199,7 +267,9 @@ onMounted(load);
     <div class="cw-stack">
         <WalletLaunchCreate
             v-if="creating"
+            :key="chain?.chain.chainId"
             :wallet="wallet"
+            :evm-chain-id="chain?.chain.chainId"
             @back="creating = false"
             @launched="load"
             @swap="(contract) => emit('swap', contract)"
@@ -310,6 +380,36 @@ onMounted(load);
             </div>
 
             <div
+                v-if="detail.kit"
+                class="cw-card"
+                style="padding: 14px 16px; margin-top: 12px"
+            >
+                <div class="cw-label" style="margin-bottom: 6px">
+                    {{ t('launchKitTitle') }}
+                </div>
+                <div
+                    v-for="part in ['credit', 'farm', 'dao', 'zone'] as const"
+                    :key="part"
+                    class="cw-kv"
+                >
+                    <span class="cw-kv-key">{{
+                        t(
+                            part === 'credit'
+                                ? 'launchKitCredit'
+                                : part === 'farm'
+                                  ? 'launchKitFarm'
+                                  : part === 'dao'
+                                    ? 'launchKitDao'
+                                    : 'launchKitZone',
+                        )
+                    }}</span>
+                    <span class="cw-kv-val">{{
+                        detail.kit[part] ? t('launchKitOpen') : '—'
+                    }}</span>
+                </div>
+            </div>
+
+            <div
                 v-if="homepage?.site_url || isCreator"
                 class="cw-card"
                 style="padding: 14px 16px; margin-top: 12px"
@@ -348,14 +448,15 @@ onMounted(load);
             <p class="cw-note" style="margin-top: 14px">
                 <span>{{
                     t(
-                        detail.venue === 'v3'
-                            ? 'launchLockedBodyV3'
-                            : 'launchLockedBody',
+                        detail.venue === 'v2'
+                            ? 'launchLockedBody'
+                            : 'launchLockedBodyV3',
                     )
                 }}</span>
             </p>
 
             <div
+                v-if="chain?.chain.chainId === CYBERIA_CHAIN_ID"
                 class="cw-row"
                 style="
                     justify-content: flex-start;
@@ -380,12 +481,24 @@ onMounted(load);
                 >
             </div>
 
+            <p
+                v-if="detail.venue === 'kit'"
+                class="cw-note"
+                style="margin-top: 12px"
+            >
+                <span>{{ t('launchKitNoSwap') }}</span>
+            </p>
+
             <p class="cw-note cw-note-warn" style="margin-top: 12px">
                 <span>{{ t('launchRisk') }}</span>
             </p>
 
-            <div style="display: flex; gap: 8px; margin-top: 20px">
+            <div
+                v-if="detail.venue !== 'kit' || detail.explorerUrl"
+                style="display: flex; gap: 8px; margin-top: 20px"
+            >
                 <button
+                    v-if="detail.venue !== 'kit'"
                     type="button"
                     class="cw-btn cw-btn-primary"
                     style="flex: 1"
@@ -394,6 +507,7 @@ onMounted(load);
                     {{ t('launchBuy') }}
                 </button>
                 <a
+                    v-if="detail.venue !== 'kit'"
                     class="cw-btn cw-btn-secondary"
                     style="flex: 1; text-decoration: none"
                     :href="detail.swapUrl"
@@ -404,6 +518,7 @@ onMounted(load);
                     <ExternalLink :size="14" aria-hidden="true" />
                 </a>
                 <a
+                    v-if="detail.explorerUrl"
                     class="cw-btn cw-btn-secondary"
                     style="flex: 1; text-decoration: none"
                     :href="detail.explorerUrl"
@@ -426,12 +541,44 @@ onMounted(load);
                 "
             >
                 <h2 class="cw-title" style="margin: 0">{{ t('launchpad') }}</h2>
-                <span class="cw-label" style="color: var(--cw-faint)">{{
-                    chain?.chain.name ?? '—'
-                }}</span>
+                <span
+                    v-if="chains.length < 2"
+                    class="cw-label"
+                    style="color: var(--cw-faint)"
+                    >{{ chain?.chain.name ?? '—' }}</span
+                >
             </div>
-            <p class="cw-prose" style="margin-top: 8px">
+
+            <div
+                v-if="chains.length > 1"
+                class="cw-seg"
+                role="group"
+                :aria-label="t('launchpadNetwork')"
+                style="margin-top: 14px"
+            >
+                <button
+                    v-for="option in chains"
+                    :key="option.chain.chainId"
+                    type="button"
+                    class="cw-seg-item"
+                    :aria-pressed="
+                        chain?.chain.chainId === option.chain.chainId
+                    "
+                    @click="pickChain(option.chain.chainId)"
+                >
+                    {{ option.chain.name }}
+                </button>
+            </div>
+
+            <p class="cw-prose" style="margin-top: 12px">
                 {{ t('launchpadBody') }}
+                <template v-if="chain?.launchpadKit">
+                    {{ t('launchpadKitBody') }}</template
+                >
+            </p>
+            <p v-if="testnet" class="cw-note" style="margin-top: 10px">
+                <span style="flex: 1">{{ t('launchpadTestnet') }}</span>
+                <a class="cw-back" href="/fuji">{{ t('launchpadFaucet') }} →</a>
             </p>
 
             <button

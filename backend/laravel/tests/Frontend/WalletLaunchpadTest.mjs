@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AbiCoder, Interface, ZeroAddress, parseUnits } from 'ethers';
 import {
+    KIT_ALL,
     byMarketCap,
     feeSplit,
+    kitOf,
+    launchArgs,
     launchProblem,
     launchTerms,
     launchedFromLogs,
@@ -172,5 +175,104 @@ test('market cap order is largest first, unpriced last, ties stable', () => {
     assert.deepEqual(
         sorted.map((entry) => entry.symbol),
         ['C', 'A', 'E', 'D', 'B', 'F'],
+    );
+});
+
+test('a Cyberia 2.0 launch is the deployed Launchpad.launch, kit and salt included', () => {
+    const salt = '0x' + 'ab'.repeat(32);
+    const args = launchArgs({
+        venue: 'kit',
+        name: 'Lain Coin',
+        symbol: 'LAIN',
+        supply: parseUnits('1000000', 18),
+        creatorFee: 10000,
+        holdersShareBps: 2500,
+        salt,
+    });
+    // crypto/protocol/contracts/launch/Launchpad.sol, LaunchParams in order.
+    const deployed = new Interface([
+        'function launch((string,string,uint256,uint24,uint16,bytes32,uint8,string)) payable returns (address)',
+    ]);
+    const data = deployed.encodeFunctionData('launch', [
+        [
+            'Lain Coin',
+            'LAIN',
+            parseUnits('1000000', 18),
+            10000,
+            2500,
+            salt,
+            KIT_ALL,
+            '',
+        ],
+    ]);
+    const ours = new Interface([
+        'function launch((string name, string symbol, uint256 totalSupply, uint24 creatorFee, uint16 holdersShareBps, bytes32 salt, uint8 kit, string metadataURI)) payable returns (address)',
+    ]).encodeFunctionData('launch', args);
+
+    assert.equal(ours, data);
+    // Credit, farm, zone and DAO — every part the contract knows.
+    assert.equal(KIT_ALL, 1 | 2 | 4 | 8);
+});
+
+test('a Cyberia 2.0 launch is read from the launchpad’s own Launched log', () => {
+    const launchpad = '0xea0fbc4634f1ad6a5f82df3e7c9de01f964721c0';
+    const token = '0x1111111111111111111111111111111111111111';
+    const pool = '0x2222222222222222222222222222222222222222';
+    const encoded = new Interface([
+        'event Launched(address indexed token, address indexed creator, address pool, string name, string symbol, uint256 totalSupply, uint256 cyberLiquidity)',
+    ]).encodeEventLog('Launched', [
+        token,
+        ZeroAddress,
+        pool,
+        'Lain',
+        'LAIN',
+        1n,
+        1n,
+    ]);
+    const log = { topics: encoded.topics, data: encoded.data };
+
+    assert.deepEqual(
+        launchedFromLogs([{ address: launchpad, ...log }], 'kit', launchpad),
+        { token, market: pool },
+    );
+    assert.equal(
+        launchedFromLogs([{ address: token, ...log }], 'kit', launchpad),
+        null,
+    );
+});
+
+test('a Cyberia 2.0 form checks the fee like v3, against its own floor', () => {
+    const min = parseUnits('100000', 18);
+
+    assert.equal(
+        launchProblem(form({ liquidity: '100000' }), 'kit', min),
+        null,
+    );
+    assert.equal(
+        launchProblem(form({ liquidity: '99999' }), 'kit', min),
+        'liquidityMin',
+    );
+    assert.equal(
+        launchProblem(
+            form({ liquidity: '100000', creatorFeePct: '11' }),
+            'kit',
+            min,
+        ),
+        'fee',
+    );
+});
+
+test('what a Cyberia 2.0 launch opened is read from its economy record', () => {
+    const some = '0x4444444444444444444444444444444444444444';
+
+    assert.deepEqual(
+        kitOf({
+            pool: some,
+            gauge: some,
+            tokenOracle: some,
+            governor: ZeroAddress,
+            zone: false,
+        }),
+        { credit: true, farm: true, zone: false, dao: false },
     );
 });

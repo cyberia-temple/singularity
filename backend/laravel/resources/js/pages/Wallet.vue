@@ -89,6 +89,7 @@ import { useWalletMode } from '@/composables/useWalletMode';
 import { useWalletTheme } from '@/composables/useWalletTheme';
 import { analytics } from '@/lib/analytics';
 import { arcadeMessages } from '@/lib/arcadeMessages';
+import { CYBERIA_FUJI_CHAIN_ID } from '@/lib/evmChains';
 import { qrScanSupported } from '@/lib/mobileShell';
 import { isNativeShell, nativeShell, onHardwareBack } from '@/lib/native';
 import {
@@ -745,9 +746,22 @@ const showNetworkBar = computed(
     () => activeTab.value === 'portfolio' || overlay.value !== null,
 );
 
+/**
+ * The network the launchpad should open on, when a screen sends someone there
+ * for one — the gateway screen sends a "new token" to Cyberia 2.0. A request,
+ * not a state: every other way in opens on the network last picked there.
+ */
+const launchpadChainId = ref<number | null>(null);
+
 const openSection = (next: Section): void => {
     section.value = hiddenInStore(next) ? (homeScreen() as Section) : next;
     overlay.value = null;
+    launchpadChainId.value = null;
+};
+
+const openLaunchpadOn = (chainId: number): void => {
+    openSection('launchpad');
+    launchpadChainId.value = chainId;
 };
 
 /** Whose profile the profile screen is about — null means this wallet's own. */
@@ -2830,6 +2844,7 @@ watch(
                         v-else-if="section === 'launchpad'"
                         :wallet="wallet"
                         :prices="prices"
+                        :initial-chain-id="launchpadChainId"
                         @swap="openSwapContract"
                         @domains="openDomains(null)"
                         @dao="openSection('dao')"
@@ -3020,6 +3035,7 @@ watch(
                         v-else-if="section === 'tokenAdmin'"
                         :wallet="wallet"
                         @back="openSection('preferences')"
+                        @launchpad="openLaunchpadOn(CYBERIA_FUJI_CHAIN_ID)"
                     />
 
                     <WalletPreferences

@@ -29,6 +29,9 @@ return [
     'chains' => [
         49406 => 'Cyberia',
         4663 => 'Robinhood Chain',
+        // The wallet launches on the Cyberia 2.0 launchpad (crypto/protocol)
+        // and keeps the description and logo here, as for Cyberia.
+        49407 => 'Cyberia 2.0',
     ],
 
     /*
