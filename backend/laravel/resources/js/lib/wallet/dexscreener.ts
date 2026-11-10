@@ -135,6 +135,7 @@ const CHAIN_SLUGS: Partial<Record<WalletChainId, string>> = {
     celo: 'celo',
     'conflux-espace': 'conflux',
     cronos: 'cronos',
+    elysium: 'elysium',
     ethereum: 'ethereum',
     fantom: 'fantom',
     flare: 'flare',

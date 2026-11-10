@@ -367,6 +367,15 @@ export const NETWORK_CATALOGUE: readonly CatalogueNetwork[] = [
         explorer: 'https://explorer.lyra.finance',
     },
     {
+        id: 'elysium',
+        chainId: 99901,
+        label: 'Elysium',
+        symbol: 'HYPE',
+        tag: 'EL',
+        rpc: 'https://rpc.elysium.kinetiq.xyz',
+        explorer: 'https://elysiumexplore.com',
+    },
+    {
         id: 'energy-web',
         chainId: 246,
         label: 'Energy Web',
