@@ -1,12 +1,41 @@
 # Changelog
 
-All notable project changes should be recorded here when a tagged release is cut.
+Cyberia is a monorepo with **separate product and release timelines**. A commit, a testnet deployment, a downloadable build, and a public-store release are not the same event.
 
-This project uses date-based release tags:
+## Version tracks
 
-```text
-vYYYY.MM.DD
-```
+| Track | Versioning | Meaning |
+| --- | --- | --- |
+| **Cyberia Wallet** | `1.x.x`, released as `app-vMAJOR.MINOR.PATCH` | Current wallet/application generation. Capabilities built during the old `0.x` period are being packaged and refined into independent wallet releases. A feature committed to the monorepo does not automatically ship in every app build or store edition. |
+| **Cyberia platform — legacy** | `v0.x.x` app/site history | Existing changelog entries for the earlier, combined site and ecosystem. These remain available as historical records rather than being renumbered as wallet releases. |
+| **Cyberia 2.0** | **Planned milestone, not released** | Reserve the 2.0 announcement for **both** an operational second chain beyond Fuji testing **and** Cyberia apps available in their intended marketplaces (e.g. Google Play, App Store, and browser-extension stores). Wallet support for Fuji alone does not satisfy this milestone. |
+| **Monorepo / operations** | `vYYYY.MM.DD` date tags | GitHub source snapshots and infrastructure changes, independent of wallet app versions. |
+
+See [release policy](docs/RELEASES.md). Live wallet distribution, testnet features, and future milestones must be labelled separately.
+
+## Development updates — not yet assigned to a Wallet 1.x release
+
+These entries describe changes merged into the repository as of **2026-11-10**. They are not claims that the corresponding feature is present in a published store build.
+
+### Wallet 1.x — capabilities in development
+
+- **Nov 10 — Elysium support:** Elysium (chain 99901, HYPE gas) added to the wallet network catalogue with token price lookup through a DEX index. This is network support, **not** an Elysium bridge or perpetuals interface. ([1423079](https://github.com/cyberia-temple/singularity/commit/14230791440a8a83145ebb38e90e9ad364ab3f0d))
+- **Nov 9 — TokenStudio on Cyberia Fuji:** create and manage tokens from the wallet with capped or fixed supply, initial allocations, liquidity/fee settings, optional lending, farming and DAO modules, plus post-launch mint/burn controls. **Fuji/testnet; not Cyberia 2.0 production launch.** ([cf2daf1](https://github.com/cyberia-temple/singularity/commit/cf2daf147d982b8c1b1c6356e5534465013af13d), [f320c74](https://github.com/cyberia-temple/singularity/commit/f320c74ec8a3c3b590323b80957b9a61c68e4d87))
+- **Nov 4–5 — Cross-chain swap UX:** new source/target network and token picker, Relay routes, SideShift integration with Ed25519 signing, Bitcoin quote fixes, and an ETH-on-Robinhood → BTC flow. ([942cc97](https://github.com/cyberia-temple/singularity/commit/942cc97c46cd92068082d61173943705af4c9ac0), [305cb17](https://github.com/cyberia-temple/singularity/commit/305cb17fb4d634b914c992046857d0f25716cfdb), [3a8e4c4](https://github.com/cyberia-temple/singularity/commit/3a8e4c41))
+- **Nov 3–6 — More wallet surfaces:** NFT gallery/metadata and post-link fixes, 24-hour holdings and portfolio changes, mobile push notification wiring, and further extension/PWA work. Some store builds remain intentionally **social-only** during review. ([8095610](https://github.com/cyberia-temple/singularity/commit/80956104), [68a04ba](https://github.com/cyberia-temple/singularity/commit/68a04bac), [60b2c53](https://github.com/cyberia-temple/singularity/commit/60b2c53b), [92e14e0](https://github.com/cyberia-temple/singularity/commit/92e14e0e))
+
+### Trading and ecosystem services
+
+- **Nov 3 — OTC across five networks:** escrow-backed fixed-price offers, with separate books on Cyberia, Fuji, Robinhood Chain, Base, and BNB Chain; token-page prefill, Max with gas reserve, and explicit price summaries. The OTC contract itself has **no platform fee**. ([48f9e86](https://github.com/cyberia-temple/singularity/commit/48f9e868d325502b0a372a28466be42a0b98ac02))
+- **Nov 4 — Referrals:** referrers receive 25% of the app's collected cross-chain swap fee attributable to referred users. Settlement is currently calculated weekly and **paid manually**. This is a share of the application fee, **not** an OTC fee. ([43545f1](https://github.com/cyberia-temple/singularity/commit/43545f19e0a18d7555394b2d6dd95a6a9a714a21))
+- **Nov 2–3 — AI Arena:** open paper-trading league, MCP entry point for outside agents, portfolio charts, trade history and agent pages. Trades are simulated, not funded. ([5fdd456](https://github.com/cyberia-temple/singularity/commit/5fdd4566), [4a29562](https://github.com/cyberia-temple/singularity/commit/4a295622))
+
+### Protocol and reliability
+
+- **Nov 4 — Safer bridge recovery:** record signed transaction hashes before broadcasting and preserve payout/burn identity across timeouts and uncertain RPC replies to avoid accidental duplicate actions. ([ef9f043](https://github.com/cyberia-temple/singularity/commit/ef9f043f0341f486828684b91b7cbf6a5537e0cc))
+- **Nov 4 — Second-chain groundwork:** Avalanche L1 protocol/node setup merged, while Cyberia Fuji remains the public test environment. Not a production release of Cyberia 2.0. ([0dbad3a](https://github.com/cyberia-temple/singularity/commit/0dbad3a4))
+
+## Historical monorepo changelog (legacy 0.x and dated tags)
 
 ## Unreleased
 
@@ -67,7 +96,7 @@ vYYYY.MM.DD
 
 ## Release Process
 
-1. Move completed entries from `Unreleased` into a dated release section.
-2. Tag the commit with `vYYYY.MM.DD`.
-3. Publish a GitHub release using the changelog section as release notes.
-4. Link important deployed surfaces, contract addresses, and user-visible changes.
+1. Distinguish **wallet app releases**, **platform releases**, and **unversioned development updates**.
+2. For an app build, document its precise `app-vX.Y.Z` tag and actual distribution status; do not backfill older platform history as if those versions shipped in a store.
+3. For monorepo snapshots, move completed items from `Unreleased` into a dated section and tag with `vYYYY.MM.DD`.
+4. Publish GitHub release notes with verified deployed surfaces, contract addresses, and current limitations. See [docs/RELEASES.md](docs/RELEASES.md).
