@@ -12,6 +12,8 @@ class ChangelogController extends Controller
     {
         return Inertia::render('Changelog', [
             'currentVersion' => Changelog::currentVersion(),
+            'productTracks' => config('changelog.product_tracks', []),
+            'developmentUpdates' => config('changelog.development_updates', []),
             'releases' => Changelog::releases(),
         ]);
     }
