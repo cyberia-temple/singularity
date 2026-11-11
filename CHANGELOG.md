@@ -33,7 +33,7 @@ These entries describe changes merged into the repository as of **2026-11-10**. 
 ### Protocol and reliability
 
 - **Nov 4 — Safer bridge recovery:** record signed transaction hashes before broadcasting and preserve payout/burn identity across timeouts and uncertain RPC replies to avoid accidental duplicate actions. ([ef9f043](https://github.com/cyberia-temple/singularity/commit/ef9f043f0341f486828684b91b7cbf6a5537e0cc))
-- **Nov 4 — Second-chain groundwork:** Avalanche L1 protocol/node setup merged, while Cyberia Fuji remains the public test environment. Not a production release of Cyberia 2.0. ([0dbad3a](https://github.com/cyberia-temple/singularity/commit/0dbad3a480001f51e1bbb78d36c83a5ec986f3d2))
+- **Nov 4 — Second-chain groundwork:** Avalanche L1 protocol/node setup merged, while Cyberia Fuji remains the public test environment. Not a production release of Cyberia 2.0. ([0dbad3a](https://github.com/cyberia-temple/singularity/commit/0dbad3a4))
 
 ## Historical monorepo changelog (legacy 0.x and dated tags)
 
