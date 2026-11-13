@@ -15,6 +15,41 @@ This example project includes:
 
 ## Usage
 
+### Creating and managing portfolio asset tokens
+
+From the Hardhat project root (`crypto/hardhat`), run:
+
+```shell
+npm install
+npx hardhat compile
+node scripts/token-admin.ts
+```
+
+The admin menu now includes **`+ create new asset token`** alongside the deployed
+tokens. Enter a name (e.g. `Sberbank Shares`), symbol (`SBER`), decimals
+(`0` for whole shares, `2` for hundredths, `18` for high precision), and the
+initial owner/minter (defaults to `DEPLOYER_PK`'s address). Review the network
+and parameters, then type `DEPLOY` to broadcast the creation transaction.
+
+The CLI deploys the generic `ManagedAsset` contract with zero supply, verifies
+its on-chain metadata, appends its address to
+`deployments/cyberia-tokens.json`, and immediately offers the new token in its
+mint/burn/balance menu. You do not need to create another Solidity contract or
+deploy script for each newly purchased stock. Commit the updated registry to
+share the deployed address with other environments.
+
+**These are operator-issued accounting representations, not automatically
+backed or redeemable securities.** The token's owner can mint and burn any
+holder's tokens without allowance, matching the existing Cyberia bridge-wrapper
+convention. Only issue units against assets actually held, track the backing
+off-chain, and do not advertise issuer rights unless there is an independent
+legal/custodial arrangement. Creating a token does not add it to the Laravel
+bridge, stock price feeds, or trading pools automatically.
+
+Keep `DEPLOYER_PK` only in `.env` (never commit it). The CLI needs to run from
+`crypto/hardhat` because its `.env`, artifacts and token registry are resolved
+relative to the current working directory.
+
 ### Running Tests
 
 To run all the tests in the project, execute the following command:
