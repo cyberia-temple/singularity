@@ -573,6 +573,16 @@ IPFS_API_URL = (os.environ.get("IPFS_API_URL", "http://127.0.0.1:5001") or "").r
 # Cap the NFT description (post text) length kept in metadata.
 NFT_MAX_DESC_CHARS = int(os.environ.get("NFT_MAX_DESC_CHARS", "1500"))
 
+# --- 🎣 Fishing (bot/fishing.py) ----------------------------------------------
+# /fish in any chat. Every fish (not the trash) becomes a CyberiaNFT in the
+# angler's linked wallet, minted and sent by DEPLOYER_PK. FISHING_MINT=0 keeps
+# the game and the bag but holds the NFTs back; they mint once it is turned on.
+FISHING_ENABLED = os.environ.get("FISHING_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
+FISHING_MINT = (os.environ.get("FISHING_MINT", "1").strip().lower()
+                not in ("0", "false", "no", "off")) and bool(CYBERIA_NFT_ADDRESS)
+# Rest after a fish, per account across every chat: the chain is what is scarce.
+FISHING_COOLDOWN_SECONDS = max(0, int(os.environ.get("FISHING_COOLDOWN_SECONDS", "900")))
+
 # Public base for the post link surfaced as the NFT's external_url.
 TELEGRAM_POST_BASE = os.environ.get("TELEGRAM_POST_BASE", "https://t.me").rstrip("/")
 

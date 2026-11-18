@@ -31,6 +31,7 @@ from bot.config import (
     AI_ENABLED, AI_API_KEY, AI_MODEL, AI_MODEL_CHOICE,
     MUSIC_ENABLED, YANDEX_MUSIC_TOKEN, YANDEX_MUSIC_PROXY_URL, VK_AUDIO_TOKEN,
     WALLET_MINI_APP_URL, WALLET_MINI_APP_MENU,
+    FISHING_ENABLED,
 )
 from bot.rps import rps_command, rps_callback, expiry_loop, ensure_schema as ensure_rps_schema
 from bot.slots import (
@@ -62,7 +63,7 @@ from bot.announcers import (
     run_snapshot_once,
 )
 from bot.watchers import WATCHERS, event_watcher_loop
-from bot import buybot, music, projects, pumpfun
+from bot import buybot, fishing, music, projects, pumpfun
 from bot.personal import ensure_personal_schema, personal_loop
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,15 @@ async def post_init(application: Application):
             BotCommand("rps", "Камень–ножницы–бумага на токены чата"),
             BotCommand("slots", "🎰 Слоты на токены чата"),
             BotCommand("slots_bank", "🎰 Касса автомата этого чата"),
+            *(
+                [
+                    BotCommand("fish", "🎣 Рыбалка: каждая рыба — NFT"),
+                    BotCommand("fish_bag", "🪣 Ваш улов"),
+                    BotCommand("fish_top", "🏆 Рекорды чата по рыбалке"),
+                ]
+                if FISHING_ENABLED
+                else []
+            ),
             BotCommand("claim", "Collect your accrued chat-token rewards"),
             BotCommand("token", "Show this chat's reward token"),
             BotCommand("cancel", "Cancel an interactive prompt"),
@@ -118,6 +128,9 @@ async def post_init(application: Application):
     # Private messages to owners: bridge deliveries and incoming funds.
     application.create_task(personal_loop(application))
     application.create_task(slots_sweep_loop(application))
+    if FISHING_ENABLED:
+        # Forgotten casts and the NFT queue: mint, then send to the angler.
+        application.create_task(fishing.loop(application))
     logger.info("Bot commands published to Telegram")
     application.create_task(buybot.loop(application))
     application.create_task(pumpfun.project_loop(application))
@@ -305,6 +318,11 @@ def run_dispatcher():
     application.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps:"))
     application.add_handler(CommandHandler("slots", slots_command))
     application.add_handler(CommandHandler("slots_bank", slots_bank_command))
+    if FISHING_ENABLED:
+        application.add_handler(CommandHandler("fish", fishing.fish_command))
+        application.add_handler(CommandHandler("fish_bag", fishing.fish_bag_command))
+        application.add_handler(CommandHandler("fish_top", fishing.fish_top_command))
+        application.add_handler(CallbackQueryHandler(fishing.fish_callback, pattern=r"^fish:"))
     application.add_handler(CommandHandler("token", token_command))
     application.add_handler(CommandHandler("github", github_command))
     application.add_handler(CommandHandler("website", website_command))
@@ -453,6 +471,7 @@ def main() -> None:
     ensure_schema()
     ensure_rps_schema()
     ensure_slots_schema()
+    fishing.ensure_schema()
     ensure_reminder_schema()
     ensure_personal_schema()
     if "--snapshot-once" in sys.argv:

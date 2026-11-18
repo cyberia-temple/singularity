@@ -24,6 +24,7 @@ from bot.config import (
     AI_ENABLED,
     AI_MODEL_CHOICE,
     MUSIC_ENABLED,
+    FISHING_ENABLED,
 )
 from bot.db import engine
 from bot import projects
@@ -228,6 +229,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/rps <stake> - play rock-paper-scissors with this chat’s accrued tokens\n"
         "/slots <stake> - pull the chat’s 🎰 slot machine with accrued tokens\n"
         "/slots_bank [amount] - show the machine’s till (admins top it up)\n"
+        + (
+            "/fish - 🎣 cast a line; every fish you catch becomes an NFT in your wallet\n"
+            "/fish_bag - your catch · /fish_top - this chat's records · /fish odds - what bites\n"
+            if FISHING_ENABLED
+            else ""
+        ) +
         "/balance - show TG, all chat tokens, and pending rewards\n"
         "/token - show this chat's reward token (group only)\n"
         "/cancel - cancel an interactive prompt\n"

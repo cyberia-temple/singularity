@@ -26,6 +26,8 @@ bot/
   stakes.py      chat-token escrow shared by the games (one place moves a balance)
   rps.py         rock-paper-scissors duels on that escrow
   slots.py       🎰 slot machine: Telegram's own dice, a per-chat bank
+  fishing.py     🎣 /fish: cast, strike in time, every fish minted as a CyberiaNFT
+  fish_art.py    the catch's 64×64 pixel picture, drawn and written as PNG by hand
   pumpfun.py     pump.fun buy detection (Solana RPC + market feed) and the post
   buybot.py      opt-in LAIN/Pons v4 buy cards and ecosystem buttons
   music.py       songs on request: Yandex Music/VK links, /track, "Artist — Title"
