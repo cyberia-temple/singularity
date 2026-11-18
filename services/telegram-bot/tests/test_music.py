@@ -223,6 +223,18 @@ class AudioFormatTests(unittest.TestCase):
             yandex_mp3_url("<download-info></download-info>")
 
 
+class VkRefusalTests(unittest.TestCase):
+    def test_a_token_vk_hides_audio_from_parks_vk_instead_of_asking_every_message(self):
+        response = SimpleNamespace(json=lambda: {"error": {"error_code": 3, "error_msg": "Unknown method passed"}})
+        client = SimpleNamespace(post=AsyncMock(return_value=response))
+        vk = VkAudio(token="browser-flow-token")
+        with patch.object(vk, "client", return_value=client), self.assertLogs("bot.music", "WARNING"):
+            for _ in range(3):
+                with self.assertRaises(Unavailable):
+                    asyncio.run(vk.search("Кино Группа крови"))
+        self.assertEqual(client.post.await_count, 1)
+
+
 class FakeYandex:
     def __init__(self, results=(), options=(), unavailable=False):
         self.results = list(results)

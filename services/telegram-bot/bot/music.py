@@ -11,13 +11,15 @@ Three ways in:
 
 Where the audio comes from:
 
-* **Yandex Music** (`api.music.yandex.net`). Search and track pages need no
-  account. A whole file needs `YANDEX_MUSIC_TOKEN` from an account with Plus;
-  without one, Yandex hands out a 30-second preview. Yandex answers 451 to
-  hosts outside Russia, and prod is in Germany, so `YANDEX_MUSIC_PROXY_URL`
-  sends every Yandex request through an http(s) proxy in Russia.
+* **Yandex Music** (`api.music.yandex.net`). A whole file needs
+  `YANDEX_MUSIC_TOKEN` from an account with Plus; without one, Yandex hands
+  out a 30-second preview. Without a token Yandex also answers 451 to hosts
+  outside Russia (prod is in Germany); with one it answers there as well.
+  `YANDEX_MUSIC_PROXY_URL` is for a host where even that fails.
 * **VK** (`api.vk.com`, `audio.*`), with `VK_AUDIO_TOKEN`: a user token of the
-  Kate Mobile client, the only kind `audio.*` still accepts. VK gives either
+  Kate Mobile client got by a direct login. A token from the browser link
+  (implicit flow) carries the audio scope but VK hides `audio.*` from it
+  (error 3), and the source then parks itself for half an hour. VK gives either
   an mp3 or an HLS playlist of AES-128 segments. The playlist is decrypted and
   demuxed here into one mp3, without ffmpeg.
 
@@ -550,13 +552,22 @@ class VkAudio(_Source):
         "unknown Android SDK built for x86; en)"
     )
 
+    # Errors that are about the token, not the request: 3 is what audio.*
+    # answers a token from the browser (implicit) flow, which VK hides these
+    # methods from; 5, 15, 17, 25-28 are a dead, refused or unconfirmed token.
+    REFUSALS = {3, 5, 15, 17, 25, 27, 28}
+    BLOCK_SECONDS = 1800
+
     def __init__(self, token: str = "", proxy: str = ""):
         super().__init__(proxy, {"User-Agent": self.USER_AGENT})
         self.token = token
+        self._blocked_until = 0.0
 
     async def _call(self, method: str, **params):
         if not self.token:
             raise Unavailable("VK_AUDIO_TOKEN is not set")
+        if time.monotonic() < self._blocked_until:
+            raise Unavailable("VK refused this token")
         # POST keeps the token out of every URL, and so out of any log line.
         data = {**params, "access_token": self.token, "v": self.VERSION}
         payload = None
@@ -572,10 +583,17 @@ class VkAudio(_Source):
                 raise Unavailable(type(error).__name__) from error
         error = (payload or {}).get("error")
         if error:
-            logger.warning(
-                "music: VK %s failed: %s %s", method, error.get("error_code"), error.get("error_msg")
-            )
-            raise Unavailable(f"VK error {error.get('error_code')}")
+            code = error.get("error_code")
+            if code in self.REFUSALS:
+                self._blocked_until = time.monotonic() + self.BLOCK_SECONDS
+                logger.warning(
+                    "music: VK refuses %s for VK_AUDIO_TOKEN (%s %s); it must be a Kate Mobile "
+                    "token from a direct login, not from the browser link. VK is off for %d min",
+                    method, code, error.get("error_msg"), self.BLOCK_SECONDS // 60,
+                )
+            else:
+                logger.warning("music: VK %s failed: %s %s", method, code, error.get("error_msg"))
+            raise Unavailable(f"VK error {code}")
         return (payload or {}).get("response")
 
     @staticmethod

@@ -378,18 +378,23 @@ Sources, in the order they are tried for the file:
 1. **Yandex Music in full**: needs `YANDEX_MUSIC_TOKEN` of an account with
    Plus. Search and track pages need no account.
 2. **The same recording on VK**: artist and title match, length within
-   ~6 %. Needs `VK_AUDIO_TOKEN`, a user token of the **Kate Mobile** client,
-   the only kind `audio.*` still accepts. VK gives an mp3, or an HLS playlist
+   ~6 %. Needs `VK_AUDIO_TOKEN`, a user token of the **Kate Mobile** client
+   got by a direct login (password grant). A token from the browser link
+   (implicit flow) has the audio scope, yet VK answers `audio.*` with error 3
+   "Unknown method passed"; the bot then parks VK for 30 minutes and logs it
+   once. VK gives an mp3, or an HLS playlist
    of AES-128 MPEG-TS segments that `bot/music.py` decrypts and demuxes into
    one mp3 itself (no ffmpeg; pycryptodome, already there through web3).
 3. **The Yandex 30-second preview**, only for a link or `/track`, captioned as
    a fragment, and never cached.
 
-**Yandex Music answers HTTP 451 to hosts outside Russia**, and prod is in
-Germany. Without `YANDEX_MUSIC_PROXY_URL` (an `http(s)://` proxy in Russia;
-`socks5://` needs the `socksio` package, which is not installed) prod cannot
-open a Yandex link at all: the source is parked for 30 minutes after a 451 and
-the log says so once, and bare lines are searched on VK only.
+**Without a token Yandex Music answers HTTP 451 to hosts outside Russia**,
+and prod is in Germany; with `YANDEX_MUSIC_TOKEN` it answers there in full
+(checked from prod 2026-11-18: search, track, 320 kbps file, cover). After a
+451 the source is parked for 30 minutes and the log says so once.
+`YANDEX_MUSIC_PROXY_URL` (`http(s)://`; `socks5://` needs the `socksio`
+package, which is not installed) is for a host where even the token is
+refused.
 
 Telegram's `file_id` of every full track sent is kept in `bot_kv`
 (`music:tg:<source>:<id>`), so a song asked for again is one `sendAudio`

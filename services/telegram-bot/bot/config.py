@@ -511,11 +511,12 @@ MUSIC_AUTO_DETECT = (
 # OAuth token of a Yandex account. With Plus, Yandex gives whole tracks;
 # without a token (or without Plus) only 30-second previews.
 YANDEX_MUSIC_TOKEN = (os.environ.get("YANDEX_MUSIC_TOKEN", "") or "").strip()
-# Yandex Music answers 451 outside Russia, and prod is in Germany: an http(s)
-# proxy in Russia for every Yandex request. Empty means direct.
+# Without a token Yandex Music answers 451 outside Russia (prod is in Germany);
+# with one it answers there too. An http(s) proxy for a host where even that
+# fails. Empty means direct.
 YANDEX_MUSIC_PROXY_URL = (os.environ.get("YANDEX_MUSIC_PROXY_URL", "") or "").strip()
-# A VK user token of the Kate Mobile client, the only kind audio.* accepts.
-# Empty leaves VK out.
+# A VK user token of the Kate Mobile client from a direct login; a token from
+# the browser link is refused by audio.* (error 3). Empty leaves VK out.
 VK_AUDIO_TOKEN = (os.environ.get("VK_AUDIO_TOKEN", "") or "").strip()
 
 # Contract addresses surfaced by "ca". CYBER.sol is the community pump.fun token
