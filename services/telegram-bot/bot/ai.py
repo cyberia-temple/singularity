@@ -31,6 +31,7 @@ from bot.config import (
     MUSIC_ENABLED,
 )
 from bot.ai_models import model_for, served_note
+from bot.language import T, lang_of, tr
 from bot.music import claims_message
 
 logger = logging.getLogger(__name__)
@@ -202,35 +203,46 @@ async def _request_answer(
         raise AIServiceError("AI provider request failed") from exc
 
 
+UNAVAILABLE = T("AI-помощник сейчас недоступен. Попробуйте ещё раз немного позже.",
+                "The AI assistant is unavailable right now. Try again a little later.")
+
+
 async def _answer(update: Update, context: ContextTypes.DEFAULT_TYPE, question: str) -> None:
     message = update.effective_message
     chat = update.effective_chat
     if message is None or chat is None:
         return
 
+    lang = lang_of(update)
     question = question.strip()
     if not question:
-        await message.reply_text(
-            "Задайте вопрос после /ask. Например: /ask как добавить Cyberia в MetaMask?"
-        )
+        await message.reply_text(tr(
+            lang, "Задайте вопрос после /ask. Например: /ask как добавить Cyberia в MetaMask?",
+            "Put your question after /ask. For example: /ask how do I add Cyberia to MetaMask?",
+        ))
         return
     if len(question) > AI_MAX_QUESTION_CHARS:
-        await message.reply_text(
-            f"Вопрос слишком длинный. Максимум: {AI_MAX_QUESTION_CHARS} символов."
-        )
+        await message.reply_text(tr(
+            lang, f"Вопрос слишком длинный. Максимум: {AI_MAX_QUESTION_CHARS} символов.",
+            f"The question is too long. At most {AI_MAX_QUESTION_CHARS} characters.",
+        ))
         return
     if not AI_API_KEY or not AI_API_URL or not AI_MODEL:
-        await message.reply_text(
+        await message.reply_text(tr(
+            lang,
             "AI-помощник пока не настроен. Администратору нужно задать "
-            "AI_API_KEY, AI_API_URL и AI_MODEL."
-        )
+            "AI_API_KEY, AI_API_URL и AI_MODEL.",
+            "The AI assistant is not set up yet. The administrator needs to set "
+            "AI_API_KEY, AI_API_URL and AI_MODEL.",
+        ))
         return
 
     now = time.monotonic()
     last_request = float(context.user_data.get("ai_last_request", 0.0))
     retry_after = AI_USER_COOLDOWN_SECONDS - (now - last_request)
     if retry_after > 0:
-        await message.reply_text(f"Подождите {retry_after:.0f} сек. перед следующим вопросом.")
+        await message.reply_text(tr(lang, f"Подождите {retry_after:.0f} сек. перед следующим вопросом.",
+                                    f"Wait {retry_after:.0f} s before the next question."))
         return
     context.user_data["ai_last_request"] = now
 
@@ -252,20 +264,22 @@ async def _answer(update: Update, context: ContextTypes.DEFAULT_TYPE, question: 
                 answer, served = await _request_answer(question, history, AI_MODEL)
             except AIServiceError as fallback_exc:
                 logger.warning("AI request failed: %s", fallback_exc)
-                await message.reply_text(
-                    "AI-помощник сейчас недоступен. Попробуйте ещё раз немного позже."
-                )
+                await message.reply_text(UNAVAILABLE(lang))
                 return
-            note = (
+            note = tr(
+                lang,
                 f"⚠ {pinned} сейчас не отвечает — ответила {served or AI_MODEL}. "
-                "Другую модель можно выбрать в /model.\n\n"
+                "Другую модель можно выбрать в /model.\n\n",
+                f"⚠ {pinned} is not answering right now — {served or AI_MODEL} answered instead. "
+                "Pick another model in /model.\n\n",
             )
         else:
             logger.warning("AI request failed: %s", exc)
             hint = (
-                "AI-помощник сейчас недоступен. Попробуйте ещё раз немного позже."
+                UNAVAILABLE(lang)
                 if not exc.model_specific
-                else f"Модель {pinned} сейчас не отвечает. Выберите другую: /model"
+                else tr(lang, f"Модель {pinned} сейчас не отвечает. Выберите другую: /model",
+                        f"Model {pinned} is not answering right now. Pick another: /model")
             )
             await message.reply_text(hint)
             return
@@ -274,7 +288,7 @@ async def _answer(update: Update, context: ContextTypes.DEFAULT_TYPE, question: 
         context.user_data["ai_served"] = served
     _remember(context, chat.id, question, answer)
     chunks = _split_telegram_text(note + answer)
-    footer = served_note(pinned, served) if AI_MODEL_CHOICE else ""
+    footer = served_note(pinned, served, lang) if AI_MODEL_CHOICE else ""
     for index, chunk in enumerate(chunks):
         last = index == len(chunks) - 1
         await message.reply_text(

@@ -28,6 +28,7 @@ from bot.config import (
 )
 from bot.db import engine
 from bot import projects
+from bot.language import T, lang_for, lang_of, tr
 from bot.utils import (
     is_valid_eth_address, parse_interval, format_interval, slugify_symbol,
     _format_window, _format_token_amount, _short_addr,
@@ -38,28 +39,29 @@ from bot.chain import next_nonce
 logger = logging.getLogger(__name__)
 
 
-def _main_menu_kb(chat=None) -> InlineKeyboardMarkup:
+def _main_menu_kb(chat=None, lang="en") -> InlineKeyboardMarkup:
     """Inline keyboard of ecosystem links shown under /start and /help.
 
     URL buttons only — no callbacks — so it cannot interfere with any command
     flow. Blank URLs are skipped (Telegram rejects empty url buttons).
     """
     pairs = [
-        ("📱 Wallet app", APP_DOWNLOAD_URL),
+        (tr(lang, "📱 Кошелёк", "📱 Wallet app"), APP_DOWNLOAD_URL),
         ("🎨 Pixel Battle", PIXEL_BATTLE_URL),
-        ("🖼 NFT Market", NFT_MARKET_URL),
-        ("💱 Swap", SWAP_URL),
-        ("🌐 Website", PROJECT_WEBSITE_URL),
+        (tr(lang, "🖼 NFT-маркет", "🖼 NFT Market"), NFT_MARKET_URL),
+        (tr(lang, "💱 Обмен", "💱 Swap"), SWAP_URL),
+        (tr(lang, "🌐 Сайт", "🌐 Website"), PROJECT_WEBSITE_URL),
         ("𝕏 Twitter", PROJECT_X_URL),
-        ("📣 Channel", TELEGRAM_CHANNEL_URL),
+        (tr(lang, "📣 Канал", "📣 Channel"), TELEGRAM_CHANNEL_URL),
     ]
     if chat is not None:
         project = projects.for_chat(chat)
         pairs = [("📱 Cyberia Wallet", APP_DOWNLOAD_URL)]
         if project:
             pairs += [(label, project.get(field)) for label, field in (
-                ("🌐 Website", "website"), ("𝕏 Twitter", "x"),
-                ("📣 Channel", "channel"), ("Chat", "telegram"), ("Trade", "trade"),
+                (tr(lang, "🌐 Сайт", "🌐 Website"), "website"), ("𝕏 Twitter", "x"),
+                (tr(lang, "📣 Канал", "📣 Channel"), "channel"), (tr(lang, "Чат", "Chat"), "telegram"),
+                (tr(lang, "Торговать", "Trade"), "trade"),
             )]
     buttons = [InlineKeyboardButton(label, url=url) for label, url in pairs if url]
     rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
@@ -106,20 +108,27 @@ def get_chat_token(chat_id: int):
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = lang_of(update)
     # Group links hand off to a private chat: only there can Telegram show a
     # web_app button. The payload selects a token and never authorizes a trade.
     if context.args and context.args[0].startswith("swap_"):
         match = re.fullmatch(r"swap_(0x[0-9a-fA-F]{40})", context.args[0])
         if not match or len(context.args) != 1:
-            await update.message.reply_text("Некорректная ссылка обмена. Запросите /balance заново.")
+            await update.message.reply_text(tr(lang, "Некорректная ссылка обмена. Запросите /balance заново.",
+                                               "This swap link is broken. Ask for /balance again."))
         elif not _is_private(update):
-            await update.message.reply_text("Откройте кнопку Swap из /balance в личном чате бота.")
+            await update.message.reply_text(tr(lang, "Откройте кнопку Swap из /balance в личном чате бота.",
+                                               "Open the Swap button from /balance in a private chat with the bot."))
         else:
             await update.message.reply_text(
-                "Обмен выбранного токена внутри Telegram Mini App.\n"
-                "Нажмите кнопку ниже — откроется кошелёк с выбранным токеном.\n"
-                f"Контракт: {match[1]}",
-                reply_markup=swap_markup(True, [("токен", match[1])]),
+                tr(lang,
+                   "Обмен выбранного токена внутри Telegram Mini App.\n"
+                   "Нажмите кнопку ниже — откроется кошелёк с выбранным токеном.\n"
+                   f"Контракт: {match[1]}",
+                   "Swap the chosen token inside the Telegram Mini App.\n"
+                   "Press the button below — the wallet opens with that token selected.\n"
+                   f"Contract: {match[1]}"),
+                reply_markup=swap_markup(True, [(tr(lang, "токен", "token"), match[1])], lang=lang),
             )
         return
 
@@ -130,11 +139,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         address = consume_link(context.args[0][len("link_"):], update.effective_user.id)
         if address is None:
-            await update.message.reply_text(LINK_EXPIRED_TEXT)
+            await update.message.reply_text(LINK_EXPIRED_TEXT(lang))
             return
         await _process_set_wallet(update, context, Web3.to_checksum_address(address))
         await update.message.reply_text(
-            LINKED_TEXT.format(addr=_short_addr(address)), reply_markup=wallet_markup()
+            LINKED_TEXT(lang).format(addr=_short_addr(address)), reply_markup=wallet_markup(lang)
         )
         return
 
@@ -143,7 +152,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from bot.reminders import OPTED_IN_TEXT, set_optin
 
         set_optin(update.effective_user.id, True)
-        await update.message.reply_text(OPTED_IN_TEXT)
+        await update.message.reply_text(OPTED_IN_TEXT(lang))
         return
 
     user = update.effective_user
@@ -160,14 +169,54 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.debug(f"start: wallet lookup failed: {e}")
 
+    if lang == "ru":
+        lines = [
+            "Привет! Каждый час я присылаю вам 1 токен TG в сети Cyberia (49406).",
+            "",
+            "Команды:",
+            "/help — все команды",
+            "/language — 🌐 язык бота в этом чате",
+            "/wallet — ваш привязанный кошелёк и ссылка на эксплорер",
+            "/rps <ставка> — камень–ножницы–бумага на накопленные токены этого чата",
+            "/slots <ставка> — 🎰 слот-автомат чата на накопленные токены",
+            *(["/fish — 🎣 рыбалка: каждая рыба — NFT в вашем кошельке"] if FISHING_ENABLED else []),
+            "/balance — TG, все токены чатов и начисления",
+            "/token — токен наград этого чата (только в группе)",
+            "/unset_wallet — отвязать кошелёк (начисления сохранятся)",
+            "/cancel — отменить ввод",
+            "/github <username> <адрес> — привязать GitHub для аирдропа токена GITHUB",
+            "/whale — проверить CYBER.sol и войти в чат китов",
+            "/create_token [название] [интервал] — (админы) создать токен наград чата",
+            "/claim — забрать накопленные награды токенами чата",
+            "/set_rewards_interval <интервал> — (админы) изменить интервал выплат",
+            "/reward_now — (админы) внеочередная выплата прямо сейчас",
+            "Ответьте «спасибо» на чьё-то сообщение — человек получит токен этого чата",
+        ]
+        if AI_ENABLED:
+            lines.append("/ask <вопрос> — спросить ИИ-помощника Cyberia")
+            if AI_MODEL_CHOICE:
+                lines.append("/model — выбрать бесплатную модель, которая вам отвечает")
+        lines.append("/website — сайт проекта")
+        if not has_wallet:
+            lines += [
+                "",
+                "Вы ещё не привязали кошелёк — привяжите, чтобы получать награды:",
+                "/set_wallet [адрес] — привязать кошелёк (адрес спросит, если не указан)",
+                "Пример: /set_wallet 0x1234567890abcdef1234567890abcdef12345678",
+            ]
+        await update.message.reply_text("\n".join(lines), reply_markup=_main_menu_kb(update.effective_chat, lang))
+        return
+
     lines = [
         "Hi! I send you 1 TG token every hour on Cyberia (49406).",
         "",
         "Commands:",
         "/help - show available commands",
+        "/language - 🌐 the bot's language in this chat",
         "/wallet - show your linked wallet and explorer link",
         "/rps <stake> - play rock-paper-scissors with this chat’s accrued tokens",
         "/slots <stake> - pull the chat’s 🎰 slot machine with accrued tokens",
+        *(["/fish - 🎣 fishing: every fish is an NFT in your wallet"] if FISHING_ENABLED else []),
         "/balance - show TG, all chat tokens, and pending rewards",
         "/token - show this chat's reward token (group only)",
         "/unset_wallet - unlink your wallet (pending rewards are kept)",
@@ -195,10 +244,74 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Example: /set_wallet 0x1234567890abcdef1234567890abcdef12345678",
         ]
 
-    await update.message.reply_text("\n".join(lines), reply_markup=_main_menu_kb(update.effective_chat))
+    await update.message.reply_text("\n".join(lines), reply_markup=_main_menu_kb(update.effective_chat, lang))
+
+
+HELP_RU = (
+    "Команды:\n"
+    "/start — начать получать TG\n"
+    "/language — 🌐 язык бота в этом чате (админы выбирают для всей группы)\n"
+    "/set_wallet [адрес] — привязать кошелёк (адрес спросит, если не указан)\n"
+    "/unset_wallet — отвязать кошелёк (начисления сохранятся)\n"
+    "/wallet — ваш привязанный кошелёк и ссылка на эксплорер\n"
+    "/rps <ставка> — камень–ножницы–бумага на накопленные токены этого чата\n"
+    "/slots <ставка> — 🎰 слот-автомат чата на накопленные токены\n"
+    "/slots_bank [сумма] — касса автомата (админы пополняют)\n"
+    "{fishing}"
+    "/balance — TG, все токены чатов и начисления\n"
+    "/token — токен наград этого чата (только в группе)\n"
+    "/cancel — отменить ввод\n"
+    "/create_token [название] [интервал] — (админы) создать токен наград чата\n"
+    "   (недостающее спросит; отмена — /cancel)\n"
+    "   например: /create_token MyChatToken 1h\n"
+    "/claim — забрать накопленные награды токенами чата\n"
+    "/set_rewards_interval <интервал> — (админы) изменить интервал выплат\n"
+    "/reward_now — (админы) внеочередная выплата прямо сейчас\n"
+    "Ответьте «спасибо» на чьё-то сообщение — человек получит токен этого чата\n"
+    "/github <username> <адрес> — привязать GitHub для аирдропа токена GITHUB\n"
+    "/whale — проверить CYBER.sol и войти в чат китов\n"
+    "/x — ссылки на X (Twitter) и Telegram (ещё отвечаю на «x»)\n"
+    "/ca — адрес контракта токена этого чата (ещё отвечаю на «ca»)\n"
+    "/buybot — (админы) проект чата и уведомления о покупках\n"
+    "/stats [окно] — статистика проекта чата (сводка Cyberia: /stats 6h)\n"
+    "{music}{ai}"
+    "/set_channel_wallet <@канал> <0x..> — (админы канала) кошелёк для NFT из постов\n"
+    "/app — скачать кошелёк Cyberia\n"
+    "/website — сайт проекта\n\n"
+    "{ai_hint}"
+    "В группах можно общаться и без кошелька — награды копятся и будут "
+    "начислены разом, когда вы сделаете /set_wallet."
+)
+HELP_RU_FISHING = (
+    "/fish — 🎣 рыбалка: каждая пойманная рыба — NFT в вашем кошельке\n"
+    "/fish_bag — улов и снасть · /fish_shop — удочки · /fish_top — рекорды чата · /fish odds — что клюёт\n"
+)
+HELP_RU_MUSIC = (
+    "/track <исполнитель — название> — найти песню и прислать её (ссылка на трек "
+    "Яндекс Музыки или VK тоже работает, в любом сообщении)\n"
+    "/music [on|off] — музыка здесь; (админы) отвечать на строки «Исполнитель — Название»\n"
+)
+HELP_RU_AI_HINT = (
+    "В личке ИИ-помощнику можно просто написать вопрос. В группах — упомяните "
+    "бота или ответьте на его сообщение.\n\n"
+)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = lang_of(update)
+    if lang == "ru":
+        await update.message.reply_text(
+            HELP_RU.format(
+                fishing=HELP_RU_FISHING if FISHING_ENABLED else "",
+                music=HELP_RU_MUSIC if MUSIC_ENABLED else "",
+                ai=("/ask <вопрос> — спросить ИИ-помощника Cyberia\n" if AI_ENABLED else "")
+                + ("/model — выбрать бесплатную модель, которая вам отвечает (по умолчанию — "
+                   "роутер по всем бесплатным)\n" if AI_ENABLED and AI_MODEL_CHOICE else ""),
+                ai_hint=HELP_RU_AI_HINT if AI_ENABLED else "",
+            ),
+            reply_markup=_main_menu_kb(update.effective_chat, lang),
+        )
+        return
     music_lines = (
         "/track <artist — title> - find a song and post it (a Yandex Music or VK "
         "track link works too, in any message)\n"
@@ -223,6 +336,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Commands:\n"
         "/start - start receiving TG\n"
+        "/language - 🌐 the bot's language in this chat (admins choose for a group)\n"
         "/set_wallet [address] - link your wallet (asks for address if omitted)\n"
         "/unset_wallet - unlink your wallet (pending rewards are kept)\n"
         "/wallet - show your linked wallet and explorer link\n"
@@ -231,7 +345,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/slots_bank [amount] - show the machine’s till (admins top it up)\n"
         + (
             "/fish - 🎣 cast a line; every fish you catch becomes an NFT in your wallet\n"
-            "/fish_bag - your catch · /fish_top - this chat's records · /fish odds - what bites\n"
+            "/fish_bag - catch and tackle · /fish_shop - rods · /fish_top - this chat's records · "
+            "/fish odds - what bites\n"
             if FISHING_ENABLED
             else ""
         ) +
@@ -258,19 +373,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         + ai_hint +
         "You can chat in groups without a wallet -- rewards will be saved as "
         "pending and minted in one go when you /set_wallet.",
-        reply_markup=_main_menu_kb(update.effective_chat),
+        reply_markup=_main_menu_kb(update.effective_chat, lang),
     )
 
 
 async def website_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = lang_of(update)
     project = projects.for_chat(update.effective_chat)
     await update.message.reply_text(
-        project.get("website") or "Website is not configured for this chat."
-        if project else "No project is configured for this chat.\n" + projects.SETUP_HINT
+        project.get("website") or tr(lang, "Сайт для этого чата не настроен.", "Website is not configured for this chat.")
+        if project else tr(lang, "Для этого чата не настроен проект.\n", "No project is configured for this chat.\n")
+        + projects.setup_hint(lang)
     )
 
 
-def mini_app_markup(is_private: bool) -> InlineKeyboardMarkup:
+def mini_app_markup(is_private: bool, lang: str = "en") -> InlineKeyboardMarkup:
     """The button that opens the wallet inside Telegram.
 
     A `web_app` button is only allowed in private chats — Telegram rejects the
@@ -278,17 +395,19 @@ def mini_app_markup(is_private: bool) -> InlineKeyboardMarkup:
     link, which opens in the browser instead of in the frame. Both lead to the
     same page; only the chrome around it differs.
     """
+    label = tr(lang, "👛 Открыть кошелёк", "👛 Open wallet")
     if is_private:
         return InlineKeyboardMarkup(
-            [[InlineKeyboardButton("👛 Open wallet", web_app=WebAppInfo(url=WALLET_MINI_APP_URL))]]
+            [[InlineKeyboardButton(label, web_app=WebAppInfo(url=WALLET_MINI_APP_URL))]]
         )
 
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("👛 Open wallet", url=WALLET_MINI_APP_URL)]]
+        [[InlineKeyboardButton(label, url=WALLET_MINI_APP_URL)]]
     )
 
 
-def swap_markup(is_private: bool, tokens, bot_username: str = "cyberia_network_bot") -> InlineKeyboardMarkup | None:
+def swap_markup(is_private: bool, tokens, bot_username: str = "cyberia_network_bot",
+                lang: str = "en") -> InlineKeyboardMarkup | None:
     """One [Swap] button per chat token, opening the wallet on that token.
 
     The bot has no private key and must never have one, so it cannot trade on
@@ -310,7 +429,7 @@ def swap_markup(is_private: bool, tokens, bot_username: str = "cyberia_network_b
         url = f"{WALLET_MINI_APP_URL}?swap={token_address}"
         rows.append([
             InlineKeyboardButton(
-                f"🔄 Swap {symbol}",
+                tr(lang, f"🔄 Обменять {symbol}", f"🔄 Swap {symbol}"),
                 web_app=WebAppInfo(url=url) if is_private else None,
                 url=None if is_private else f"https://t.me/{bot_username}?start=swap_{token_address}",
             )
@@ -332,29 +451,42 @@ async def open_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     That is worth saying here, because a wallet opened from a chat is exactly
     where someone will assume the chat can see it.
     """
+    lang = lang_of(update)
     await update.message.reply_text(
-        "Cyberia Wallet — one recovery phrase, every chain.\n\n"
-        "It opens inside Telegram, but the keys are created and encrypted on "
-        "your device. Telegram never receives your recovery phrase or your "
-        "password, and neither does this bot.\n\n"
-        "You can create a wallet here or import one you already have. Write "
-        "the recovery phrase down either way: the wallet lives in Telegram's "
-        "own storage, and clearing Telegram's cache clears it — the phrase is "
-        "what brings it back.",
-        reply_markup=mini_app_markup(_is_private(update)),
+        tr(lang,
+           "Cyberia Wallet — одна сид-фраза для всех сетей.\n\n"
+           "Кошелёк открывается внутри Telegram, но ключи создаются и шифруются "
+           "на вашем устройстве. Ни Telegram, ни этот бот не получают вашу "
+           "сид-фразу или пароль.\n\n"
+           "Здесь можно создать кошелёк или импортировать уже существующий. "
+           "В любом случае запишите сид-фразу: кошелёк хранится в памяти самого "
+           "Telegram, и очистка кэша Telegram стирает его — вернёт его только фраза.",
+           "Cyberia Wallet — one recovery phrase, every chain.\n\n"
+           "It opens inside Telegram, but the keys are created and encrypted on "
+           "your device. Telegram never receives your recovery phrase or your "
+           "password, and neither does this bot.\n\n"
+           "You can create a wallet here or import one you already have. Write "
+           "the recovery phrase down either way: the wallet lives in Telegram's "
+           "own storage, and clearing Telegram's cache clears it — the phrase is "
+           "what brings it back."),
+        reply_markup=mini_app_markup(_is_private(update), lang),
     )
 
 
 async def arena_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Open the same non-custodial Arena screen used by every Cyberia shell."""
+    lang = lang_of(update)
     button = InlineKeyboardButton(
-        "⚔️ Enter Arena",
+        tr(lang, "⚔️ На арену", "⚔️ Enter Arena"),
         web_app=WebAppInfo(url=ARENA_MINI_APP_URL) if _is_private(update) else None,
         url=None if _is_private(update) else ARENA_MINI_APP_URL,
     )
     await update.message.reply_text(
-        "Cyberia Arena — commit, reveal and settlement happen on Cyberia. "
-        "The bot only opens the game and never sees your move secret or keys.",
+        tr(lang,
+           "Cyberia Arena — ход, его раскрытие и расчёт происходят в сети Cyberia. "
+           "Бот только открывает игру и никогда не видит секрет вашего хода или ключи.",
+           "Cyberia Arena — commit, reveal and settlement happen on Cyberia. "
+           "The bot only opens the game and never sees your move secret or keys."),
         reply_markup=InlineKeyboardMarkup([[button]]),
     )
 
@@ -367,39 +499,50 @@ async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     the APK as a file.
     """
     base = APP_DOWNLOAD_URL.rstrip("/")
+    lang = lang_of(update)
     await update.message.reply_text(
-        "Cyberia Wallet — one recovery phrase, every chain.\n\n"
-        f"All platforms: {base}\n"
-        f"Android APK: {base}/android\n"
-        f"Windows: {base}/windows\n"
-        f"macOS: {base}/macos\n"
-        f"Linux: {base}/linux\n"
-        f"Browser extension: {base}/extension\n\n"
-        "On iPhone open the site in Safari and add it to the home screen. "
-        "The app is the site in a window — your keys stay on your device.",
+        tr(lang,
+           "Cyberia Wallet — одна сид-фраза для всех сетей.\n\n"
+           f"Все платформы: {base}\n"
+           f"Android APK: {base}/android\n"
+           f"Windows: {base}/windows\n"
+           f"macOS: {base}/macos\n"
+           f"Linux: {base}/linux\n"
+           f"Расширение для браузера: {base}/extension\n\n"
+           "На iPhone откройте сайт в Safari и добавьте его на экран «Домой». "
+           "Приложение — это сайт в окне, ключи остаются на вашем устройстве.",
+           "Cyberia Wallet — one recovery phrase, every chain.\n\n"
+           f"All platforms: {base}\n"
+           f"Android APK: {base}/android\n"
+           f"Windows: {base}/windows\n"
+           f"macOS: {base}/macos\n"
+           f"Linux: {base}/linux\n"
+           f"Browser extension: {base}/extension\n\n"
+           "On iPhone open the site in Safari and add it to the home screen. "
+           "The app is the site in a window — your keys stay on your device."),
         # The same wallet without installing anything, for whoever is reading
         # this on a phone in a chat.
-        reply_markup=mini_app_markup(_is_private(update)),
+        reply_markup=mini_app_markup(_is_private(update), lang),
     )
 
 
-def _build_x_reply(chat) -> str:
-    return projects.x_reply(projects.for_chat(chat))
+def _build_x_reply(chat, lang="en") -> str:
+    return projects.x_reply(projects.for_chat(chat), lang)
 
 
-def _build_ca_reply(chat) -> str:
-    return projects.ca_reply(projects.for_chat(chat))
+def _build_ca_reply(chat, lang="en") -> str:
+    return projects.ca_reply(projects.for_chat(chat), lang)
 
 
 async def x_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/x — reply with the project's X (Twitter) and Telegram links."""
-    await update.message.reply_text(_build_x_reply(update.effective_chat))
+    await update.message.reply_text(_build_x_reply(update.effective_chat, lang_of(update)))
 
 
 async def ca_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/ca — reply with this group's configured token contract address."""
     await update.message.reply_text(
-        _build_ca_reply(update.effective_chat), parse_mode="HTML", disable_web_page_preview=True
+        _build_ca_reply(update.effective_chat, lang_of(update)), parse_mode="HTML", disable_web_page_preview=True
     )
 
 
@@ -455,26 +598,32 @@ async def quick_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     builder, parse_mode = entry
     await update.message.reply_text(
-        builder(update.effective_chat), parse_mode=parse_mode, disable_web_page_preview=True
+        builder(update.effective_chat, lang_of(update)), parse_mode=parse_mode, disable_web_page_preview=True
     )
 
 
 async def github_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = lang_of(update)
     args = context.args
     if not args or len(args) < 2:
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "Как: /github <имя_на_github> <адрес_кошелька>\n"
+            "Пример: /github octocat 0x1234...abcd\n\n"
+            "Поставьте звезду https://github.com/cyberia-temple/singularity и "
+            "подпишитесь на https://github.com/cyberia-temple — за это начисляются токены GITHUB!",
             "Usage: /github <github_username> <wallet_address>\n"
             "Example: /github octocat 0x1234...abcd\n\n"
             "Star https://github.com/cyberia-temple/singularity and "
-            "follow https://github.com/cyberia-temple to earn GITHUB tokens!"
-        )
+            "follow https://github.com/cyberia-temple to earn GITHUB tokens!",
+        ))
         return
 
     github_username = args[0].strip().lstrip("@").lower()
     address = args[1].strip()
 
     if not is_valid_eth_address(address):
-        await update.message.reply_text("Invalid wallet address. Expected 0x...")
+        await update.message.reply_text(tr(lang, "Неверный адрес кошелька. Нужен 0x...", "Invalid wallet address. Expected 0x..."))
         return
 
     try:
@@ -489,13 +638,27 @@ async def github_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             conn.commit()
 
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            f"GitHub @{github_username} привязан к {address[:6]}...{address[-4:]}\n\n"
+            "Теперь поставьте звезду репозиторию и подпишитесь на организацию, чтобы получить токены GITHUB!",
             f"Linked GitHub @{github_username} -> {address[:6]}...{address[-4:]}\n\n"
-            f"Now star the repo and follow the org to receive GITHUB tokens!"
-        )
+            "Now star the repo and follow the org to receive GITHUB tokens!",
+        ))
     except Exception as e:
         logger.error(f"Error in github command: {e}")
-        await update.message.reply_text("Error saving. Try again.")
+        await update.message.reply_text(tr(lang, "Не удалось сохранить. Попробуйте ещё раз.", "Error saving. Try again."))
+
+
+TOKEN_NAME_LENGTH = T("Название токена — от 1 до 48 символов.", "Token name must be 1..48 characters.")
+ASK_TOKEN_NAME = T(
+    "Ответьте на это сообщение названием токена (1–48 символов) или /cancel для отмены.",
+    "Reply to this message with the token name (1-48 characters), or /cancel to abort.",
+)
+ASK_TOKEN_INTERVAL = T(
+    "Ответьте на это сообщение интервалом наград (например 30s, 15m, 1h, 2d, 1w) или /cancel для отмены.",
+    "Reply to this message with the rewards interval (e.g. 30s, 15m, 1h, 2d, 1w), or /cancel to abort.",
+)
 
 
 async def _process_create_token(
@@ -511,24 +674,29 @@ async def _process_create_token(
     user = update.effective_user
     if chat is None or user is None:
         return
+    lang = lang_of(update)
 
     if not name or len(name) > 48:
-        await update.message.reply_text("Token name must be 1..48 characters.")
+        await update.message.reply_text(TOKEN_NAME_LENGTH(lang))
         return
 
     try:
         rewards_interval = parse_interval(interval_raw)
     except ValueError as e:
-        await update.message.reply_text(
-            f"Bad interval: {e}\nExamples: 30s, 15m, 1h, 2d, 1w"
-        )
+        await update.message.reply_text(tr(
+            lang, f"Неверный интервал: {e}\nПримеры: 30s, 15m, 1h, 2d, 1w",
+            f"Bad interval: {e}\nExamples: 30s, 15m, 1h, 2d, 1w",
+        ))
         return
 
     if not TELEGRAM_TOKEN_FACTORY or not DEPLOYER_PK:
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "Создание токенов на этом боте не настроено "
+            "(нет TELEGRAM_TOKEN_FACTORY / DEPLOYER_PK). Напишите оператору.",
             "Token creation is not configured on this bot "
-            "(TELEGRAM_TOKEN_FACTORY / DEPLOYER_PK missing). Please contact the operator."
-        )
+            "(TELEGRAM_TOKEN_FACTORY / DEPLOYER_PK missing). Please contact the operator.",
+        ))
         return
 
     symbol = slugify_symbol(name, chat.id)
@@ -558,9 +726,10 @@ async def _process_create_token(
             },
         )
 
-    status_msg = await update.message.reply_text(
-        f"Deploying token {name} ({symbol})... this may take a few seconds."
-    )
+    status_msg = await update.message.reply_text(tr(
+        lang, f"Выпускаю токен {name} ({symbol})… это займёт несколько секунд.",
+        f"Deploying token {name} ({symbol})... this may take a few seconds.",
+    ))
 
     token_address = None
     try:
@@ -620,7 +789,7 @@ async def _process_create_token(
                 text("DELETE FROM chat_tokens WHERE chat_id = :c AND token_address IS NULL"),
                 {"c": chat.id},
             )
-        await status_msg.edit_text(f"On-chain deployment failed: {e}")
+        await status_msg.edit_text(tr(lang, f"Выпуск в сети не удался: {e}", f"On-chain deployment failed: {e}"))
         return
 
     with engine.begin() as conn:
@@ -629,13 +798,19 @@ async def _process_create_token(
             {"addr": token_address, "c": chat.id},
         )
 
-    await status_msg.edit_text(
+    await status_msg.edit_text(tr(
+        lang,
+        "Новый токен создан.\n"
+        f"Название: {name}\n"
+        f"Символ: {symbol}\n"
+        f"Адрес: {token_address}\n"
+        f"Интервал наград: {format_interval(rewards_interval)}",
         "New token created.\n"
         f"Name: {name}\n"
         f"Symbol: {symbol}\n"
         f"Address: {token_address}\n"
-        f"Rewards interval: {format_interval(rewards_interval)}"
-    )
+        f"Rewards interval: {format_interval(rewards_interval)}",
+    ))
 
 
 async def create_token_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -651,15 +826,17 @@ async def create_token_command(update: Update, context: ContextTypes.DEFAULT_TYP
     user = update.effective_user
     if chat is None or user is None:
         return
+    lang = lang_of(update)
 
     if chat.type not in ("group", "supergroup"):
-        await update.message.reply_text(
-            "This command must be used inside a group chat."
-        )
+        await update.message.reply_text(tr(
+            lang, "Эта команда работает только в группе.", "This command must be used inside a group chat."
+        ))
         return
 
     if not await is_chat_owner(update, context):
-        await update.message.reply_text("Only the chat owner can create a token.")
+        await update.message.reply_text(tr(lang, "Создать токен может только владелец чата.",
+                                           "Only the chat owner can create a token."))
         logger.warning(
             "Unauthorized create_token attempt by non-owner user_id=%s username=%s chat_id=%s",
             user.id,
@@ -673,23 +850,19 @@ async def create_token_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if not args:
         context.user_data["awaiting_token_name"] = True
         context.user_data["awaiting_token_chat_id"] = chat.id
-        bot_msg = await update.message.reply_text(
-            "Reply to this message with the token name (1-48 characters), or /cancel to abort."
-        )
+        bot_msg = await update.message.reply_text(ASK_TOKEN_NAME(lang))
         context.user_data["awaiting_token_bot_msg_id"] = bot_msg.message_id
         return
 
     if len(args) == 1:
         name = args[0].strip()
         if not name or len(name) > 48:
-            await update.message.reply_text("Token name must be 1..48 characters.")
+            await update.message.reply_text(TOKEN_NAME_LENGTH(lang))
             return
         context.user_data["token_name"] = name
         context.user_data["awaiting_token_interval"] = True
         context.user_data["awaiting_token_chat_id"] = chat.id
-        bot_msg = await update.message.reply_text(
-            "Reply to this message with the rewards interval (e.g. 30s, 15m, 1h, 2d, 1w), or /cancel to abort."
-        )
+        bot_msg = await update.message.reply_text(ASK_TOKEN_INTERVAL(lang))
         context.user_data["awaiting_token_bot_msg_id"] = bot_msg.message_id
         return
 
@@ -699,32 +872,41 @@ async def create_token_command(update: Update, context: ContextTypes.DEFAULT_TYP
     await _process_create_token(update, context, name, interval_raw)
 
 
+USE_IN_TOKEN_GROUP = T("Используйте эту команду в группе, которой принадлежит токен.",
+                       "Use this command in the group chat that owns the token.")
+NO_CHAT_TOKEN = T("У этого чата ещё нет токена. Сначала /create_token.",
+                  "This chat has no token yet. Use /create_token first.")
+
+
 async def set_rewards_interval_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/set_rewards_interval <interval> — admin-only, changes how often rewards are paid."""
     chat = update.effective_chat
+    lang = lang_of(update)
     if chat is None or chat.type not in ("group", "supergroup"):
-        await update.message.reply_text("Use this command in the group chat that owns the token.")
+        await update.message.reply_text(USE_IN_TOKEN_GROUP(lang))
         return
     if not await is_chat_admin(update, context):
-        await update.message.reply_text("Only chat admins can change the rewards interval.")
+        await update.message.reply_text(tr(lang, "Интервал наград меняют только администраторы чата.",
+                                           "Only chat admins can change the rewards interval."))
         return
 
     args = context.args or []
     if not args:
-        await update.message.reply_text(
-            "Usage: /set_rewards_interval <interval>\nExamples: 30s, 15m, 1h, 2d, 1w"
-        )
+        await update.message.reply_text(tr(
+            lang, "Как: /set_rewards_interval <интервал>\nПримеры: 30s, 15m, 1h, 2d, 1w",
+            "Usage: /set_rewards_interval <interval>\nExamples: 30s, 15m, 1h, 2d, 1w",
+        ))
         return
 
     try:
         rewards_interval = parse_interval(args[0])
     except ValueError as e:
-        await update.message.reply_text(f"Bad interval: {e}")
+        await update.message.reply_text(tr(lang, f"Неверный интервал: {e}", f"Bad interval: {e}"))
         return
 
     chat_token = get_chat_token(chat.id)
     if chat_token is None:
-        await update.message.reply_text("This chat has no token yet. Use /create_token first.")
+        await update.message.reply_text(NO_CHAT_TOKEN(lang))
         return
 
     try:
@@ -735,12 +917,13 @@ async def set_rewards_interval_command(update: Update, context: ContextTypes.DEF
             )
     except Exception as e:
         logger.error(f"set_rewards_interval db error: {e}")
-        await update.message.reply_text("Internal error. Try again.")
+        await update.message.reply_text(tr(lang, "Внутренняя ошибка. Попробуйте ещё раз.", "Internal error. Try again."))
         return
 
-    await update.message.reply_text(
-        f"Rewards interval updated: {format_interval(rewards_interval)}."
-    )
+    await update.message.reply_text(tr(
+        lang, f"Интервал наград обновлён: {format_interval(rewards_interval)}.",
+        f"Rewards interval updated: {format_interval(rewards_interval)}.",
+    ))
 
 
 def _get_chat_payout_recipients(chat_id: int):
@@ -900,6 +1083,7 @@ async def thank_you_reward_handler(update: Update, context: ContextTypes.DEFAULT
             logger.debug("thank_you_reward member tracking failed: %s", e)
 
     context.user_data["ai_skip_message_id"] = message.message_id
+    lang = lang_of(update)
 
     recipient_wallet = _wallet_for_user(recipient_user.id)
     human_amount = amount / 10**18
@@ -912,10 +1096,13 @@ async def thank_you_reward_handler(update: Update, context: ContextTypes.DEFAULT
     if not recipient_wallet:
         try:
             _credit_pending_reward(chat.id, recipient_user.id, amount)
-            await message.reply_text(
+            await message.reply_text(tr(
+                lang,
+                f"🙏 +{human_amount:g} {symbol} отложено для {recipient_name}. "
+                "Получить можно, привязав кошелёк: /set_wallet.",
                 f"🙏 +{human_amount:g} {symbol} queued for {recipient_name}. "
-                "They can claim it with /set_wallet."
-            )
+                "They can claim it with /set_wallet.",
+            ))
         except Exception as e:
             logger.error(
                 "thank_you_reward: pending credit failed chat=%s recipient=%s: %s",
@@ -932,8 +1119,9 @@ async def thank_you_reward_handler(update: Update, context: ContextTypes.DEFAULT
             amount, symbol, chat.id, sender.id, recipient_user.id, recipient_wallet, tx_hash,
         )
         await message.reply_text(
-            f"🙏 +{human_amount:g} {symbol} to {recipient_name}\n"
-            f"{EXPLORER_URL}/tx/{tx_hash}",
+            tr(lang, f"🙏 +{human_amount:g} {symbol} для {recipient_name}\n",
+               f"🙏 +{human_amount:g} {symbol} to {recipient_name}\n")
+            + f"{EXPLORER_URL}/tx/{tx_hash}",
             disable_web_page_preview=True,
         )
     except Exception as e:
@@ -941,36 +1129,43 @@ async def thank_you_reward_handler(update: Update, context: ContextTypes.DEFAULT
             "thank_you_reward: mint failed chat=%s recipient=%s wallet=%s: %s",
             chat.id, recipient_user.id, recipient_wallet, e,
         )
-        await message.reply_text(
-            f"Could not mint {symbol} right now. The operator should check bot logs."
-        )
+        await message.reply_text(tr(
+            lang, f"Сейчас не получилось начислить {symbol}. Оператору стоит заглянуть в логи бота.",
+            f"Could not mint {symbol} right now. The operator should check bot logs.",
+        ))
+
+
+TOKEN_PENDING = T("Токен ещё выпускается. Попробуйте позже.", "Token deployment is still pending. Try again later.")
 
 
 async def reward_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/reward_now — admin-only, trigger an immediate payout without touching the timer."""
     chat = update.effective_chat
     user = update.effective_user
+    lang = lang_of(update)
     if chat is None or chat.type not in ("group", "supergroup"):
-        await update.message.reply_text("Use this command in the group chat that owns the token.")
+        await update.message.reply_text(USE_IN_TOKEN_GROUP(lang))
         return
     if not await is_chat_admin(update, context):
-        await update.message.reply_text("Only chat admins can trigger a payout.")
+        await update.message.reply_text(tr(lang, "Запустить выплату могут только администраторы чата.",
+                                           "Only chat admins can trigger a payout."))
         return
 
     chat_token = get_chat_token(chat.id)
     if chat_token is None:
-        await update.message.reply_text("This chat has no token yet. Use /create_token first.")
+        await update.message.reply_text(NO_CHAT_TOKEN(lang))
         return
 
     _chat_id_col, name, symbol, token_address, _interval, reward_amount = chat_token
     if not token_address:
-        await update.message.reply_text("Token deployment is still pending. Try again later.")
+        await update.message.reply_text(TOKEN_PENDING(lang))
         return
 
     if not DEPLOYER_PK:
-        await update.message.reply_text(
-            "Payouts are not configured on this bot (DEPLOYER_PK missing)."
-        )
+        await update.message.reply_text(tr(
+            lang, "Выплаты на этом боте не настроены (нет DEPLOYER_PK).",
+            "Payouts are not configured on this bot (DEPLOYER_PK missing).",
+        ))
         return
 
     if user is not None and not user.is_bot:
@@ -981,16 +1176,19 @@ async def reward_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     recipients = _get_chat_payout_recipients(chat.id)
     if not recipients:
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "Некому платить: никто из нынешних участников чата ещё не привязал кошелёк через /set_wallet.",
             "No eligible recipients: no current member of this chat has registered "
-            "a wallet via /set_wallet yet."
-        )
+            "a wallet via /set_wallet yet.",
+        ))
         return
 
     amount_human = int(reward_amount) / 10**18
-    status_msg = await update.message.reply_text(
-        f"Minting {amount_human} {symbol} to {len(recipients)} wallet(s)..."
-    )
+    status_msg = await update.message.reply_text(tr(
+        lang, f"Начисляю {amount_human} {symbol} на кошельки: {len(recipients)}…",
+        f"Minting {amount_human} {symbol} to {len(recipients)} wallet(s)...",
+    ))
 
     try:
         from web3 import Web3
@@ -1043,14 +1241,15 @@ async def reward_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 failed += 1
     except Exception as e:
         logger.error(f"reward_now fatal: {e}")
-        await status_msg.edit_text(f"Payout failed: {e}")
+        await status_msg.edit_text(tr(lang, f"Выплата не удалась: {e}", f"Payout failed: {e}"))
         return
 
     # Intentionally do NOT update last_payout_at: this is an extra payout.
-    await status_msg.edit_text(
+    await status_msg.edit_text(tr(
+        lang, f"Выплата готова: успешно {succeeded}, с ошибкой {failed}. Обычное расписание не изменилось.",
         f"Payout done: {succeeded} ok, {failed} failed. "
-        "Regular schedule is unchanged."
-    )
+        "Regular schedule is unchanged.",
+    ))
 
 
 CHAT_TOKEN_MINT_ABI = [{
@@ -1161,15 +1360,19 @@ async def _process_set_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Shared implementation for /set_wallet <addr> and the follow-up message
     captured after a bare /set_wallet. Validates, persists, claims pending."""
     user_id = update.effective_user.id
+    lang = lang_of(update)
 
     if not is_valid_eth_address(address):
         # Re-arm the prompt so the user can simply retry without re-invoking
         # /set_wallet. They can /cancel to bail out.
         context.user_data["awaiting_wallet"] = True
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "Неверный формат адреса. Нужен 0x и 40 шестнадцатеричных символов.\n"
+            "Пришлите правильный адрес или /cancel для отмены.",
             "Invalid address format. Expected 0x followed by 40 hex characters.\n"
-            "Send a valid address, or /cancel to abort."
-        )
+            "Send a valid address, or /cancel to abort.",
+        ))
         return
 
     try:
@@ -1184,7 +1387,8 @@ async def _process_set_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
     except Exception as e:
         logger.error(f"Error in set_wallet: {e}")
-        await update.message.reply_text("Error saving address. Try again.")
+        await update.message.reply_text(tr(lang, "Не удалось сохранить адрес. Попробуйте ещё раз.",
+                                           "Error saving address. Try again."))
         return
 
     # Check whether anything is owed before we promise a mint.
@@ -1201,42 +1405,48 @@ async def _process_set_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE
             {"u": user_id},
         ).scalar() or 0
 
+    saved = tr(lang, f"Кошелёк сохранён: {address}", f"Wallet saved: {address}")
     if pending_count == 0:
-        await update.message.reply_text(
-            f"Wallet saved: {address}\n"
+        await update.message.reply_text(saved + "\n" + tr(
+            lang,
+            "Вы будете получать награды всех токенов чатов, где вы участвуете, "
+            "и 1 TG каждый час из общего аирдропа.",
             "You will receive rewards from every chat token in groups you participate in, "
-            "and 1 TG every hour from the global airdrop."
-        )
+            "and 1 TG every hour from the global airdrop.",
+        ))
         return
 
-    status_msg = await update.message.reply_text(
-        f"Wallet saved: {address}\n"
-        f"Claiming pending rewards from {pending_count} chat(s)..."
-    )
+    status_msg = await update.message.reply_text(saved + "\n" + tr(
+        lang, f"Забираю отложенные награды из чатов: {pending_count}…",
+        f"Claiming pending rewards from {pending_count} chat(s)...",
+    ))
     try:
         claimed, failed, totals = await asyncio.to_thread(_claim_pending_rewards, user_id, address)
     except Exception as e:
         logger.error(f"set_wallet claim failed: {e}")
-        await status_msg.edit_text(
-            f"Wallet saved: {address}\n"
+        await status_msg.edit_text(saved + "\n" + tr(
+            lang,
+            "Не получилось забрать отложенные награды автоматически. Они в сохранности "
+            "в базе, попробуем позже.",
             "Could not claim pending rewards automatically. They are safe in the database "
-            "and will be retried later."
-        )
+            "and will be retried later.",
+        ))
         return
 
     if not totals:
-        await status_msg.edit_text(
-            f"Wallet saved: {address}\n"
-            f"Claim attempted but nothing succeeded ({failed} failed). Will retry later."
-        )
+        await status_msg.edit_text(saved + "\n" + tr(
+            lang, f"Попытка была, но ничего не прошло (ошибок: {failed}). Попробуем позже.",
+            f"Claim attempted but nothing succeeded ({failed} failed). Will retry later.",
+        ))
         return
 
-    lines = [f"Wallet saved: {address}", "Claimed pending rewards:"]
+    lines = [saved, tr(lang, "Отложенные награды получены:", "Claimed pending rewards:")]
     for symbol, total in totals.items():
         human = total / 10**18
         lines.append(f"  {human:g} {symbol}")
     if failed:
-        lines.append(f"({failed} chat(s) failed and will retry later)")
+        lines.append(tr(lang, f"(чатов с ошибкой: {failed}, попробуем позже)",
+                        f"({failed} chat(s) failed and will retry later)"))
     await status_msg.edit_text("\n".join(lines))
 
 
@@ -1249,19 +1459,22 @@ async def set_wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     args = context.args or []
     chat = update.effective_chat
+    lang = lang_of(update)
     if not args:
         # Interactive follow-up only makes sense in DMs -- in groups the bot
         # would otherwise hijack the next casual message the user sends.
         if chat is not None and chat.type == "private":
             context.user_data["awaiting_wallet"] = True
-            await update.message.reply_text(
+            await update.message.reply_text(tr(
+                lang, "Пришлите адрес кошелька одним сообщением (начинается с 0x) или /cancel для отмены.",
                 "Send your wallet address now (a single message starting with 0x), "
-                "or /cancel to abort."
-            )
+                "or /cancel to abort.",
+            ))
         else:
-            await update.message.reply_text(
-                "Usage: /set_wallet <address>\nExample: /set_wallet 0x1234..."
-            )
+            await update.message.reply_text(tr(
+                lang, "Как: /set_wallet <адрес>\nПример: /set_wallet 0x1234...",
+                "Usage: /set_wallet <address>\nExample: /set_wallet 0x1234...",
+            ))
         return
     context.user_data.pop("awaiting_wallet", None)
     await _process_set_wallet(update, context, args[0].strip())
@@ -1273,7 +1486,9 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ("awaiting_token_name", "awaiting_token_interval", "token_name", "awaiting_token_chat_id", "awaiting_token_bot_msg_id"):
         if context.user_data.pop(key, None) is not None:
             cancelled = True
-    await update.message.reply_text("Cancelled." if cancelled else "Nothing to cancel.")
+    lang = lang_of(update)
+    await update.message.reply_text(tr(lang, "Отменено.", "Cancelled.") if cancelled
+                                    else tr(lang, "Нечего отменять.", "Nothing to cancel."))
 
 
 async def pending_input_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1339,6 +1554,7 @@ async def pending_create_token_handler(update: Update, context: ContextTypes.DEF
 
     # Use the first line as the value so multi-line pastes don't confuse us.
     value = text_value.splitlines()[0].strip()
+    lang = lang_of(update)
 
     if awaiting_name:
         context.user_data.pop("awaiting_token_name", None)
@@ -1346,16 +1562,16 @@ async def pending_create_token_handler(update: Update, context: ContextTypes.DEF
         name = value
         if not name or len(name) > 48:
             context.user_data["awaiting_token_name"] = True
-            retry = await update.message.reply_text(
-                "Token name must be 1..48 characters. Reply to this message with the name, or /cancel to abort."
-            )
+            retry = await update.message.reply_text(tr(
+                lang,
+                "Название токена — от 1 до 48 символов. Ответьте на это сообщение названием или /cancel для отмены.",
+                "Token name must be 1..48 characters. Reply to this message with the name, or /cancel to abort.",
+            ))
             context.user_data["awaiting_token_bot_msg_id"] = retry.message_id
             return
         context.user_data["token_name"] = name
         context.user_data["awaiting_token_interval"] = True
-        bot_msg = await update.message.reply_text(
-            "Reply to this message with the rewards interval (e.g. 30s, 15m, 1h, 2d, 1w), or /cancel to abort."
-        )
+        bot_msg = await update.message.reply_text(ASK_TOKEN_INTERVAL(lang))
         context.user_data["awaiting_token_bot_msg_id"] = bot_msg.message_id
         return
 
@@ -1365,9 +1581,10 @@ async def pending_create_token_handler(update: Update, context: ContextTypes.DEF
         name = context.user_data.pop("token_name", None)
         if not name:
             context.user_data.pop("awaiting_token_chat_id", None)
-            await update.message.reply_text(
-                "Something went wrong — the token name was lost. Try /create_token again."
-            )
+            await update.message.reply_text(tr(
+                lang, "Что-то пошло не так — название токена потерялось. Попробуйте /create_token ещё раз.",
+                "Something went wrong — the token name was lost. Try /create_token again.",
+            ))
             return
         context.user_data.pop("awaiting_token_chat_id", None)
         interval_raw = value
@@ -1381,6 +1598,7 @@ async def unset_wallet_command(update: Update, context: ContextTypes.DEFAULT_TYP
     and the pending balance will be minted to the new wallet.
     """
     user_id = update.effective_user.id
+    lang = lang_of(update)
     try:
         with engine.begin() as conn:
             result = conn.execute(
@@ -1389,17 +1607,21 @@ async def unset_wallet_command(update: Update, context: ContextTypes.DEFAULT_TYP
             )
     except Exception as e:
         logger.error(f"Error in unset_wallet: {e}")
-        await update.message.reply_text("Error removing wallet. Try again.")
+        await update.message.reply_text(tr(lang, "Не удалось отвязать кошелёк. Попробуйте ещё раз.",
+                                           "Error removing wallet. Try again."))
         return
 
     if result.rowcount == 0:
-        await update.message.reply_text("No wallet was linked.")
+        await update.message.reply_text(tr(lang, "Кошелёк и не был привязан.", "No wallet was linked."))
         return
 
-    await update.message.reply_text(
+    await update.message.reply_text(tr(
+        lang,
+        "Кошелёк отвязан. Отложенные награды сохранятся и будут начислены "
+        "на следующий кошелёк, который вы привяжете через /set_wallet.",
         "Wallet removed. Any pending rewards stay credited and will be minted "
-        "to the next wallet you link with /set_wallet."
-    )
+        "to the next wallet you link with /set_wallet.",
+    ))
 
 
 BALANCE_OF_ABI = [{
@@ -1462,12 +1684,18 @@ async def claim_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.debug(f"claim member tracking failed: {e}")
 
     pending = _pending_for(user.id)
+    lang = lang_of(update)
+    # The result goes to the person's private chat, in that chat's language.
+    dm_lang = lang_for(user.id, user)
 
     if not pending:
-        await update.effective_message.reply_text(
+        await update.effective_message.reply_text(tr(
+            lang,
+            "Пока забирать нечего. Участвуйте в чате, у которого есть токен, — "
+            "награды будут копиться, а /claim переведёт их в сеть.",
             "Nothing to claim yet. Take part in a chat that has a token and "
-            "rewards will accrue -- then /claim brings them on-chain."
-        )
+            "rewards will accrue -- then /claim brings them on-chain.",
+        ))
         return
 
     owed = ", ".join(
@@ -1477,39 +1705,41 @@ async def claim_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     address = _wallet_for_user(user.id)
 
     if not address:
-        await update.effective_message.reply_text(
+        await update.effective_message.reply_text(tr(
+            lang,
+            f"Вас ждёт: {owed}.\n\n"
+            "Привяжите кошелёк, чтобы получить: /set_wallet <адрес>\n"
+            f"Нет кошелька? Создайте за пару секунд: {WALLET_MINI_APP_URL}",
             f"You have {owed} waiting.\n\n"
             "Set a wallet to receive it: /set_wallet <address>\n"
-            f"No wallet yet? Create one in seconds: {WALLET_MINI_APP_URL}"
-        )
+            f"No wallet yet? Create one in seconds: {WALLET_MINI_APP_URL}",
+        ))
         return
 
     if chat is not None and chat.type in ("group", "supergroup"):
-        await update.effective_message.reply_text(
-            f"Claiming {owed} -- sending you the result privately."
-        )
+        await update.effective_message.reply_text(tr(
+            lang, f"Забираю {owed} — результат пришлю в личку.",
+            f"Claiming {owed} -- sending you the result privately.",
+        ))
 
+    not_through = tr(dm_lang, "Не получилось. Ваш баланс в сохранности — попробуйте /claim чуть позже.",
+                     "The claim did not go through. Your balance is safe -- try /claim again shortly.")
     try:
         claimed, failed, totals = await asyncio.to_thread(_claim_pending_rewards, user.id, address)
     except Exception as e:
         logger.error("claim_command: failed user=%s: %s", user.id, e)
-        await context.bot.send_message(
-            chat_id=user.id,
-            text="The claim did not go through. Your balance is safe -- try /claim again shortly.",
-        )
+        await context.bot.send_message(chat_id=user.id, text=not_through)
         return
 
     if claimed == 0:
-        await context.bot.send_message(
-            chat_id=user.id,
-            text="The claim did not go through. Your balance is safe -- try /claim again shortly.",
-        )
+        await context.bot.send_message(chat_id=user.id, text=not_through)
         return
 
     minted = ", ".join(
         f"{_format_token_amount(amount, 18)} {symbol}" for symbol, amount in totals.items()
     )
-    tail = f"\n{failed} token(s) could not be sent and are still waiting." if failed else ""
+    tail = tr(dm_lang, f"\nНе отправилось токенов: {failed}, они ещё ждут.",
+              f"\n{failed} token(s) could not be sent and are still waiting.") if failed else ""
 
     # The claim is only half of what somebody wanted; the other half is doing
     # something with it. The button is offered here because this is the one
@@ -1521,9 +1751,9 @@ async def claim_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=user.id,
-        text=f"Claimed {minted} to {address}.{tail}",
+        text=tr(dm_lang, f"Получено {minted} на {address}.{tail}", f"Claimed {minted} to {address}.{tail}"),
         # Always private: this message is a direct message by construction.
-        reply_markup=swap_markup(True, claimed_tokens),
+        reply_markup=swap_markup(True, claimed_tokens, lang=dm_lang),
     )
 
 
@@ -1548,6 +1778,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show: linked wallet, global TG balance, every chat-token balance the user
     is eligible for, and any pending (claimable on /set_wallet) amounts."""
     user_id = update.effective_user.id
+    lang = lang_of(update)
 
     # Without admin rights the bot doesn't receive chat_member updates, so
     # silent observers never end up in chat_members. Treat /balance in a group
@@ -1592,9 +1823,10 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     swappable: list[tuple[str, str]] = []
 
     if address:
-        lines.append(f"Wallet: {address}")
+        lines.append(tr(lang, f"Кошелёк: {address}", f"Wallet: {address}"))
     else:
-        lines.append("Wallet: not set -- use /set_wallet <address>, then /claim.")
+        lines.append(tr(lang, "Кошелёк: не привязан — /set_wallet <адрес>, затем /claim.",
+                        "Wallet: not set -- use /set_wallet <address>, then /claim."))
 
     if address:
         try:
@@ -1615,16 +1847,16 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     address=Web3.to_checksum_address(TOKEN_ADDRESS), abi=BALANCE_OF_ABI
                 )
                 tg_balance = tg_contract.functions.balanceOf(checksum).call() / 10**18
-                lines.append(f"TG (global): {tg_balance:g}")
+                lines.append(tr(lang, f"TG (общий): {tg_balance:g}", f"TG (global): {tg_balance:g}"))
             except Exception as e:
                 logger.exception(
                     f"balance: TG global read failed for {address} at {TOKEN_ADDRESS}: {e}"
                 )
-                lines.append("TG (global): (read error)")
+                lines.append(tr(lang, "TG (общий): (ошибка чтения)", "TG (global): (read error)"))
 
         if w3 is not None and checksum is not None and chat_tokens:
             lines.append("")
-            lines.append("Chat token balances:")
+            lines.append(tr(lang, "Балансы токенов чатов:", "Chat token balances:"))
             for _cid, _name, symbol, token_address in chat_tokens:
                 try:
                     c = w3.eth.contract(
@@ -1642,11 +1874,11 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.exception(
                         f"balance: chat-token read failed for {symbol} ({token_address}): {e}"
                     )
-                    lines.append(f"  {symbol}: (read error)")
+                    lines.append(f"  {symbol}: " + tr(lang, "(ошибка чтения)", "(read error)"))
 
     if pending:
         lines.append("")
-        lines.append("Waiting for you (/claim to collect):")
+        lines.append(tr(lang, "Ждёт вас (/claim — забрать):", "Waiting for you (/claim to collect):"))
         for symbol, amount_str in pending:
             human = int(amount_str) / 10**18
             lines.append(f"  {human:g} {symbol}")
@@ -1655,41 +1887,50 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # chat-with-token they are a member of, so they know what to expect.
         lines.append("")
         if chat_tokens:
-            lines.append("You are eligible for these chat tokens (rewards will accrue here):")
+            lines.append(tr(lang, "Вам положены токены этих чатов (награды будут копиться здесь):",
+                            "You are eligible for these chat tokens (rewards will accrue here):"))
             for _cid, _name, symbol, _addr in chat_tokens:
                 lines.append(f"  {symbol}")
-            lines.append(
+            lines.append(tr(
+                lang,
+                "Сейчас отложенного нет. Новые награды начисляются на каждой "
+                "выплате чата — загляните после следующего интервала.",
                 "Pending is empty right now. New rewards are credited on each "
-                "payout tick of the chat, so check back after the next interval."
-            )
+                "payout tick of the chat, so check back after the next interval.",
+            ))
         else:
-            lines.append(
+            lines.append(tr(
+                lang,
+                "Отложенных наград пока нет. Напишите хотя бы одно сообщение в чате "
+                "с токеном наград и дождитесь его следующей выплаты.",
                 "No pending rewards yet. Write at least one message in a chat "
-                "that has a reward token, then wait for its next payout tick."
-            )
+                "that has a reward token, then wait for its next payout tick.",
+            ))
 
     await update.message.reply_text(
         "\n".join(lines),
-        reply_markup=swap_markup(_is_private(update), swappable, context.bot.username),
+        reply_markup=swap_markup(_is_private(update), swappable, context.bot.username, lang=lang),
     )
 
 
 async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show the user's linked wallet address and a link to it on the explorer."""
     user_id = update.effective_user.id
+    lang = lang_of(update)
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT address FROM tg_wallets WHERE user_id = :u"),
             {"u": user_id},
         ).fetchone()
     if not row:
-        await update.message.reply_text(
-            "No wallet linked yet. Use /set_wallet <address> to link one."
-        )
+        await update.message.reply_text(tr(
+            lang, "Кошелёк ещё не привязан. Привязать: /set_wallet <адрес>.",
+            "No wallet linked yet. Use /set_wallet <address> to link one.",
+        ))
         return
     address = row[0]
     await update.message.reply_text(
-        f"Wallet: {address}\n{EXPLORER_URL}/address/{address}"
+        tr(lang, f"Кошелёк: {address}", f"Wallet: {address}") + f"\n{EXPLORER_URL}/address/{address}"
     )
 
 
@@ -1916,10 +2157,12 @@ async def token_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     if chat is None:
         return
+    lang = lang_of(update)
     if chat.type not in ("group", "supergroup"):
-        await update.message.reply_text(
-            "Use this command inside the group chat whose token you want to inspect."
-        )
+        await update.message.reply_text(tr(
+            lang, "Используйте эту команду в группе, чей токен хотите посмотреть.",
+            "Use this command inside the group chat whose token you want to inspect.",
+        ))
         return
     # Same reasoning as in /balance: running /token in the group is concrete
     # proof the caller belongs here, so use it to backfill chat_members when
@@ -1933,24 +2176,32 @@ async def token_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_token = get_chat_token(chat.id)
     if chat_token is None:
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "У этого чата нет токена наград. Владелец чата может создать его: "
+            "/create_token <название> <интервал>.",
             "This chat has no reward token. The chat owner can create one with "
-            "/create_token <name> <interval>."
-        )
+            "/create_token <name> <interval>.",
+        ))
         return
     _cid, name, symbol, token_address, interval, _reward = chat_token
     if not token_address:
-        await update.message.reply_text(
-            f"Token {name} ({symbol}) is still being deployed. Try again shortly."
-        )
+        await update.message.reply_text(tr(
+            lang, f"Токен {name} ({symbol}) ещё выпускается. Попробуйте чуть позже.",
+            f"Token {name} ({symbol}) is still being deployed. Try again shortly.",
+        ))
         return
-    await update.message.reply_text(
+    await update.message.reply_text(tr(
+        lang,
+        f"Название: {name}\n"
+        f"Символ: {symbol}\n"
+        f"Адрес: {token_address}\n"
+        f"Интервал наград: {format_interval(interval)}\n",
         f"Name: {name}\n"
         f"Symbol: {symbol}\n"
         f"Address: {token_address}\n"
-        f"Rewards interval: {format_interval(interval)}\n"
-        f"{EXPLORER_URL}/address/{token_address}"
-    )
+        f"Rewards interval: {format_interval(interval)}\n",
+    ) + f"{EXPLORER_URL}/address/{token_address}")
 
 
 async def track_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2029,26 +2280,34 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/stats [window] — on-demand activity digest, default last 24h.
     Examples: /stats, /stats 6h, /stats 3d. Read-only: never moves the
     periodic digest's window or its price comparison base."""
+    lang = lang_of(update)
     project = projects.for_chat(update.effective_chat)
     if not project:
-        await update.message.reply_text("No project is configured for this chat.\n" + projects.SETUP_HINT)
+        await update.message.reply_text(tr(lang, "Для этого чата не настроен проект.\n",
+                                           "No project is configured for this chat.\n") + projects.setup_hint(lang))
         return
     if not project.get("cyber"):
         if project["chain"] != "solana":
-            await update.message.reply_text("Activity statistics are not available for this project's network.")
+            await update.message.reply_text(tr(lang, "Статистика активности для сети этого проекта недоступна.",
+                                               "Activity statistics are not available for this project's network."))
             return
         from bot import pumpfun
         market = await asyncio.to_thread(pumpfun.market_snapshot, project["address"])
         if not market:
-            await update.message.reply_text("Market data is unavailable for this chat's token.")
+            await update.message.reply_text(tr(lang, "Рыночные данные по токену этого чата недоступны.",
+                                               "Market data is unavailable for this chat's token."))
             return
-        lines = [f"{project['symbol']} · Solana · latest available market snapshot"]
-        for label, field in (("Price", "price_usd"), ("FDV", "fdv"),
-                             ("Liquidity", "liquidity"), ("24h volume", "volume_24h")):
+        lines = [f"{project['symbol']} · Solana · " + tr(lang, "последний доступный срез рынка",
+                                                         "latest available market snapshot")]
+        for label, field in ((tr(lang, "Цена", "Price"), "price_usd"), ("FDV", "fdv"),
+                             (tr(lang, "Ликвидность", "Liquidity"), "liquidity"),
+                             (tr(lang, "Объём за 24ч", "24h volume"), "volume_24h")):
             value = market.get(field)
-            lines.append(f"{label}: ${value:,.10g}" if value is not None else f"{label}: unavailable")
+            lines.append(f"{label}: ${value:,.10g}" if value is not None
+                         else f"{label}: " + tr(lang, "нет данных", "unavailable"))
         if market.get("read_at"):
-            lines.append("Read at: " + datetime.fromtimestamp(market["read_at"], timezone.utc).isoformat())
+            lines.append(tr(lang, "Прочитано: ", "Read at: ")
+                         + datetime.fromtimestamp(market["read_at"], timezone.utc).isoformat())
         await update.message.reply_text("\n".join(lines))
         return
     args = context.args or []
@@ -2057,18 +2316,20 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             seconds = parse_interval(args[0])
         except ValueError as e:
-            await update.message.reply_text(
-                f"Bad window: {e}\nExamples: /stats 6h, /stats 3d"
-            )
+            await update.message.reply_text(tr(
+                lang, f"Неверное окно: {e}\nПримеры: /stats 6h, /stats 3d",
+                f"Bad window: {e}\nExamples: /stats 6h, /stats 3d",
+            ))
             return
 
     since = (datetime.now(timezone.utc) - timedelta(seconds=seconds)).strftime(_SQLITE_TS)
     window_label = _format_window(seconds)
     digest = await asyncio.to_thread(_build_digest_text, since, window_label)
     if digest is None:
-        await update.message.reply_text(
-            f"No tracked on-chain activity in the last {window_label}."
-        )
+        await update.message.reply_text(tr(
+            lang, f"За последние {window_label} отслеживаемой активности в сети не было.",
+            f"No tracked on-chain activity in the last {window_label}.",
+        ))
         return
     price_line = await asyncio.to_thread(_cyber_price_line)
     if price_line:
@@ -2083,14 +2344,19 @@ async def whale_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user is None:
         return
+    lang = lang_of(update)
     if chat is not None and chat.type != "private":
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            f"Чтобы попасть в чат, нужно держать {WHALE_MIN_CYBER_SOL:,} CYBER.sol.\n"
+            "Напишите мне /whale в личку, чтобы проверить баланс CYBER.sol.",
             f"To access the chat you must hold {WHALE_MIN_CYBER_SOL:,} CYBER.sol.\n"
-            "DM me /whale in private to verify your CYBER.sol balance."
-        )
+            "DM me /whale in private to verify your CYBER.sol balance.",
+        ))
         return
     if not WHALE_CHAT_ID:
-        await update.message.reply_text("Whale verification isn't configured on this bot yet.")
+        await update.message.reply_text(tr(lang, "Проверка китов на этом боте пока не настроена.",
+                                           "Whale verification isn't configured on this bot yet."))
         return
 
     token = secrets.token_urlsafe(24)
@@ -2106,19 +2372,26 @@ async def whale_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"whale: token insert failed for {user.id}: {e}")
-        await update.message.reply_text("Internal error. Try again.")
+        await update.message.reply_text(tr(lang, "Внутренняя ошибка. Попробуйте ещё раз.", "Internal error. Try again."))
         return
 
     url = f"{WHALE_VERIFY_URL}?t={token}"
     await update.message.reply_text(
-        f"To join the whales chat you must hold at least {WHALE_MIN_CYBER_SOL:,} CYBER.sol.\n\n"
-        f"Connect Phantom and sign — valid {WHALE_LINK_TTL_MINUTES} min:\n{url}\n\n"
-        "On a phone the page will offer \"Open in Phantom\" — take it. Neither "
-        "Telegram's browser nor Chrome/Safari has a wallet inside it, so signing "
-        "only works in Phantom's own browser.\n\n"
-        "Once verified I'll DM you a one-time invite.",
+        tr(lang,
+           f"Чтобы войти в чат китов, нужно держать не меньше {WHALE_MIN_CYBER_SOL:,} CYBER.sol.\n\n"
+           f"Подключите Phantom и подпишите — ссылка действует {WHALE_LINK_TTL_MINUTES} мин:\n{url}\n\n"
+           "На телефоне страница предложит «Открыть в Phantom» — соглашайтесь. Ни браузер "
+           "Telegram, ни Chrome/Safari не содержат кошелька, поэтому подпись работает "
+           "только во встроенном браузере Phantom.\n\n"
+           "После проверки я пришлю в личку одноразовое приглашение.",
+           f"To join the whales chat you must hold at least {WHALE_MIN_CYBER_SOL:,} CYBER.sol.\n\n"
+           f"Connect Phantom and sign — valid {WHALE_LINK_TTL_MINUTES} min:\n{url}\n\n"
+           "On a phone the page will offer \"Open in Phantom\" — take it. Neither "
+           "Telegram's browser nor Chrome/Safari has a wallet inside it, so signing "
+           "only works in Phantom's own browser.\n\n"
+           "Once verified I'll DM you a one-time invite."),
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🐳 Verify CYBER.sol", url=url)],
+            [InlineKeyboardButton(tr(lang, "🐳 Проверить CYBER.sol", "🐳 Verify CYBER.sol"), url=url)],
         ]),
         disable_web_page_preview=True,
     )

@@ -2,7 +2,7 @@
 import sys
 import logging
 
-from telegram import BotCommand, MenuButtonWebApp, WebAppInfo
+from telegram import MenuButtonWebApp, WebAppInfo
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -63,66 +63,16 @@ from bot.announcers import (
     run_snapshot_once,
 )
 from bot.watchers import WATCHERS, event_watcher_loop
-from bot import buybot, fishing, music, projects, pumpfun
+from bot import buybot, fishing, language, music, projects, pumpfun
 from bot.personal import ensure_personal_schema, personal_loop
 
 logger = logging.getLogger(__name__)
 
 
 async def post_init(application: Application):
-    await application.bot.set_my_commands(
-        [
-            BotCommand("start", "Start receiving TG"),
-            BotCommand("help", "Show available commands"),
-            BotCommand("set_wallet", "Link wallet (asks for address if omitted)"),
-            BotCommand("unset_wallet", "Unlink your wallet (keep pending)"),
-            BotCommand("wallet", "Show your linked wallet"),
-            BotCommand("balance", "Show TG, chat tokens, and pending rewards"),
-            BotCommand("rps", "Камень–ножницы–бумага на токены чата"),
-            BotCommand("slots", "🎰 Слоты на токены чата"),
-            BotCommand("slots_bank", "🎰 Касса автомата этого чата"),
-            *(
-                [
-                    BotCommand("fish", "🎣 Рыбалка: каждая рыба — NFT"),
-                    BotCommand("fish_bag", "🪣 Ваш улов"),
-                    BotCommand("fish_top", "🏆 Рекорды чата по рыбалке"),
-                ]
-                if FISHING_ENABLED
-                else []
-            ),
-            BotCommand("claim", "Collect your accrued chat-token rewards"),
-            BotCommand("token", "Show this chat's reward token"),
-            BotCommand("cancel", "Cancel an interactive prompt"),
-            BotCommand("github", "Link GitHub for GITHUB airdrop"),
-            BotCommand("website", "Open the project website"),
-            BotCommand("app", "Download the Cyberia wallet app"),
-            BotCommand("open", "Open the wallet inside Telegram"),
-            BotCommand("arcade", "On-chain rock–paper–scissors for CYBER"),
-            BotCommand("x", "Show X (Twitter) and Telegram links"),
-            BotCommand("ca", "Show this chat's token contract address"),
-            BotCommand("stats", "This chat's market data or activity digest"),
-            BotCommand("buybot", "(admins) Project settings and buy alerts"),
-            BotCommand("ask", "Ask the Cyberia AI assistant"),
-            *(
-                [
-                    BotCommand("track", "Найти трек и прислать его: Исполнитель — Название"),
-                    BotCommand("music", "Музыка в чате; админам: автопоиск on/off"),
-                ]
-                if MUSIC_ENABLED
-                else []
-            ),
-            *(
-                [BotCommand("model", "Choose which free AI model answers you")]
-                if AI_ENABLED and AI_MODEL_CHOICE
-                else []
-            ),
-            BotCommand("whale", "Verify CYBER.sol to join the whales chat"),
-            BotCommand("create_token", "(admins) Create a chat reward token"),
-            BotCommand("set_rewards_interval", "(admins) Change rewards interval"),
-            BotCommand("reward_now", "(admins) Pay rewards immediately"),
-            BotCommand("set_channel_wallet", "(channel admins) Wallet to receive post NFTs"),
-        ]
-    )
+    # English for everyone, Russian for Russian Telegram apps, and each chat's
+    # own choice from /language on top (bot.language).
+    await language.publish_menus(application.bot)
     application.create_task(expiry_loop(application))
     application.create_task(outbox_loop(application))
     # Private messages to owners: bridge deliveries and incoming funds.
@@ -308,6 +258,8 @@ def run_dispatcher():
     application.add_handler(CommandHandler("remind", remind_command))
     application.add_handler(CallbackQueryHandler(remind_off_callback, pattern=rf"^{REMIND_OFF}$"))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler(["language", "lang"], language.language_command))
+    application.add_handler(CallbackQueryHandler(language.language_callback, pattern=rf"^{language.CALLBACK}:"))
     application.add_handler(CommandHandler("set_wallet", set_wallet_command))
     application.add_handler(CommandHandler("unset_wallet", unset_wallet_command))
     application.add_handler(CommandHandler("wallet", wallet_command))
@@ -322,7 +274,9 @@ def run_dispatcher():
         application.add_handler(CommandHandler("fish", fishing.fish_command))
         application.add_handler(CommandHandler("fish_bag", fishing.fish_bag_command))
         application.add_handler(CommandHandler("fish_top", fishing.fish_top_command))
+        application.add_handler(CommandHandler("fish_shop", fishing.fish_shop_command))
         application.add_handler(CallbackQueryHandler(fishing.fish_callback, pattern=r"^fish:"))
+        application.add_handler(CallbackQueryHandler(fishing.fish_shop_callback, pattern=r"^fishshop:"))
     application.add_handler(CommandHandler("token", token_command))
     application.add_handler(CommandHandler("github", github_command))
     application.add_handler(CommandHandler("website", website_command))

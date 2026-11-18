@@ -48,6 +48,7 @@ from bot.config import (
     GROQ_PREFIX,
 )
 from bot.db import _kv_get, _kv_set
+from bot.language import T, lang_of, say, tr
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +226,7 @@ def model_for(user_id: int | None) -> str:
     return chosen or AI_MODEL
 
 
-def served_note(requested: str, served: str) -> str:
+def served_note(requested: str, served: str, lang: str = "ru") -> str:
     """One line naming who actually answered, when that is not who was asked.
 
     On the router this is the only place the pool becomes visible: the id we
@@ -235,7 +236,7 @@ def served_note(requested: str, served: str) -> str:
     served = (served or "").strip()
     if not served or served.lower() == (requested or "").strip().lower():
         return ""
-    return f"\n\n— ответила {served}"
+    return tr(lang, f"\n\n— ответила {served}", f"\n\n— answered by {served}")
 
 
 # ------------------------------------------------------------- the catalogue
@@ -248,7 +249,7 @@ async def fetch_catalogue(force: bool = False) -> tuple[Catalogue | None, str]:
     """The provider's catalogue, cached. Returns (catalogue, error message)."""
     url = catalogue_url(AI_API_URL, AI_MODELS_URL)
     if not url:
-        return None, "не задан AI_API_URL"
+        return None, T("не задан AI_API_URL", "AI_API_URL is not set")
 
     async with _cache_lock:
         fresh = time.monotonic() - float(_cache["at"]) < AI_MODELS_CACHE_SECONDS
@@ -271,8 +272,9 @@ async def fetch_catalogue(force: bool = False) -> tuple[Catalogue | None, str]:
             # A stale list beats no list: the pool moves slowly enough that
             # yesterday's answer is still a better menu than an error.
             if _cache["catalogue"] is not None:
-                return _cache["catalogue"], "список моделей сейчас не читается — показываю прошлый"
-            return None, "провайдер не отдал список моделей"
+                return _cache["catalogue"], T("список моделей сейчас не читается — показываю прошлый",
+                                              "the model list can't be read right now — showing the last one")
+            return None, T("провайдер не отдал список моделей", "the provider returned no model list")
 
         if GROQ_API_KEY:
             catalogue = merge_catalogues(catalogue, await _groq_catalogue(client_args))
@@ -338,7 +340,7 @@ def _button_label(choice: ModelChoice, current: str | None) -> str:
 
 
 def build_keyboard(
-    items: list[ModelChoice], page: int, pages: int, current: str | None
+    items: list[ModelChoice], page: int, pages: int, current: str | None, lang: str = "ru"
 ) -> InlineKeyboardMarkup:
     rows = [
         [
@@ -359,7 +361,8 @@ def build_keyboard(
         )
     auto_mark = "✅ " if not current else ""
     rows.append(
-        [InlineKeyboardButton(f"{auto_mark}🎲 авто (весь пул)", callback_data=f"{CALLBACK_PREFIX}|a")]
+        [InlineKeyboardButton(auto_mark + tr(lang, "🎲 авто (весь пул)", "🎲 auto (the whole pool)"),
+                              callback_data=f"{CALLBACK_PREFIX}|a")]
     )
     return InlineKeyboardMarkup(rows)
 
@@ -369,6 +372,7 @@ def pool_text(
     current: str | None,
     warning: str = "",
     served: str | None = None,
+    lang: str = "ru",
 ) -> str:
     """The message above the keyboard: what you are talking to, and what the
     pool actually is."""
@@ -376,23 +380,30 @@ def pool_text(
     if current:
         match = next((m for m in selectable if m.id == current), None)
         now = f"{match.label} (`{current}`)" if match else f"`{current}`"
-        line = f"Сейчас отвечает: {now}"
+        line = tr(lang, f"Сейчас отвечает: {now}", f"Answering now: {now}")
     else:
-        line = (
+        line = tr(
+            lang,
             f"Сейчас отвечает: 🎲 авто — `{AI_MODEL}`.\n"
             "Это не одна модель, а роутер: на каждый вопрос отвечает та из "
-            "бесплатных, что сейчас поднята."
+            "бесплатных, что сейчас поднята.",
+            f"Answering now: 🎲 auto — `{AI_MODEL}`.\n"
+            "That is not one model but a router: each question is answered by "
+            "whichever free model is up at the moment.",
         )
     if served and not current:
-        line += f"\nПоследний ответ дала: `{served}`"
+        line += tr(lang, f"\nПоследний ответ дала: `{served}`", f"\nThe last answer came from: `{served}`")
 
     if catalogue.priced:
-        what = f"Бесплатных моделей в пуле сейчас: {len(selectable)}."
+        what = tr(lang, f"Бесплатных моделей в пуле сейчас: {len(selectable)}.",
+                  f"Free models in the pool right now: {len(selectable)}.")
     else:
-        what = f"Провайдер не публикует цены — доступно моделей: {len(selectable)}."
+        what = tr(lang, f"Провайдер не публикует цены — доступно моделей: {len(selectable)}.",
+                  f"The provider publishes no prices — models available: {len(selectable)}.")
 
-    tail = "Выбери модель кнопкой — выбор запомнится. `/model auto` вернёт роутер."
-    return "\n\n".join(part for part in (line, what, warning, tail) if part)
+    tail = tr(lang, "Выбери модель кнопкой — выбор запомнится. `/model auto` вернёт роутер.",
+              "Pick a model with a button — the choice is remembered. `/model auto` brings back the router.")
+    return "\n\n".join(part for part in (line, what, say(lang, warning) if warning else "", tail) if part)
 
 
 async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -401,14 +412,16 @@ async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     if message is None or user is None:
         return
+    lang = lang_of(update)
 
     argument = " ".join(context.args or []).strip()
     catalogue, warning = await fetch_catalogue()
     if catalogue is None:
-        await message.reply_text(
-            f"Не могу прочитать список моделей: {warning}.\n"
-            f"Сейчас отвечает: {model_for(user.id)}"
-        )
+        await message.reply_text(tr(
+            lang,
+            f"Не могу прочитать список моделей: {say(lang, warning)}.\nСейчас отвечает: {model_for(user.id)}",
+            f"Can't read the model list: {say(lang, warning)}.\nAnswering now: {model_for(user.id)}",
+        ))
         return
     selectable = catalogue.selectable()
 
@@ -416,7 +429,8 @@ async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if argument.lower() in {AUTO, "авто", "reset", "сброс"}:
             set_selected_model(user.id, None)
             await message.reply_text(
-                f"Готово: отвечает 🎲 авто — `{AI_MODEL}` (весь бесплатный пул).",
+                tr(lang, f"Готово: отвечает 🎲 авто — `{AI_MODEL}` (весь бесплатный пул).",
+                   f"Done: 🎲 auto answers — `{AI_MODEL}` (the whole free pool)."),
                 parse_mode="Markdown",
             )
             return
@@ -426,26 +440,30 @@ async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         picked = exact or (matches[0] if len(matches) == 1 else None)
         if picked is None:
             if not matches:
-                await message.reply_text(
-                    f"Такой модели в бесплатном пуле нет: {argument}. Открой /model без аргументов."
-                )
+                await message.reply_text(tr(
+                    lang, f"Такой модели в бесплатном пуле нет: {argument}. Открой /model без аргументов.",
+                    f"No such model in the free pool: {argument}. Open /model without arguments.",
+                ))
             else:
                 names = "\n".join(f"• `{m.id}`" for m in matches[:10])
                 await message.reply_text(
-                    f"Под «{argument}» подходит несколько:\n{names}",
+                    tr(lang, f"Под «{argument}» подходит несколько:\n{names}",
+                       f"Several match «{argument}»:\n{names}"),
                     parse_mode="Markdown",
                 )
             return
         set_selected_model(user.id, picked.id)
         await message.reply_text(
-            f"Готово: отвечает {picked.label} — `{picked.id}`.", parse_mode="Markdown"
+            tr(lang, f"Готово: отвечает {picked.label} — `{picked.id}`.",
+               f"Done: {picked.label} answers — `{picked.id}`."),
+            parse_mode="Markdown",
         )
         return
 
     if not selectable:
         await message.reply_text(
-            "Провайдер сейчас не отдаёт ни одной бесплатной модели.\n"
-            f"Сейчас отвечает: `{model_for(user.id)}`",
+            tr(lang, f"Провайдер сейчас не отдаёт ни одной бесплатной модели.\nСейчас отвечает: `{model_for(user.id)}`",
+               f"The provider offers no free model right now.\nAnswering now: `{model_for(user.id)}`"),
             parse_mode="Markdown",
         )
         return
@@ -453,8 +471,8 @@ async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     current = selected_model(user.id)
     items, page, pages = page_slice(selectable, 0, AI_MODELS_PAGE_SIZE)
     await message.reply_text(
-        pool_text(catalogue, current, warning, context.user_data.get("ai_served")),
-        reply_markup=build_keyboard(items, page, pages, current),
+        pool_text(catalogue, current, warning, context.user_data.get("ai_served"), lang),
+        reply_markup=build_keyboard(items, page, pages, current, lang),
         parse_mode="Markdown",
         disable_web_page_preview=True,
     )
@@ -469,27 +487,30 @@ async def model_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     data = (query.data or "").split("|")
     if not data or data[0] != CALLBACK_PREFIX:
         return
+    lang = lang_of(update)
 
     catalogue, warning = await fetch_catalogue()
     if catalogue is None:
-        await query.answer("список моделей сейчас не читается", show_alert=True)
+        await query.answer(tr(lang, "список моделей сейчас не читается", "the model list can't be read right now"),
+                           show_alert=True)
         return
     selectable = catalogue.selectable()
     action = data[1] if len(data) > 1 else ""
 
     if action == "a":
         set_selected_model(user.id, None)
-        await query.answer("авто: весь бесплатный пул")
+        await query.answer(tr(lang, "авто: весь бесплатный пул", "auto: the whole free pool"))
     elif action == "s" and len(data) > 2:
         token = data[2]
         picked = next((m for m in selectable if model_token(m.id) == token), None)
         if picked is None:
             # The pool moved under the keyboard — say so instead of pinning
             # whatever now sits at that position.
-            await query.answer("список обновился, открой /model заново", show_alert=True)
+            await query.answer(tr(lang, "список обновился, открой /model заново",
+                                  "the list changed, open /model again"), show_alert=True)
             return
         set_selected_model(user.id, picked.id)
-        await query.answer(f"выбрано: {picked.label}")
+        await query.answer(tr(lang, f"выбрано: {picked.label}", f"picked: {picked.label}"))
     elif action == "p" and len(data) > 2:
         await query.answer()
     else:
@@ -509,8 +530,8 @@ async def model_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     items, page, pages = page_slice(selectable, page, AI_MODELS_PAGE_SIZE)
     try:
         await query.edit_message_text(
-            pool_text(catalogue, current, warning, context.user_data.get("ai_served")),
-            reply_markup=build_keyboard(items, page, pages, current),
+            pool_text(catalogue, current, warning, context.user_data.get("ai_served"), lang),
+            reply_markup=build_keyboard(items, page, pages, current, lang),
             parse_mode="Markdown",
             disable_web_page_preview=True,
         )

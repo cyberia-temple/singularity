@@ -173,6 +173,16 @@ def ensure_chat_token_schema():
                 updated_at TEXT DEFAULT (datetime('now'))
             )
         """))
+        # The language a chat's admins chose with /language (bot.language).
+        # No row: everyone is answered in their own Telegram app's language.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS chat_languages (
+                chat_id    INTEGER PRIMARY KEY,
+                lang       TEXT NOT NULL,
+                set_by     INTEGER,
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """))
 
 
 def _kv_get(key: str, default: str | None = None) -> str | None:

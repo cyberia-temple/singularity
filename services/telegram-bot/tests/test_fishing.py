@@ -124,6 +124,11 @@ class FishingCase(unittest.TestCase):
     def status(self, catch_id):
         return fishing.get_catch(catch_id)["nft_status"]
 
+    def equip(self, gear, user=1, shells=0):
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT OR REPLACE INTO fishing_anglers(user_id,shells,gear) VALUES(:u,:s,:g)"),
+                         {"u": user, "s": shells, "g": gear})
+
 
 class CastTests(FishingCase):
     def test_a_strike_in_time_lands_a_fish_queued_for_its_nft(self):
@@ -147,13 +152,13 @@ class CastTests(FishingCase):
         fishing.bite(cast_id, 1000 + delay)
         with self.assertRaises(ValueError) as other:
             fishing.strike(cast_id, 2, 1000 + delay + 1, rng=COMMON)
-        self.assertIn("Это удочка Angler", str(other.exception))
+        self.assertIn("Это заброс Angler", str(other.exception))
         self.assertIsNotNone(fishing.strike(cast_id, 1, 1000 + delay + 1, rng=COMMON)[1])
 
     def test_a_late_strike_lets_it_go_with_only_a_short_rest(self):
         cast_id, delay = fishing.cast(-100, 1, "Angler", now=1000)
         fishing.bite(cast_id, 1000 + delay)
-        late = 1000 + delay + fishing.HOOK_WINDOW + 0.1
+        late = 1000 + delay + fishing.GEAR["hands"]["window"] + 0.1
         row, catch = fishing.strike(cast_id, 1, late, rng=COMMON)
         self.assertIsNone(catch)
         self.assertEqual(row["status"], "escaped")
@@ -174,7 +179,7 @@ class CastTests(FishingCase):
         fishing.cast(-100, 1, "Angler", now=1000)
         with self.assertRaises(ValueError) as busy:
             fishing.cast(-200, 1, "Angler", now=1001)
-        self.assertIn("уже в воде", str(busy.exception))
+        self.assertIn("уже рыбачите", str(busy.exception))
         fishing.cast(-100, 2, "Other", now=1001)  # someone else is free to fish
 
     def test_a_fish_earns_the_long_rest_and_trash_the_short_one(self):
@@ -352,37 +357,143 @@ class MessageTests(FishingCase):
         self.assertEqual(traits["Weight (g)"], catch["grams"])
 
     def test_bag_and_top_rank_by_rarity_then_weight(self):
+        self.equip("wired")
         self.hooked(COMMON, now=1000)
         self.hooked(LEGENDARY, now=1000 + fishing.COOLDOWN + 10)
         self.assertIn("1. ★★★★★", fishing.bag(1, "Angler"))
-        self.assertIn("ждут кошелька", fishing.bag(1, "Angler"))
+        self.assertIn("Ждут кошелька: 2", fishing.bag(1, "Angler"))
         self.assertIn("1. ★★★★★", fishing.top(-100))
         self.assertIn("пусто", fishing.bag(99))
 
 
+class TackleTests(FishingCase):
+    def test_bare_hands_hold_only_common_fish_and_say_what_got_away(self):
+        cast_id, delay = fishing.cast(-100, 1, "Angler", now=1000, rng=LEGENDARY)
+        fishing.bite(cast_id, 1000 + delay)
+        row, catch = fishing.strike(cast_id, 1, 1000 + delay + 1, rng=LEGENDARY)
+        self.assertIsNone(catch)
+        self.assertEqual(row["got_away"]["rarity"], "legendary")
+        self.assertEqual(fishing.get_cast(cast_id)["status"], "escaped")
+        self.assertEqual(fishing.angler(1), {"shells": 0, "gear": "hands"})
+        text_ru = fishing.too_big_text("Angler", "hands", row["got_away"], "ru")
+        self.assertIn("Голыми руками", text_ru)
+        self.assertIn("/fish_shop", text_ru)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT COUNT(*) FROM fishing_catches")).scalar_one(), 0)
+        # A miss, not a fish: only the short rest.
+        fishing.cast(-100, 1, "Angler", now=int(1000 + delay + 1) + fishing.MISS_COOLDOWN)
+
+    def test_each_rod_up_the_ladder_holds_one_rarity_more_and_the_wired_rod_holds_all(self):
+        self.assertEqual([fishing.GEAR[key]["holds"] for key in fishing.LADDER],
+                         ["common", "uncommon", "rare", "epic", "legendary"])
+        self.assertEqual(fishing.first_gear_for("trash"), "hands")
+        self.assertEqual(fishing.first_gear_for("legendary"), "wired")
+        self.equip("wired")
+        self.assertEqual(self.hooked(LEGENDARY)["rarity"], "legendary")
+
+    def test_a_landing_pays_shells_trash_too_and_a_trophy_double(self):
+        self.hooked(TRASH, now=1000)
+        self.assertEqual(fishing.angler(1)["shells"], fishing.SHELLS["trash"])
+        self.hooked(Fixed(270, size=0.95), now=2000)       # a trophy common fish
+        self.assertEqual(fishing.angler(1)["shells"], fishing.SHELLS["trash"] + 2 * fishing.SHELLS["common"])
+
+    def test_shells_buy_the_next_rod_and_never_more_than_they_cover(self):
+        self.equip("hands", shells=fishing.GEAR["hazel"]["price"] - 1)
+        with self.assertRaises(ValueError) as short:
+            fishing.buy(1, "hazel")
+        self.assertIn("Не хватает ракушек", str(short.exception))
+        self.equip("hands", shells=fishing.GEAR["hazel"]["price"] + 2)
+        self.assertEqual(fishing.buy(1, "hazel"), {"shells": 2, "gear": "hazel"})
+        with self.assertRaises(ValueError):
+            fishing.buy(1, "hazel")                       # already has it
+        with self.assertRaises(ValueError):
+            fishing.buy(1, "hands")
+
+    def test_the_cast_keeps_the_tackle_it_was_made_with(self):
+        cast_id, delay = fishing.cast(-100, 1, "Angler", now=1000, rng=COMMON)
+        self.equip("hazel")                                # bought while the line is in
+        fishing.bite(cast_id, 1000 + delay)
+        late_for_hands = 1000 + delay + fishing.GEAR["hands"]["window"] + 1
+        self.assertLess(late_for_hands - 1000 - delay, fishing.GEAR["hazel"]["window"])
+        self.assertIsNone(fishing.strike(cast_id, 1, late_for_hands, rng=COMMON)[1])
+
+    def test_anglers_from_before_shells_are_paid_for_their_catches_once(self):
+        self.hooked(COMMON, now=1000)
+        with self.engine.begin() as conn:
+            conn.execute(text("DELETE FROM fishing_anglers"))
+        fishing.ensure_schema()
+        fishing.ensure_schema()
+        self.assertEqual(fishing.angler(1), {"shells": fishing.SHELLS["common"], "gear": "hands"})
+
+    def test_the_shop_offers_only_rods_above_your_own(self):
+        self.equip("hazel", shells=5)
+        body, markup = fishing.shop(1, "Angler", "en")
+        self.assertIn("Angler: 🌿 hazel rod · 🐚 5", body)
+        offered = [row[0].callback_data for row in markup.inline_keyboard]
+        self.assertEqual(offered, ["fishshop:bamboo", "fishshop:carbon", "fishshop:wired"])
+
+
+class LanguageTests(FishingCase):
+    def test_a_cast_in_english_lands_an_english_card(self):
+        cast_id, delay = fishing.cast(-100, 1, "Angler", now=1000, rng=COMMON, lang="en")
+        fishing.bite(cast_id, 1000 + delay)
+        catch = fishing.strike(cast_id, 1, 1000 + delay + 1, rng=COMMON)[1]
+        card = fishing.caption(catch, wallet=WALLET, minting=True)
+        self.assertIn("✋ Catch — Angler", card)
+        self.assertIn("Minting the NFT to 0x0000…00A1", card)
+        self.assertIn("Next cast in", card)
+        self.assertEqual(fishing.weight(4210, "en"), "4.21 kg")
+
+    def test_rows_from_before_the_choice_stay_russian(self):
+        self.assertEqual(fishing._lang({"lang": None}), "ru")
+        self.assertIn("Леска оборвалась", fishing.lost_text({"lang": None, "gear": None}))
+
+
 class HandlerTests(FishingCase):
-    def test_a_cast_posts_the_float_and_someone_elses_strike_is_refused(self):
+    def update(self, language_code=None, chat_type="supergroup"):
         sent = SimpleNamespace(message_id=55)
         message = SimpleNamespace(message_id=50, sender_chat=None, reply_text=AsyncMock(return_value=sent))
-        update = SimpleNamespace(
-            effective_chat=SimpleNamespace(id=-100, type="supergroup"),
-            effective_user=SimpleNamespace(id=1, is_bot=False, full_name="Angler"),
+        return SimpleNamespace(
+            effective_chat=SimpleNamespace(id=-100, type=chat_type),
+            effective_user=SimpleNamespace(id=1, is_bot=False, full_name="Angler", language_code=language_code),
             effective_message=message,
         )
+
+    def cast_via_command(self, update):
         context = SimpleNamespace(args=[], bot=SimpleNamespace(), application=None)
         with patch.object(fishing, "_detach") as detach:
             asyncio.run(fishing.fish_command(update, context))
         detach.call_args.args[1].close()                 # the float task is not under test here
-        self.assertIn("закидывает удочку", message.reply_text.call_args.args[0])
+        return context
+
+    def test_a_cast_posts_the_line_and_someone_elses_strike_is_refused(self):
+        update = self.update("ru")
+        context = self.cast_via_command(update)
+        self.assertIn("заходит в воду", update.effective_message.reply_text.call_args.args[0])
 
         with self.engine.connect() as conn:
             cast = conn.execute(text("SELECT * FROM fishing_casts")).mappings().one()
-        self.assertEqual((cast["message_id"], cast["command_message_id"]), (55, 50))
+        self.assertEqual((cast["message_id"], cast["command_message_id"], cast["gear"], cast["lang"]),
+                         (55, 50, "hands", "ru"))
 
         query = SimpleNamespace(data=f"fish:{cast['id']}", from_user=SimpleNamespace(id=2), answer=AsyncMock())
         asyncio.run(fishing.fish_callback(SimpleNamespace(callback_query=query), context))
-        self.assertIn("Это удочка Angler", query.answer.call_args.args[0])
+        self.assertIn("That's Angler's cast", query.answer.call_args.args[0])
         self.assertTrue(query.answer.call_args.kwargs["show_alert"])
+
+    def test_the_chat_language_outranks_the_anglers_app(self):
+        from bot import language
+
+        language.set_chat_language(-100, "en", 7)
+        update = self.update("ru")
+        self.cast_via_command(update)
+        self.assertIn("wades in knee-deep", update.effective_message.reply_text.call_args.args[0])
+
+    def test_with_a_rod_the_cast_says_so(self):
+        self.equip("bamboo")
+        update = self.update("ru")
+        self.cast_via_command(update)
+        self.assertIn("закидывает бамбуковую удочку", update.effective_message.reply_text.call_args.args[0])
 
 
 if __name__ == "__main__":

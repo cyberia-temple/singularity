@@ -336,6 +336,7 @@ class SourceOrderTests(KvTestCase):
 def chat_message(sent_file_id="FILE-9"):
     return SimpleNamespace(
         chat_id=-100,
+        from_user=SimpleNamespace(is_bot=False, language_code="ru"),
         reply_text=AsyncMock(),
         reply_audio=AsyncMock(return_value=SimpleNamespace(audio=SimpleNamespace(file_id=sent_file_id))),
     )

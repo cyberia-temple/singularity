@@ -11,6 +11,7 @@ from sqlalchemy import text
 from telegram.error import TelegramError
 
 from bot import config, db
+from bot.language import T, lang_of, say, tr
 
 PREFIX = "chat_project:"
 SETUP_HINT = (
@@ -20,6 +21,21 @@ SETUP_HINT = (
     "/buybot setup cyber\n"
     "Solana alerts require a PumpSwap pool quoted in SOL."
 )
+SETUP_HINT_RU = (
+    "Администратор группы может настроить этот чат:\n"
+    "/buybot setup solana <mint> <символ> [название]\n"
+    "/buybot setup lain\n"
+    "/buybot setup cyber\n"
+    "Для уведомлений Solana нужен пул PumpSwap в паре с SOL."
+)
+
+
+def setup_hint(lang="en"):
+    return tr(lang, SETUP_HINT_RU, SETUP_HINT)
+
+
+def _no_token():
+    return T("Для этого чата не настроен токен.\n" + SETUP_HINT_RU, "No token is configured for this chat.\n" + SETUP_HINT)
 FIELDS = {
     "name", "symbol", "x", "website", "telegram", "channel", "roadmap",
     "photo", "trade", "chart", "min_usd", "emoji", "emoji_usd",
@@ -114,12 +130,12 @@ def for_chat(chat) -> dict | None:
     return None
 
 
-def ca_reply(project: dict | None) -> str:
+def ca_reply(project: dict | None, lang: str = "en") -> str:
     if not project:
-        return html.escape("No token is configured for this chat.\n" + SETUP_HINT)
+        return html.escape(_no_token()(lang))
     label = html.escape(project["symbol"])
     address = html.escape(project["address"])
-    lines = [f"📜 {label} contract address:"]
+    lines = [tr(lang, f"📜 Адрес контракта {label}:", f"📜 {label} contract address:")]
     if project.get("cyber"):
         if config.CYBER_CA_SOLANA:
             lines.append(f"Solana ({label}): <code>{html.escape(config.CYBER_CA_SOLANA)}</code>")
@@ -133,13 +149,14 @@ def ca_reply(project: dict | None) -> str:
     return "\n".join(lines)
 
 
-def x_reply(project: dict | None) -> str:
+def x_reply(project: dict | None, lang: str = "en") -> str:
     if not project:
-        return "No project is configured for this chat.\n" + SETUP_HINT
+        return tr(lang, "Для этого чата не настроен проект.\n", "No project is configured for this chat.\n") + setup_hint(lang)
     lines = [f"{label}: {project[field]}" for label, field in (
-        ("𝕏 (Twitter)", "x"), ("Channel", "channel"), ("Chat", "telegram")
+        ("𝕏 (Twitter)", "x"), (tr(lang, "Канал", "Channel"), "channel"), (tr(lang, "Чат", "Chat"), "telegram")
     ) if project.get(field)]
-    return "\n".join(lines) or "Social links are not configured for this chat."
+    return "\n".join(lines) or tr(lang, "Ссылки на соцсети для этого чата не настроены.",
+                                   "Social links are not configured for this chat.")
 
 
 def _valid_mint(value: str) -> bool:
@@ -154,9 +171,11 @@ def _valid_mint(value: str) -> bool:
 
 def _setting(project: dict, field: str, value: str) -> dict:
     if field not in FIELDS:
-        raise ValueError("Available settings: " + ", ".join(sorted(FIELDS)))
+        settings = ", ".join(sorted(FIELDS))
+        raise ValueError(T("Доступные настройки: " + settings, "Available settings: " + settings))
     if project["chain"] != "solana" and field in {"min_usd", "emoji", "emoji_usd", "symbol", "name"}:
-        raise ValueError("LAIN alerts use the verified pool identity and ETH minimum.")
+        raise ValueError(T("Уведомления LAIN берут проверенные данные пула и минимум в ETH.",
+                           "LAIN alerts use the verified pool identity and ETH minimum."))
     if field in URL_FIELDS:
         if value.lower() == "off":
             value = ""
@@ -164,18 +183,21 @@ def _setting(project: dict, field: str, value: str) -> dict:
             parsed = urlsplit(value)
             if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
                     or re.search(r"[\s\x00-\x1f\x7f]", value) or len(value) > 256):
-                raise ValueError("Use an HTTPS URL, or off to remove the link.")
+                raise ValueError(T("Нужна ссылка HTTPS или off, чтобы убрать её.",
+                                   "Use an HTTPS URL, or off to remove the link."))
     elif field in {"min_usd", "emoji_usd"}:
         try:
             value = float(value)
         except ValueError:
-            raise ValueError("Use a finite nonnegative number.") from None
+            raise ValueError(T("Нужно конечное неотрицательное число.", "Use a finite nonnegative number.")) from None
         if not math.isfinite(value) or value < 0 or (field == "emoji_usd" and value == 0):
-            raise ValueError("Use a finite nonnegative number; emoji_usd must be positive.")
+            raise ValueError(T("Нужно конечное неотрицательное число; emoji_usd — больше нуля.",
+                               "Use a finite nonnegative number; emoji_usd must be positive."))
     else:
         limit = {"symbol": 16, "name": 64, "emoji": 8}[field]
         if not value or len(value) > limit or any(ord(char) < 32 for char in value):
-            raise ValueError(f"{field} must contain 1–{limit} characters without line breaks.")
+            raise ValueError(T(f"{field}: от 1 до {limit} символов без переносов строк.",
+                               f"{field} must contain 1–{limit} characters without line breaks."))
     return dict(project, **{field: value})
 
 
@@ -184,16 +206,20 @@ async def command(update, context):
     chat, user, message = update.effective_chat, update.effective_user, update.effective_message
     if not chat or not user or not message:
         return
+    lang = lang_of(update)
     if chat.type not in ("group", "supergroup"):
-        await message.reply_text("Configure buy alerts inside the group they belong to.\n" + SETUP_HINT)
+        await message.reply_text(tr(lang, "Уведомления о покупках настраиваются в той группе, к которой они относятся.\n",
+                                    "Configure buy alerts inside the group they belong to.\n") + setup_hint(lang))
         return
     try:
         member = await context.bot.get_chat_member(chat.id, user.id)
     except TelegramError:
-        await message.reply_text("Could not verify administrator permissions. Please try again.")
+        await message.reply_text(tr(lang, "Не удалось проверить права администратора. Попробуйте ещё раз.",
+                                    "Could not verify administrator permissions. Please try again."))
         return
     if member.status not in ("creator", "administrator"):
-        await message.reply_text("Only group administrators can change buybot settings.")
+        await message.reply_text(tr(lang, "Настройки buybot меняют только администраторы группы.",
+                                    "Only group administrators can change buybot settings."))
         return
     args = context.args
     action = args[0].lower() if args else "status"
@@ -207,22 +233,29 @@ async def command(update, context):
                 project = solana_project(args[2], args[3], " ".join(args[4:]) or args[3])
                 project = _setting(_setting(project, "symbol", project["symbol"]), "name", project["name"])
             else:
-                raise ValueError(SETUP_HINT)
+                raise ValueError(T(SETUP_HINT_RU, SETUP_HINT))
             save(chat.id, project)
-            await message.reply_text(
+            await message.reply_text(tr(
+                lang,
+                f"{project['symbol']} настроен для этой группы. Уведомления выключены.\n"
+                "Ссылки: /buybot set x https://x.com/your_project\n"
+                "Включить уведомления о новых покупках: /buybot on.",
                 f"{project['symbol']} is configured for this group. Alerts are disabled.\n"
                 "Set links with /buybot set x https://x.com/your_project\n"
-                "Enable new-purchase alerts with /buybot on."
-            )
+                "Enable new-purchase alerts with /buybot on.",
+            ))
             return
         if not project:
-            raise ValueError("No token is configured for this chat.\n" + SETUP_HINT)
+            raise ValueError(_no_token())
         if action == "set":
             if len(args) < 3:
-                raise ValueError("/buybot set <field> <value|off>\nSettings: " + ", ".join(sorted(FIELDS)))
+                settings = ", ".join(sorted(FIELDS))
+                raise ValueError(T("/buybot set <поле> <значение|off>\nНастройки: " + settings,
+                                   "/buybot set <field> <value|off>\nSettings: " + settings))
             project = _setting(project, args[1].lower(), " ".join(args[2:]))
             save(chat.id, project)
-            await message.reply_text(f"Updated {args[1].lower()} for this group.")
+            await message.reply_text(tr(lang, f"{args[1].lower()} обновлено для этой группы.",
+                                        f"Updated {args[1].lower()} for this group."))
             return
         if action not in {"on", "off", "status", "reset", "preview"}:
             raise ValueError("/buybot setup · set · on · off · status · reset · preview")
@@ -234,7 +267,8 @@ async def command(update, context):
         if action == "preview":
             market = await asyncio.to_thread(pumpfun.market_snapshot, project["address"])
             if not market or not market.get("pool"):
-                raise ValueError("No SOL-quoted PumpSwap pool is available for this token yet.")
+                raise ValueError(T("Для этого токена пока нет пула PumpSwap в паре с SOL.",
+                                   "No SOL-quoted PumpSwap pool is available for this token yet."))
             rows = await asyncio.to_thread(pumpfun._signatures, market["pool"], 20)
             for row in rows:
                 tx = await asyncio.to_thread(pumpfun._get_transaction, row["signature"])
@@ -244,11 +278,13 @@ async def command(update, context):
                                            buy["sol_amount"] * market["sol_usd"], None,
                                            preview=True, project=project)
                     return
-            raise ValueError("No verified purchase was found in the latest 20 pool transactions.")
+            raise ValueError(T("В последних 20 транзакциях пула не нашлось подтверждённой покупки.",
+                               "No verified purchase was found in the latest 20 pool transactions."))
         if action == "reset" or (action == "on" and not project.get("enabled")):
             market = await asyncio.to_thread(pumpfun.market_snapshot, project["address"])
             if not market or not market.get("pool"):
-                raise ValueError("No SOL-quoted PumpSwap pool is available. Settings were not changed.")
+                raise ValueError(T("Нет пула PumpSwap в паре с SOL. Настройки не изменены.",
+                                   "No SOL-quoted PumpSwap pool is available. Settings were not changed."))
             cursor = await asyncio.to_thread(pumpfun.head_cursor, market["pool"])
             project = dict(project, enabled=True, epoch=uuid.uuid4().hex,
                            pool=market["pool"])
@@ -263,13 +299,20 @@ async def command(update, context):
                 f"{field}: {project.get(field) or 'off'}"
                 for field in sorted(FIELDS - {"symbol", "min_usd"})
             )
-        await message.reply_text(
-            f"{project['symbol']} buybot: {'enabled' if project.get('enabled') else 'disabled'} in this group.\n"
+        enabled = project.get("enabled")
+        await message.reply_text(tr(
+            lang,
+            f"{project['symbol']} buybot в этой группе: {'включён' if enabled else 'выключен'}.\n"
+            f"Solana · {project['address']}\nМинимум: ${project['min_usd']:g}\n"
+            "/buybot setup · set · on · off · status · reset · preview\n"
+            "После включения объявляются только новые покупки.",
+            f"{project['symbol']} buybot: {'enabled' if enabled else 'disabled'} in this group.\n"
             f"Solana · {project['address']}\nMinimum: ${project['min_usd']:g}\n"
             "/buybot setup · set · on · off · status · reset · preview\n"
-            "Only new purchases are announced after enabling alerts." + details
-        )
+            "Only new purchases are announced after enabling alerts.",
+        ) + details)
     except ValueError as error:
-        await message.reply_text(str(error))
+        await message.reply_text(say(lang, error))
     except Exception:
-        await message.reply_text("The chain or market feed is unavailable. Please try again later.")
+        await message.reply_text(tr(lang, "Сеть или рыночные данные недоступны. Попробуйте позже.",
+                                    "The chain or market feed is unavailable. Please try again later."))

@@ -21,6 +21,7 @@ from telegram.ext import Application, ContextTypes
 
 from bot.config import WALLET_MINI_APP_URL
 from bot.db import engine
+from bot.language import T, lang_for, lang_of, tr
 
 logger = logging.getLogger(__name__)
 
@@ -87,44 +88,52 @@ def wallet_url(path: str | None) -> str:
 
 # What the button under a nudge says, by the outbox row's `kind`. A reminder
 # opens the Daily screen; a "somebody wrote to you" opens the wallet's chat.
-OPEN_LABELS = {"chat.message": "Открыть чат"}
+OPEN_LABELS = {"chat.message": T("Открыть чат", "Open chat")}
+OPEN_DAILY = T("Открыть Daily", "Open Daily")
 
 
-def reminder_markup(path: str | None, kind: str | None = None) -> InlineKeyboardMarkup:
-    label = OPEN_LABELS.get(kind or "", "Открыть Daily")
+def reminder_markup(path: str | None, kind: str | None = None, lang: str = "ru") -> InlineKeyboardMarkup:
+    label = OPEN_LABELS.get(kind or "", OPEN_DAILY)(lang)
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(label, web_app=WebAppInfo(url=wallet_url(path)))],
-        [InlineKeyboardButton("Выключить напоминания", callback_data=OFF_CALLBACK)],
+        [InlineKeyboardButton(tr(lang, "Выключить напоминания", "Turn reminders off"), callback_data=OFF_CALLBACK)],
     ])
 
 
-OPTED_IN_TEXT = (
+OPTED_IN_TEXT = T(
     "Напоминания включены. Раз в день, не больше: если серия прерывается сегодня "
     "или до выполнения дневного задания остался шаг. Выключить — /remind off.\n\n"
-    "Напоминания приходят, если этот Telegram связан с кошельком: /set_wallet."
+    "Напоминания приходят, если этот Telegram связан с кошельком: /set_wallet.",
+    "Reminders are on. Once a day at most: when your streak breaks today "
+    "or the daily quest is one step from done. Turn them off: /remind off.\n\n"
+    "Reminders arrive when this Telegram is linked to a wallet: /set_wallet.",
 )
+REMINDERS_ON = T("Напоминания включены.", "Reminders are on.")
+REMINDERS_OFF = T("Напоминания выключены.", "Reminders are off.")
 
 
 async def remind_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """`/remind`, `/remind on`, `/remind off` — private chats only."""
     chat = update.effective_chat
     user = update.effective_user
+    lang = lang_of(update)
     if chat is None or user is None or chat.type != "private":
-        await update.message.reply_text("Напоминания настраиваются в личном чате с ботом.")
+        await update.message.reply_text(tr(lang, "Напоминания настраиваются в личном чате с ботом.",
+                                           "Reminders are set up in a private chat with the bot."))
         return
 
     arg = (context.args[0].lower() if context.args else "on")
     if arg == "off":
         set_optin(user.id, False)
-        await update.message.reply_text("Напоминания выключены.")
+        await update.message.reply_text(REMINDERS_OFF(lang))
         return
     if arg == "status":
         on = is_opted_in(user.id)
-        await update.message.reply_text("Напоминания включены." if on else "Напоминания выключены.")
+        await update.message.reply_text((REMINDERS_ON if on else REMINDERS_OFF)(lang))
         return
 
     set_optin(user.id, True)
-    await update.message.reply_text(OPTED_IN_TEXT)
+    await update.message.reply_text(OPTED_IN_TEXT(lang))
 
 
 async def remind_off_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -132,7 +141,8 @@ async def remind_off_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query is None or query.from_user is None:
         return
     set_optin(query.from_user.id, False)
-    await query.answer("Уведомления выключены. Включить — /remind.")
+    await query.answer(tr(lang_of(update), "Уведомления выключены. Включить — /remind.",
+                          "Notifications are off. Turn them on: /remind."))
 
 
 async def deliver_pending(bot) -> int:
@@ -150,7 +160,8 @@ async def deliver_pending(bot) -> int:
             error = "opted_out"
         else:
             try:
-                await bot.send_message(chat_id=tg_user_id, text=body, reply_markup=reminder_markup(url, kind))
+                await bot.send_message(chat_id=tg_user_id, text=body,
+                                       reply_markup=reminder_markup(url, kind, lang_for(tg_user_id, fallback="ru")))
                 sent += 1
             except TelegramError as exc:
                 # Blocked the bot, never started it, deleted account: recorded,

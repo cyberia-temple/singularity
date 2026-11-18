@@ -29,6 +29,10 @@ from bot.config import (
     RPC_URL, CHAIN_ID, DEPLOYER_PK, EXPLORER_URL,
 )
 from bot.utils import is_valid_eth_address
+from bot.language import T, lang_of, tr
+
+DM_ONLY = T("Отправьте мне эту команду в личку.", "DM me this command in private.")
+INTERNAL_ERROR = T("Внутренняя ошибка. Попробуйте ещё раз.", "Internal error. Try again.")
 from bot.db import (
     _post_nft_seen, _record_post_nft,
     _set_channel_wallet, _get_channel_wallet,
@@ -328,39 +332,49 @@ async def set_channel_wallet_command(update: Update, context: ContextTypes.DEFAU
     user = update.effective_user
     if chat is None or user is None:
         return
+    lang = lang_of(update)
     if chat.type != "private":
-        await update.message.reply_text("DM me this command in private.")
+        await update.message.reply_text(DM_ONLY(lang))
         return
 
     args = context.args or []
     if len(args) < 2:
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "Как: /set_channel_wallet <@канал> <0xадрес>\n"
+            "Пример: /set_channel_wallet @anarcho_autism 0x1234...abcd\n"
+            "Вы должны быть админом этого канала, и бот тоже должен быть там админом.",
             "Usage: /set_channel_wallet <@channel> <0xaddress>\n"
             "Example: /set_channel_wallet @anarcho_autism 0x1234...abcd\n"
-            "You must be an admin of that channel, and the bot must be an admin there too."
-        )
+            "You must be an admin of that channel, and the bot must be an admin there too.",
+        ))
         return
 
     address = args[1].strip()
     if not is_valid_eth_address(address):
-        await update.message.reply_text("Invalid address. Expected 0x followed by 40 hex characters.")
+        await update.message.reply_text(tr(lang, "Неверный адрес. Нужен 0x и 40 шестнадцатеричных символов.",
+                                           "Invalid address. Expected 0x followed by 40 hex characters."))
         return
     try:
         address = Web3.to_checksum_address(address)
     except Exception:
-        await update.message.reply_text("Invalid address.")
+        await update.message.reply_text(tr(lang, "Неверный адрес.", "Invalid address."))
         return
 
     channel = await _resolve_channel(context, args[0])
     if channel is None or channel.type != "channel":
-        await update.message.reply_text(
+        await update.message.reply_text(tr(
+            lang,
+            "Не нашёл такой канал. Проверьте, что бот в нём админ и что вы "
+            "указали его @username (или числовой id).",
             "Couldn't find that channel. Make sure the bot is an admin of it and "
-            "you passed its @username (or numeric id)."
-        )
+            "you passed its @username (or numeric id).",
+        ))
         return
 
     if not await _is_channel_admin(context, channel.id, user.id):
-        await update.message.reply_text("Only an admin of that channel can set its wallet.")
+        await update.message.reply_text(tr(lang, "Кошелёк канала может задать только его админ.",
+                                           "Only an admin of that channel can set its wallet."))
         logger.warning(
             "nft: unauthorized set_channel_wallet by user_id=%s for channel=%s",
             user.id, channel.id,
@@ -372,14 +386,14 @@ async def set_channel_wallet_command(update: Update, context: ContextTypes.DEFAU
         _set_channel_wallet(channel.id, label, address, user.id)
     except Exception as e:
         logger.error(f"nft: set_channel_wallet db error: {e}")
-        await update.message.reply_text("Internal error. Try again.")
+        await update.message.reply_text(INTERNAL_ERROR(lang))
         return
 
-    await update.message.reply_text(
-        f"Wallet set for {label}.\n"
-        f"New posts there will be minted as NFTs and sent to:\n{address}\n"
-        f"{EXPLORER_URL}/address/{address}"
-    )
+    await update.message.reply_text(tr(
+        lang,
+        f"Кошелёк для {label} задан.\nНовые посты там станут NFT и уйдут на:\n{address}\n",
+        f"Wallet set for {label}.\nNew posts there will be minted as NFTs and sent to:\n{address}\n",
+    ) + f"{EXPLORER_URL}/address/{address}")
 
 
 async def channel_wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -387,29 +401,32 @@ async def channel_wallet_command(update: Update, context: ContextTypes.DEFAULT_T
     (admins only). DM only."""
     chat = update.effective_chat
     user = update.effective_user
+    lang = lang_of(update)
     if chat is None or user is None or chat.type != "private":
         if chat is not None and chat.type != "private":
-            await update.message.reply_text("DM me this command in private.")
+            await update.message.reply_text(DM_ONLY(lang))
         return
 
     args = context.args or []
     if not args:
-        await update.message.reply_text("Usage: /channel_wallet <@channel>")
+        await update.message.reply_text(tr(lang, "Как: /channel_wallet <@канал>", "Usage: /channel_wallet <@channel>"))
         return
 
     channel = await _resolve_channel(context, args[0])
     if channel is None or channel.type != "channel":
-        await update.message.reply_text("Couldn't find that channel.")
+        await update.message.reply_text(tr(lang, "Не нашёл такой канал.", "Couldn't find that channel."))
         return
     if not await _is_channel_admin(context, channel.id, user.id):
-        await update.message.reply_text("Only an admin of that channel can view its wallet.")
+        await update.message.reply_text(tr(lang, "Кошелёк канала может смотреть только его админ.",
+                                           "Only an admin of that channel can view its wallet."))
         return
 
     label = f"@{channel.username}" if channel.username else (channel.title or str(channel.id))
     address = _get_channel_wallet(channel.id)
     if not address:
-        await update.message.reply_text(
-            f"No wallet set for {label}. Set one with /set_channel_wallet {label} 0x..."
-        )
+        await update.message.reply_text(tr(
+            lang, f"Для {label} кошелёк не задан. Задать: /set_channel_wallet {label} 0x...",
+            f"No wallet set for {label}. Set one with /set_channel_wallet {label} 0x...",
+        ))
         return
     await update.message.reply_text(f"{label} -> {address}\n{EXPLORER_URL}/address/{address}")

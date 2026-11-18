@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import create_engine, text
 
-from bot import db, slots, stakes
+from bot import db, slots, stakes, language
 
 JACKPOT = 64          # 7️⃣ 7️⃣ 7️⃣   ×28
 BARS = 1              # BAR BAR BAR  ×13
@@ -110,6 +110,7 @@ class SlotsCase(unittest.TestCase):
                 for user in (1, 2, 3):
                     stakes.credit(conn, chat, user, 1000 * stakes.UNIT)
         slots.fund(-100, 3, 900 * stakes.UNIT)   # user 3 is the chat's admin.
+        language.set_chat_language(-100, 'ru')   # a Russian chat; -200 is left on auto.
 
     def balance(self, user, chat=-100):
         with self.engine.connect() as conn:
@@ -295,11 +296,11 @@ class SlotsBankTests(SlotsCase):
 class SlotsCommandTests(SlotsCase):
     def command(self, args, user_id=1, dice=LEMONS, chat_type='supergroup',
                 send_dice=None, admin=False, sender_chat=None, effective_user=True,
-                administrators=None):
+                administrators=None, chat_id=-100):
         msg = SimpleNamespace(sender_chat=sender_chat, message_id=5, reply_text=AsyncMock())
         update = SimpleNamespace(
             effective_message=msg,
-            effective_chat=SimpleNamespace(id=-100, type=chat_type),
+            effective_chat=SimpleNamespace(id=chat_id, type=chat_type),
             effective_user=(SimpleNamespace(id=user_id, is_bot=False, name=f'@u{user_id}')
                             if effective_user else None),
         )
@@ -375,6 +376,10 @@ class SlotsCommandTests(SlotsCase):
             self.run_slots(['10'], send_dice=AsyncMock(side_effect=TelegramError('offline')))
         self.assertEqual(self.balance(1), 1000 * stakes.UNIT)
         self.assertEqual(slots.bank(-100)[1], 0)
+
+    def test_a_chat_on_auto_answers_in_the_players_own_language(self):
+        msg, _ = self.run_slots([], chat_id=-200)       # no language_code: English
+        self.assertIn('Returns 93.75%', msg.reply_text.await_args.args[0])
 
     def test_the_machine_is_a_group_fixture(self):
         msg, bot = self.run_slots(['10'], chat_type='private')

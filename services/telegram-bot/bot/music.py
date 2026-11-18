@@ -58,6 +58,7 @@ from bot.config import (
 )
 from bot.db import _kv_get, _kv_set
 from bot.handlers import is_chat_admin
+from bot.language import T, lang_for, lang_of, tr
 
 logger = logging.getLogger(__name__)
 
@@ -791,14 +792,19 @@ def _filename(track: Track) -> str:
     return " ".join(name.split())[:120] + ".mp3"
 
 
-def _caption(found: Found) -> str | None:
+def _yandex(lang: str) -> str:
+    return tr(lang, "Яндекс Музыка", "Yandex Music")
+
+
+def _caption(found: Found, lang: str = "ru") -> str | None:
     track = found.track
     link = (
-        f'<a href="{html.escape(track.page_url, quote=True)}">Яндекс Музыка</a>'
+        f'<a href="{html.escape(track.page_url, quote=True)}">{_yandex(lang)}</a>'
         if track.source == "yandex" and track.page_url else ""
     )
     if found.preview:
-        return "Фрагмент 30 секунд: целиком трек не нашёлся." + (f" {link}" if link else "")
+        return tr(lang, "Фрагмент 30 секунд: целиком трек не нашёлся.",
+                  "A 30-second preview: the whole track wasn't found.") + (f" {link}" if link else "")
     return link or None
 
 
@@ -812,9 +818,9 @@ async def _keep_uploading(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> N
         await asyncio.sleep(4.5)
 
 
-async def _send(message: Message, found: Found, finder: MusicFinder) -> None:
+async def _send(message: Message, found: Found, finder: MusicFinder, lang: str = "ru") -> None:
     track = found.track
-    caption = _caption(found)
+    caption = _caption(found, lang)
     if found.file_id:
         await message.reply_audio(audio=found.file_id, caption=caption, parse_mode=ParseMode.HTML)
         return
@@ -855,19 +861,21 @@ async def deliver(
 ) -> bool:
     """Find the song and post it as a reply. A bare line that finds nothing stays silent."""
     finder = finder or get_finder()
+    lang = lang_for(getattr(message, "chat_id", None), getattr(message, "from_user", None))
     async with _DELIVERY_SLOTS:
         try:
             track = await finder.find(request, explicit)
         except Unavailable:
             if explicit:
-                await message.reply_text("Музыка сейчас недоступна, попробуй чуть позже.")
+                await message.reply_text(tr(lang, "Музыка сейчас недоступна, попробуй чуть позже.",
+                                            "Music is unavailable right now, try again a bit later."))
             return False
         if track is None:
             if explicit:
                 await message.reply_text(
-                    "Трек по ссылке не открылся."
+                    tr(lang, "Трек по ссылке не открылся.", "The track behind that link didn't open.")
                     if request.kind != "query"
-                    else f"Не нашёл «{request.query}»."
+                    else tr(lang, f"Не нашёл «{request.query}».", f"Couldn't find «{request.query}».")
                 )
             return False
 
@@ -878,21 +886,24 @@ async def deliver(
                 if explicit:
                     name = html.escape(f"{track.performer} — {track.full_title}")
                     where = (
-                        f' Послушать: <a href="{html.escape(track.page_url, quote=True)}">Яндекс Музыка</a>'
+                        tr(lang, " Послушать: ", " Listen: ")
+                        + f'<a href="{html.escape(track.page_url, quote=True)}">{_yandex(lang)}</a>'
                         if track.page_url else ""
                     )
                     await message.reply_text(
-                        f"Нашёл «{name}», но файл достать не вышло.{where}",
+                        tr(lang, f"Нашёл «{name}», но файл достать не вышло.{where}",
+                           f"Found «{name}», but couldn't get the file.{where}"),
                         parse_mode=ParseMode.HTML,
                         disable_web_page_preview=True,
                     )
                 return False
             try:
-                await _send(message, found, finder)
+                await _send(message, found, finder, lang)
             except TelegramError as error:
                 logger.warning("music: sending %s failed: %s", _cache_key(track), error)
                 if explicit:
-                    await message.reply_text("Нашёл трек, но Telegram не принял файл.")
+                    await message.reply_text(tr(lang, "Нашёл трек, но Telegram не принял файл.",
+                                                "Found the track, but Telegram refused the file."))
                 return False
             return True
         finally:
@@ -919,9 +930,11 @@ async def music_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     await deliver(message, context, request, explicit)
 
 
-TRACK_USAGE = (
+TRACK_USAGE = T(
     "Пришли «Исполнитель — Название» или ссылку на трек в Яндекс Музыке или VK, "
-    "например: /track Кино — Группа крови"
+    "например: /track Кино — Группа крови",
+    "Send «Artist — Title» or a Yandex Music or VK track link, "
+    "for example: /track Kino — Gruppa krovi",
 )
 
 
@@ -940,7 +953,7 @@ async def track_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     break
     request = query_request(text)
     if request is None:
-        await message.reply_text(TRACK_USAGE)
+        await message.reply_text(TRACK_USAGE(lang_of(update)))
         return
     await deliver(message, context, request, explicit=True)
 
@@ -951,29 +964,41 @@ async def music_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     chat = update.effective_chat
     if message is None or chat is None:
         return
+    lang = lang_of(update)
     choice = (context.args[0].lower() if context.args else "")
     if choice in ("on", "off"):
         if not await is_chat_admin(update, context):
-            await message.reply_text("Включать и выключать автопоиск могут только админы чата.")
+            await message.reply_text(tr(lang, "Включать и выключать автопоиск могут только админы чата.",
+                                        "Only chat admins can switch auto-search on and off."))
             return
         _kv_set(_auto_key(chat.id), "1" if choice == "on" else "0")
         await message.reply_text(
-            "Автопоиск включён: на строку «Исполнитель — Название» пришлю трек, если найду именно его."
+            tr(lang, "Автопоиск включён: на строку «Исполнитель — Название» пришлю трек, если найду именно его.",
+               "Auto-search is on: for an «Artist — Title» line I'll send the track if I find exactly that one.")
             if choice == "on"
-            else "Автопоиск выключен. Ссылки на треки и /track работают как раньше."
+            else tr(lang, "Автопоиск выключен. Ссылки на треки и /track работают как раньше.",
+                    "Auto-search is off. Track links and /track work as before.")
         )
         return
 
     yandex = (
-        "целиком" if YANDEX_MUSIC_TOKEN else "без токена, только 30-секундные фрагменты"
-    ) + (", через прокси" if YANDEX_MUSIC_PROXY_URL else "")
-    vk = "подключён" if VK_AUDIO_TOKEN else "не подключён"
-    auto = "включён" if auto_detect_enabled(chat.id) else "выключен"
-    await message.reply_text(
+        tr(lang, "целиком", "whole tracks") if YANDEX_MUSIC_TOKEN
+        else tr(lang, "без токена, только 30-секундные фрагменты", "no token, 30-second previews only")
+    ) + (tr(lang, ", через прокси", ", through a proxy") if YANDEX_MUSIC_PROXY_URL else "")
+    vk = tr(lang, "подключён", "connected") if VK_AUDIO_TOKEN else tr(lang, "не подключён", "not connected")
+    auto = tr(lang, "включён", "on") if auto_detect_enabled(chat.id) else tr(lang, "выключен", "off")
+    await message.reply_text(tr(
+        lang,
         "🎵 Музыка\n"
         "• Ссылка на трек в Яндекс Музыке или VK — пришлю сам трек.\n"
         "• /track Исполнитель — Название — найду и пришлю.\n"
         f"• Просто строка «Исполнитель — Название» в чате (автопоиск {auto}; "
         "админы: /music on, /music off).\n\n"
-        f"Источники: Яндекс Музыка — {yandex}; VK — {vk}."
-    )
+        f"Источники: Яндекс Музыка — {yandex}; VK — {vk}.",
+        "🎵 Music\n"
+        "• A Yandex Music or VK track link — I'll send the track itself.\n"
+        "• /track Artist — Title — I'll find it and send it.\n"
+        f"• Just an «Artist — Title» line in the chat (auto-search {auto}; "
+        "admins: /music on, /music off).\n\n"
+        f"Sources: Yandex Music — {yandex}; VK — {vk}.",
+    ))

@@ -29,6 +29,7 @@ from telegram import Dice
 from telegram.error import TelegramError
 
 from bot.db import engine
+from bot.language import T, lang_of, say, tr
 from bot.stakes import UNIT, amount, chat_token, credit, parse_stake, seen, transaction  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -125,26 +126,29 @@ def rtp():
     return sum(multiplier(value) for value in range(1, OUTCOMES + 1)) / OUTCOMES
 
 
-def combo(value):
+def combo(value, lang="ru"):
     """The line as it reads in the chat: the symbols, then what they are."""
     kind, face = shape(value)
     line = " ".join(FACES[pick] for pick in reels(value))
     times = multiplier(value)
     if not times:
-        return f"{line} — мимо"
+        return f"{line} — " + tr(lang, "мимо", "no luck")
     if kind == "three":
-        return f"{line} — {'ДЖЕКПОТ' if face == 3 else 'три в ряд'} ×{times}"
-    return f"{line} — пара семёрок, ставка назад" if times == 1 else f"{line} — пара семёрок ×{times}"
+        what = tr(lang, "ДЖЕКПОТ", "JACKPOT") if face == 3 else tr(lang, "три в ряд", "three in a row")
+        return f"{line} — {what} ×{times}"
+    if times == 1:
+        return f"{line} — " + tr(lang, "пара семёрок, ставка назад", "two sevens, stake back")
+    return f"{line} — " + tr(lang, f"пара семёрок ×{times}", f"two sevens ×{times}")
 
 
-def paytable():
+def paytable(lang="ru"):
     """The table as printed, richest first, one line per paying combination."""
     rows = []
     for (kind, face), times in sorted(WINS.items(), key=lambda item: -item[1]):
         symbol = FACES[face]
-        prize = "ставка назад" if times == 1 else f"×{times}"
+        prize = tr(lang, "ставка назад", "stake back") if times == 1 else f"×{times}"
         rows.append(f"{' '.join([symbol] * 3)} — {prize}" if kind == "three"
-                    else f"{symbol} {symbol} + любой — {prize}")
+                    else f"{symbol} {symbol} + " + tr(lang, "любой", "any") + f" — {prize}")
     return "\n".join(rows)
 
 
@@ -209,20 +213,25 @@ def reserve(chat, user, stake, now=None, display_name=None):
             "ORDER BY id DESC LIMIT 1"
         ), {"c": chat, "u": user}).mappings().first()
         if last and last["status"] == "spinning" and now - last["created_at"] < STUCK:
-            raise ValueError("Барабаны ещё крутятся.")
+            raise ValueError(T("Барабаны ещё крутятся.", "The reels are still spinning."))
         if last and now - last["created_at"] < COOLDOWN:
-            raise ValueError(f"Не так быстро — {COOLDOWN} секунд между спинами.")
+            raise ValueError(T(f"Не так быстро — {COOLDOWN} секунд между спинами.",
+                               f"Not so fast — {COOLDOWN} seconds between spins."))
 
         balance, reserved, _ = _bank(conn, chat, symbol)
         allowed = largest_stake(balance - reserved)
         if stake > allowed:
-            raise ValueError(
+            raise ValueError(T(
                 f"Касса не потянет джекпот с такой ставки. Сейчас максимум "
                 f"{amount(allowed)} {symbol} (в кассе {amount(balance - reserved)}). "
-                "Пополнить: /slots_bank."
-                if allowed else
-                f"Касса автомата пуста, играть не на что. Пополнить: /slots_bank <сумма>."
-            )
+                "Пополнить: /slots_bank.",
+                f"The till couldn't pay a jackpot on that stake. The most it takes now is "
+                f"{amount(allowed)} {symbol} (the till holds {amount(balance - reserved)}). "
+                "Top it up: /slots_bank.",
+            ) if allowed else T(
+                "Касса автомата пуста, играть не на что. Пополнить: /slots_bank <сумма>.",
+                "The machine's till is empty, nothing to play for. Top it up: /slots_bank <amount>.",
+            ))
 
         credit(conn, chat, user, -stake)
         seen(conn, chat, user)
@@ -240,7 +249,7 @@ def settle(spin_id, value):
     with transaction() as conn:
         spin = conn.execute(text("SELECT * FROM slots_spins WHERE id=:id"), {"id": spin_id}).mappings().first()
         if not spin:
-            raise ValueError("Спин не найден.")
+            raise ValueError(T("Спин не найден.", "No such spin."))
         if spin["status"] != "spinning":
             return dict(spin)  # Already settled or already refunded; never both.
 
@@ -282,49 +291,58 @@ def sweep(conn, now):
 
 
 # --- messages -------------------------------------------------------------------
-def machine(chat, user=None):
+def machine(chat, user=None, lang="ru"):
     """The machine standing there: what it pays, what is in the till, what you
     may bet. This is also every refusal's explanation, so it is one text."""
     balance, reserved, symbol, allowed = bank(chat)
-    symbol = symbol or "токен чата"
+    symbol = symbol or tr(lang, "токен чата", "chat token")
+    till = f"{amount(balance - reserved)} {symbol}"
     lines = [
-        "🎰 Слоты",
-        f"Касса чата: {amount(balance - reserved)} {symbol}",
-        f"Максимальная ставка: {amount(allowed)} {symbol}" if allowed else
-        "Касса пуста — автомат закрыт. Пополнить: /slots_bank <сумма>",
+        tr(lang, "🎰 Слоты", "🎰 Slots"),
+        tr(lang, f"Касса чата: {till}", f"The chat's till: {till}"),
+        tr(lang, f"Максимальная ставка: {amount(allowed)} {symbol}", f"Largest stake: {amount(allowed)} {symbol}")
+        if allowed else tr(lang, "Касса пуста — автомат закрыт. Пополнить: /slots_bank <сумма>",
+                           "The till is empty — the machine is closed. Top it up: /slots_bank <amount>"),
         "",
-        paytable(),
+        paytable(lang),
         "",
-        f"Возврат {rtp() * 100:.2f}% — остальное остаётся в кассе чата.",
-        "Крутит Telegram: бот отправляет 🎰 и записывает выпавшее, выбрать или "
-        "переиграть результат он не может.",
-        "Ставка из накопленных наград /balance, кошелёк не нужен.",
-        "Играть: /slots <ставка>",
+        tr(lang, f"Возврат {rtp() * 100:.2f}% — остальное остаётся в кассе чата.",
+           f"Returns {rtp() * 100:.2f}% — the rest stays in the chat's till."),
+        tr(lang, "Крутит Telegram: бот отправляет 🎰 и записывает выпавшее, выбрать или "
+                 "переиграть результат он не может.",
+           "Telegram spins the reels: the bot sends 🎰 and writes down what came up; it cannot "
+           "choose or replay the result."),
+        tr(lang, "Ставка из накопленных наград /balance, кошелёк не нужен.",
+           "Stakes come from the rewards accrued in /balance, no wallet needed."),
+        tr(lang, "Играть: /slots <ставка>", "Play: /slots <stake>"),
     ]
     if user is not None:
         with engine.connect() as conn:
             row = conn.execute(text("SELECT amount FROM pending_rewards WHERE chat_id=:c AND user_id=:u"),
                                {"c": chat, "u": user}).scalar_one_or_none()
-        lines.insert(2, f"Ваш баланс: {amount(row or 0)} {symbol}")
+        mine = f"{amount(row or 0)} {symbol}"
+        lines.insert(2, tr(lang, f"Ваш баланс: {mine}", f"Your balance: {mine}"))
     return "\n".join(lines)
 
 
-def result(spin):
+def result(spin, lang="ru"):
     """One spin, as the chat reads it afterwards."""
     who = spin["user_name"] or str(spin["user_id"])
     won, symbol = int(spin["payout"] or 0), spin["symbol"]
+    stake = f"{amount(spin['stake'])} {symbol}"
     lines = [
-        f"🎰 {who} — ставка {amount(spin['stake'])} {symbol}",
-        combo(spin["value"]),
+        tr(lang, f"🎰 {who} — ставка {stake}", f"🎰 {who} — stake {stake}"),
+        combo(spin["value"], lang),
     ]
     if won > int(spin["stake"]):
-        lines.append(f"Выигрыш: {amount(won)} {symbol} → /balance")
+        lines.append(tr(lang, f"Выигрыш: {amount(won)} {symbol} → /balance", f"Won: {amount(won)} {symbol} → /balance"))
     elif won:
-        lines.append("Ставка возвращена.")
+        lines.append(tr(lang, "Ставка возвращена.", "Stake returned."))
     else:
-        lines.append("Ставка ушла в кассу чата.")
+        lines.append(tr(lang, "Ставка ушла в кассу чата.", "The stake went into the chat's till."))
     balance, reserved, _, _ = bank(spin["chat_id"])
-    lines.append(f"Касса: {amount(balance - reserved)} {symbol}")
+    till = f"{amount(balance - reserved)} {symbol}"
+    lines.append(tr(lang, f"Касса: {till}", f"Till: {till}"))
     return "\n".join(lines)
 
 
@@ -336,7 +354,7 @@ def _detach(context, coro):
         asyncio.ensure_future(coro)
 
 
-async def _announce(bot, chat_id, spin, reply_to, delay=REVEAL):
+async def _announce(bot, chat_id, spin, reply_to, delay=REVEAL, lang="ru"):
     """Post the outcome once the reels have stopped for everyone watching.
 
     The bank is already settled when this runs, so a lost task costs a missing
@@ -346,7 +364,7 @@ async def _announce(bot, chat_id, spin, reply_to, delay=REVEAL):
     """
     await asyncio.sleep(delay)
     try:
-        await bot.send_message(chat_id=chat_id, text=result(spin), reply_to_message_id=reply_to)
+        await bot.send_message(chat_id=chat_id, text=result(spin, lang), reply_to_message_id=reply_to)
     except TelegramError:
         logger.warning("slots: could not post the result of spin %s", spin["id"])
 
@@ -376,29 +394,35 @@ async def _anonymous_owner(update, context):
 
 async def slots_command(update, context):
     chat, user, msg = update.effective_chat, update.effective_user, update.effective_message
+    lang = lang_of(update)
     if not chat or chat.type not in ("group", "supergroup"):
-        await msg.reply_text("Автомат стоит в чате: /slots 10 — он играет на токен этого чата.")
+        await msg.reply_text(tr(lang, "Автомат стоит в чате: /slots 10 — он играет на токен этого чата.",
+                                "The machine stands in a group chat: /slots 10 — it plays for that chat's token."))
         return
     if msg.sender_chat:
         user = await _anonymous_owner(update, context)
         if user is None:
-            await msg.reply_text(
+            await msg.reply_text(tr(
+                lang,
                 "Обычные участники играют от своих аккаунтов как обычно. Анонимно от имени чата "
-                "может играть только его владелец, когда он единственный анонимный администратор."
-            )
+                "может играть только его владелец, когда он единственный анонимный администратор.",
+                "Members play from their own accounts as usual. Anonymously, as the chat, only "
+                "its owner can play, and only while they are the one anonymous admin.",
+            ))
             return
     if not user or user.is_bot:
-        await msg.reply_text("Для игры отправьте команду от своего аккаунта, а не от имени канала.")
+        await msg.reply_text(tr(lang, "Для игры отправьте команду от своего аккаунта, а не от имени канала.",
+                                "Send the command from your own account to play, not as a channel."))
         return
     if not context.args:
-        await msg.reply_text(machine(chat.id, user.id))
+        await msg.reply_text(machine(chat.id, user.id, lang))
         return
 
     try:
         spin_id = reserve(chat.id, user.id, parse_stake(context.args[0]),
                           display_name=getattr(user, "name", str(user.id)))
     except ValueError as exc:
-        await msg.reply_text(str(exc))
+        await msg.reply_text(say(lang, exc))
         return
 
     try:
@@ -408,45 +432,59 @@ async def slots_command(update, context):
         abandon(spin_id)
         raise
     spin = settle(spin_id, rolled.dice.value)
-    _detach(context, _announce(context.bot, chat.id, spin, rolled.message_id))
+    _detach(context, _announce(context.bot, chat.id, spin, rolled.message_id, lang=lang))
 
 
 async def slots_bank_command(update, context):
     """Show the till, or (admins) push your own accrued tokens into it."""
     chat, user, msg = update.effective_chat, update.effective_user, update.effective_message
+    lang = lang_of(update)
     if not chat or chat.type not in ("group", "supergroup"):
-        await msg.reply_text("У автомата своя касса в каждом чате: /slots_bank в группе.")
+        await msg.reply_text(tr(lang, "У автомата своя касса в каждом чате: /slots_bank в группе.",
+                                "The machine has its own till in every chat: /slots_bank in a group."))
         return
     if not context.args:
         balance, reserved, symbol, allowed = bank(chat.id)
-        symbol = symbol or "токен чата"
-        await msg.reply_text(
-            f"🎰 Касса чата: {amount(balance - reserved)} {symbol}"
-            + (f" (ещё {amount(reserved)} держат незавершённые спины)" if reserved else "")
+        symbol = symbol or tr(lang, "токен чата", "chat token")
+        till = f"{amount(balance - reserved)} {symbol}"
+        held = amount(reserved)
+        await msg.reply_text(tr(
+            lang,
+            f"🎰 Касса чата: {till}"
+            + (f" (ещё {held} держат незавершённые спины)" if reserved else "")
             + f"\nМаксимальная ставка: {amount(allowed)} {symbol}\n"
             "Пополнить: /slots_bank <сумма> — из накопленных наград, только админы чата.\n"
-            "Касса не выводится обратно: это касса автомата, а не вклад."
-        )
+            "Касса не выводится обратно: это касса автомата, а не вклад.",
+            f"🎰 The chat's till: {till}"
+            + (f" ({held} more held by unfinished spins)" if reserved else "")
+            + f"\nLargest stake: {amount(allowed)} {symbol}\n"
+            "Top up: /slots_bank <amount> — from accrued rewards, chat admins only.\n"
+            "The till is never paid back out: it is the machine's till, not a deposit.",
+        ))
         return
     if not user or user.is_bot or msg.sender_chat:
-        await msg.reply_text("Пополнить кассу можно только от своего аккаунта.")
+        await msg.reply_text(tr(lang, "Пополнить кассу можно только от своего аккаунта.",
+                                "Top up the till from your own account only."))
         return
     try:
         member = await context.bot.get_chat_member(chat.id, user.id)
     except TelegramError:
-        await msg.reply_text("Не удалось проверить права в чате. Попробуйте ещё раз.")
+        await msg.reply_text(tr(lang, "Не удалось проверить права в чате. Попробуйте ещё раз.",
+                                "Could not check your rights in the chat. Try again."))
         return
     if member.status not in ("creator", "administrator"):
-        await msg.reply_text("Пополнять кассу могут администраторы чата.")
+        await msg.reply_text(tr(lang, "Пополнять кассу могут администраторы чата.", "Only chat admins can top up the till."))
         return
     try:
         total = fund(chat.id, user.id, parse_stake(context.args[0]))
     except ValueError as exc:
-        await msg.reply_text(str(exc))
+        await msg.reply_text(say(lang, exc))
         return
     _, reserved, symbol, allowed = bank(chat.id)
-    await msg.reply_text(f"🎰 Касса пополнена: {amount(total - reserved)} {symbol}.\n"
-                         f"Максимальная ставка: {amount(allowed)} {symbol}.")
+    await msg.reply_text(tr(
+        lang, f"🎰 Касса пополнена: {amount(total - reserved)} {symbol}.\nМаксимальная ставка: {amount(allowed)} {symbol}.",
+        f"🎰 Till topped up: {amount(total - reserved)} {symbol}.\nLargest stake: {amount(allowed)} {symbol}.",
+    ))
 
 
 async def sweep_loop(application):

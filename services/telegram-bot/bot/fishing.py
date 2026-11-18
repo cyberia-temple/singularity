@@ -1,12 +1,19 @@
 """🎣 Fishing in the chat: cast, wait for the bite, strike — and the fish is an NFT.
 
-`/fish` puts a float on the water. A few seconds later it bites and a «Подсечь»
-button appears; press it within HOOK_WINDOW and the fish is yours, miss it and
-it gets away. A fish (never the trash) becomes a CyberiaNFT: its own pixel
-picture (`bot.fish_art`) and metadata are pinned to IPFS, the bot key mints it
-and sends it to the wallet the angler linked with /set_wallet. Without a wallet
-the catch waits in the bag (/fish_bag) and goes out as soon as one is linked —
-play first, wallet later.
+`/fish` puts a line in the water. A few seconds later something bites and a
+button appears; press it within the tackle's window and the fish is yours, miss
+it and it gets away. A fish (never the trash) becomes a CyberiaNFT: its own
+pixel picture (`bot.fish_art`) and metadata are pinned to IPFS, the bot key
+mints it and sends it to the wallet the angler linked with /set_wallet. Without
+a wallet the catch waits in the bag (/fish_bag) and goes out as soon as one is
+linked — play first, wallet later.
+
+Everyone starts with bare hands, which hold only common fish: anything bigger
+that bites slips away, and the message says what it was. Every landing pays
+shells (🐚) — the trash too, sold for scrap — and shells buy tackle in
+/fish_shop, from a hazel rod up to the Wired rod that holds a legendary. Each
+rod holds one rarity more and gives a little longer to strike. Tackle and
+shells belong to the account, across every chat, like the rest.
 
 Nothing is staked, so nothing can be lost, and that is why the catch is drawn
 by the bot's own `secrets` RNG rather than by a Telegram dice the way 🎰 is:
@@ -18,8 +25,10 @@ nothing.
 The game lives in durable rows and the Telegram messages are views of them: a
 cast is `waiting → biting → caught | escaped`, settled inside SQLite's
 `BEGIN IMMEDIATE`, so the strike and the escape timer racing each other can
-only ever produce one outcome. A cast whose task died with a restart is swept
-to `lost` and costs nothing.
+only ever produce one outcome. A cast remembers the tackle and the language it
+was made with, so a rod bought mid-cast or a chat switching language cannot
+change a cast already in the water. A cast whose task died with a restart is
+swept to `lost` and costs nothing.
 
 The NFT side is a queue (`advance`) that moves one catch at a time through
 `pending → minting → minted → sending → delivered`. Each transaction's hash is
@@ -46,12 +55,12 @@ from bot.config import (
     FISHING_COOLDOWN_SECONDS, FISHING_MINT, MINTED_TOPIC, RPC_URL,
 )
 from bot.db import engine
+from bot.language import T, lang_of, say, tr
 from bot.stakes import transaction
 
 logger = logging.getLogger(__name__)
 
-BITE_AFTER = (3.0, 12.0)   # seconds the float sits before it bites
-HOOK_WINDOW = 7.0          # seconds to press «Подсечь» once it does
+BITE_AFTER = (3.0, 12.0)   # seconds the line sits before it bites
 MISS_COOLDOWN = 20         # after a fish that got away, or a boot
 STUCK = 120                # a cast nobody is watching any more
 MINT_IDLE = 20             # queue poll with nothing in flight
@@ -73,6 +82,32 @@ RARITIES = {
 }
 RANK = {rarity: index for index, rarity in enumerate(RARITIES)}
 TOTAL_ODDS = sum(info["odds"] for info in RARITIES.values())
+
+# Shells a landing pays, by rarity; a trophy pays double. The trash is sold for
+# scrap, so a run of boots still gets a beginner out of the water with a rod.
+SHELLS = {"trash": 3, "common": 4, "uncommon": 8, "rare": 20, "epic": 50, "legendary": 120}
+
+# The tackle ladder, weakest first. `holds` is the rarest fish it lands;
+# `window` the seconds it gives to strike. Prices are in shells.
+GEAR = {
+    "hands": {"emoji": "✋", "price": 0, "holds": "common", "window": 5.0,
+              "ru": "голые руки", "en": "bare hands",
+              "weak_ru": "Голыми руками такую не удержать", "weak_en": "Bare hands can't hold a fish like that"},
+    "hazel": {"emoji": "🌿", "price": 10, "holds": "uncommon", "window": 7.0,
+              "ru": "удочка из орешника", "ru_acc": "удочку из орешника", "en": "hazel rod",
+              "weak_ru": "Удочка из орешника такую не выдержит", "weak_en": "A hazel rod won't hold a fish like that"},
+    "bamboo": {"emoji": "🎋", "price": 60, "holds": "rare", "window": 7.0,
+               "ru": "бамбуковая удочка", "ru_acc": "бамбуковую удочку", "en": "bamboo rod",
+               "weak_ru": "Бамбуковая удочка такую не выдержит", "weak_en": "A bamboo rod won't hold a fish like that"},
+    "carbon": {"emoji": "🎣", "price": 200, "holds": "epic", "window": 8.0,
+               "ru": "карбоновый спиннинг", "ru_acc": "карбоновый спиннинг", "en": "carbon spinning rod",
+               "weak_ru": "Карбоновый спиннинг такую не выдержит", "weak_en": "A carbon rod won't hold a fish like that"},
+    "wired": {"emoji": "📡", "price": 500, "holds": "legendary", "window": 9.0,
+              "ru": "спиннинг из Wired", "ru_acc": "спиннинг из Wired", "en": "Wired rod",
+              "weak_ru": "", "weak_en": ""},
+}
+LADDER = list(GEAR)
+STARTER = "hands"
 
 SPECIES = {
     "roach": {"name": "Плотва", "en": "Roach", "rarity": "common", "kg": (0.1, 0.6), "look": {
@@ -113,11 +148,23 @@ SPECIES = {
 }
 
 TRASH = {
-    "boot": "🥾 старый ботинок",
-    "floppy": "💾 дискета 3,5″",
-    "cable": "🔌 спутанный патч-корд",
-    "can": "🥫 ржавая банка",
+    "boot": {"ru": "🥾 старый ботинок", "en": "🥾 an old boot"},
+    "floppy": {"ru": "💾 дискета 3,5″", "en": "💾 a 3.5″ floppy disk"},
+    "cable": {"ru": "🔌 спутанный патч-корд", "en": "🔌 a tangled patch cord"},
+    "can": {"ru": "🥫 ржавая банка", "en": "🥫 a rusty can"},
 }
+
+
+def _columns(conn, table):
+    return {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+
+
+def _add_columns(conn, table, columns):
+    """The tables were live before these columns existed: add what is missing."""
+    have = _columns(conn, table)
+    for name, declaration in columns.items():
+        if name not in have:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}"))
 
 
 def ensure_schema():
@@ -132,6 +179,7 @@ def ensure_schema():
                 ready_at INTEGER
             )
         """))
+        _add_columns(conn, "fishing_casts", {"gear": "TEXT", "lang": "TEXT"})
         conn.execute(text("CREATE INDEX IF NOT EXISTS fishing_casts_by_user ON fishing_casts(user_id, id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS fishing_casts_open ON fishing_casts(status, created_at)"))
         conn.execute(text("""
@@ -149,9 +197,28 @@ def ensure_schema():
                 attempts INTEGER NOT NULL DEFAULT 0, error TEXT
             )
         """))
+        _add_columns(conn, "fishing_catches", {"gear": "TEXT", "lang": "TEXT"})
         conn.execute(text("CREATE INDEX IF NOT EXISTS fishing_catches_by_user ON fishing_catches(user_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS fishing_catches_by_chat ON fishing_catches(chat_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS fishing_catches_nft ON fishing_catches(nft_status)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS fishing_anglers (
+                user_id INTEGER PRIMARY KEY,
+                shells INTEGER NOT NULL DEFAULT 0,
+                gear TEXT NOT NULL DEFAULT 'hands',
+                updated_at INTEGER
+            )
+        """))
+        # Anglers who landed something before shells existed are paid for it
+        # once, as if shells had always been there; everyone starts by hand.
+        # A row is made by every landing since, so this never pays twice.
+        pay = " ".join(f"WHEN '{rarity}' THEN {count}" for rarity, count in SHELLS.items())
+        conn.execute(text(f"""
+            INSERT OR IGNORE INTO fishing_anglers(user_id, shells, gear, updated_at)
+            SELECT user_id, SUM((CASE rarity {pay} ELSE 0 END) * (CASE WHEN trophy=1 THEN 2 ELSE 1 END)),
+                   '{STARTER}', CAST(strftime('%s','now') AS INTEGER)
+            FROM fishing_catches GROUP BY user_id
+        """))
 
 
 # --- the catch ---------------------------------------------------------------
@@ -178,16 +245,57 @@ def roll(rng=None):
     }
 
 
-def weight(grams):
+def shells_for(catch):
+    return SHELLS[catch["rarity"]] * (2 if catch["trophy"] else 1)
+
+
+def gear_of(row):
+    """The tackle a cast or catch was made with. Rows from before tackle
+    existed were made with a rod that held anything."""
+    return GEAR.get((row or {}).get("gear") or "", GEAR["wired"])
+
+
+def holds(gear_key, rarity):
+    return RANK[rarity] <= RANK[GEAR[gear_key]["holds"]]
+
+
+def first_gear_for(rarity):
+    return next(key for key in LADDER if holds(key, rarity))
+
+
+def next_gear(gear_key):
+    index = LADDER.index(gear_key)
+    return LADDER[index + 1] if index + 1 < len(LADDER) else None
+
+
+def weight(grams, lang="ru"):
     grams = int(grams)
     if grams < 1000:
-        return f"{grams} г"
-    return f"{grams / 1000:.2f}".rstrip("0").rstrip(".").replace(".", ",") + " кг"
+        return f"{grams} " + tr(lang, "г", "g")
+    kg = f"{grams / 1000:.2f}".rstrip("0").rstrip(".")
+    return tr(lang, kg.replace(".", ",") + " кг", kg + " kg")
 
 
 def stars(rarity):
     count = RARITIES[rarity]["stars"]
     return "★" * count + "☆" * (5 - count)
+
+
+def rarity_label(rarity, lang):
+    info = RARITIES[rarity]
+    return tr(lang, info["label"], info["en"])
+
+
+def fish_name(species, lang):
+    if species in TRASH:
+        return TRASH[species][lang if lang in ("ru", "en") else "ru"]
+    fish = SPECIES[species]
+    return tr(lang, fish["name"], fish["en"])
+
+
+def gear_name(gear_key, lang):
+    gear = GEAR[gear_key]
+    return tr(lang, gear["ru"], gear["en"])
 
 
 def picture(catch):
@@ -205,6 +313,16 @@ def metadata(catch, image_uri):
     fish, rarity = SPECIES[catch["species"]], RARITIES[catch["rarity"]]
     kg = f"{int(catch['grams']) / 1000:.2f}".rstrip("0").rstrip(".")
     caught = datetime.fromtimestamp(int(catch["caught_at"]), timezone.utc)
+    attributes = [
+        {"trait_type": "Species", "value": fish["en"]},
+        {"trait_type": "Rarity", "value": rarity["en"]},
+        {"trait_type": "Weight (g)", "value": int(catch["grams"]), "display_type": "number"},
+        {"trait_type": "Trophy", "value": "yes" if catch["trophy"] else "no"},
+        {"trait_type": "Caught", "value": f"{caught:%Y-%m-%d %H:%M} UTC"},
+    ]
+    if catch.get("gear") in GEAR:
+        attributes.append({"trait_type": "Tackle", "value": GEAR[catch["gear"]]["en"].capitalize()})
+    attributes.append({"trait_type": "Collection", "value": "Cyberia Fishing"})
     return {
         "name": f"{fish['en']} · {kg} kg",
         "description": (
@@ -212,15 +330,52 @@ def metadata(catch, image_uri):
             f"on {caught:%Y-%m-%d}. Catch #{catch['id']}."
         ),
         "image": image_uri,
-        "attributes": [
-            {"trait_type": "Species", "value": fish["en"]},
-            {"trait_type": "Rarity", "value": rarity["en"]},
-            {"trait_type": "Weight (g)", "value": int(catch["grams"]), "display_type": "number"},
-            {"trait_type": "Trophy", "value": "yes" if catch["trophy"] else "no"},
-            {"trait_type": "Caught", "value": f"{caught:%Y-%m-%d %H:%M} UTC"},
-            {"trait_type": "Collection", "value": "Cyberia Fishing"},
-        ],
+        "attributes": attributes,
     }
+
+
+# --- the angler --------------------------------------------------------------
+def _angler(conn, user):
+    row = conn.execute(text("SELECT shells, gear FROM fishing_anglers WHERE user_id=:u"),
+                       {"u": user}).mappings().first()
+    if not row or row["gear"] not in GEAR:
+        return {"shells": int(row["shells"]) if row else 0, "gear": STARTER}
+    return {"shells": int(row["shells"]), "gear": row["gear"]}
+
+
+def angler(user):
+    """{shells, gear} — a newcomer has none and bare hands."""
+    with engine.connect() as conn:
+        return _angler(conn, user)
+
+
+def affordable_upgrade(state):
+    """The next rod up, if the angler already has the shells for it."""
+    upgrade = next_gear(state["gear"])
+    return upgrade if upgrade and state["shells"] >= GEAR[upgrade]["price"] else None
+
+
+def buy(user, gear_key, now=None):
+    """Buy tackle with shells. Returns the angler afterwards; refusals are
+    ValueErrors carrying a T."""
+    now = int(time.time()) if now is None else int(now)
+    if gear_key not in GEAR or gear_key == STARTER:
+        raise ValueError(T("Такой снасти нет.", "There is no such tackle."))
+    gear = GEAR[gear_key]
+    with transaction() as conn:
+        state = _angler(conn, user)
+        if LADDER.index(state["gear"]) >= LADDER.index(gear_key):
+            raise ValueError(T("У вас уже есть снасть не хуже.", "You already have tackle at least this good."))
+        if state["shells"] < gear["price"]:
+            raise ValueError(T(
+                f"Не хватает ракушек: нужно {gear['price']} 🐚, у вас {state['shells']}. Ловите ещё: /fish",
+                f"Not enough shells: {gear['price']} 🐚 needed, you have {state['shells']}. Keep fishing: /fish",
+            ))
+        conn.execute(text("""
+            INSERT INTO fishing_anglers(user_id, shells, gear, updated_at) VALUES(:u, :s, :g, :t)
+            ON CONFLICT(user_id) DO UPDATE SET shells=excluded.shells, gear=excluded.gear, updated_at=excluded.updated_at
+        """), {"u": user, "s": state["shells"] - gear["price"], "g": gear_key, "t": now})
+        return {"shells": state["shells"] - gear["price"], "gear": gear_key}
 
 
 # --- a cast ------------------------------------------------------------------
@@ -234,8 +389,8 @@ def get_cast(cast_id):
     return dict(row) if row else None
 
 
-def cast(chat, user, display_name=None, now=None, rng=None):
-    """Put a float on the water. Returns (cast id, seconds until the bite).
+def cast(chat, user, display_name=None, now=None, rng=None, lang="ru"):
+    """Put a line in the water. Returns (cast id, seconds until the bite).
 
     Refuses while this account's line is already in the water anywhere, and
     during its rest after the last cast.
@@ -248,24 +403,28 @@ def cast(chat, user, display_name=None, now=None, rng=None):
         ), {"u": user}).mappings().first()
         if last and last["status"] in ("waiting", "biting"):
             if now - last["created_at"] < STUCK:
-                raise ValueError("Удочка уже в воде — следите за поплавком.")
+                raise ValueError(T("Вы уже рыбачите — следите за водой.", "You're already fishing — watch the water."))
             conn.execute(text("UPDATE fishing_casts SET status='lost', ready_at=:n WHERE id=:id"),
                          {"n": now, "id": last["id"]})
         elif last and last["ready_at"] and now < last["ready_at"]:
-            raise ValueError(f"Рыба отдыхает. Следующий заброс через {_wait(last['ready_at'] - now)}.")
+            left = last["ready_at"] - now
+            raise ValueError(T(f"Рыба отдыхает. Следующий заброс через {_wait(left, 'ru')}.",
+                               f"The fish are resting. Next cast in {_wait(left, 'en')}."))
+        gear = _angler(conn, user)["gear"]
         delay = rng.uniform(*BITE_AFTER)
         return conn.execute(text("""
-            INSERT INTO fishing_casts(chat_id,user_id,user_name,status,created_at,bite_at)
-            VALUES(:c,:u,:name,'waiting',:t,:b) RETURNING id
-        """), {"c": chat, "u": user, "name": display_name, "t": now, "b": now + delay}).scalar_one(), delay
+            INSERT INTO fishing_casts(chat_id,user_id,user_name,status,created_at,bite_at,gear,lang)
+            VALUES(:c,:u,:name,'waiting',:t,:b,:g,:l) RETURNING id
+        """), {"c": chat, "u": user, "name": display_name, "t": now, "b": now + delay,
+               "g": gear, "l": lang}).scalar_one(), delay
 
 
-def _wait(seconds):
+def _wait(seconds, lang="ru"):
     seconds = max(1, int(seconds))
     if seconds < 60:
-        return f"{seconds} с"
+        return f"{seconds} " + tr(lang, "с", "s")
     minutes = -(-seconds // 60)
-    return f"{minutes} мин"
+    return f"{minutes} " + tr(lang, "мин", "min")
 
 
 def attach(cast_id, message_id, command_message_id=None):
@@ -275,7 +434,7 @@ def attach(cast_id, message_id, command_message_id=None):
 
 
 def bite(cast_id, now=None):
-    """The float goes under. True if this cast was still waiting for it."""
+    """The line goes taut. True if this cast was still waiting for it."""
     now = time.time() if now is None else now
     with transaction() as conn:
         return conn.execute(text(
@@ -287,10 +446,12 @@ def escape(cast_id, now=None):
     """The fish gets away if nobody struck in time. True if it did just now."""
     now = time.time() if now is None else now
     with transaction() as conn:
-        return conn.execute(text("""
-            UPDATE fishing_casts SET status='escaped', ready_at=:r
-            WHERE id=:id AND status='biting' AND :n - bit_at >= :w
-        """), {"r": int(now) + MISS_COOLDOWN, "n": now, "w": HOOK_WINDOW, "id": cast_id}).rowcount == 1
+        row = _cast(conn, cast_id)
+        if not row or row["status"] != "biting" or now - row["bit_at"] < gear_of(row)["window"]:
+            return False
+        conn.execute(text("UPDATE fishing_casts SET status='escaped', ready_at=:r WHERE id=:id"),
+                     {"r": int(now) + MISS_COOLDOWN, "id": cast_id})
+        return True
 
 
 def lose(cast_id, now=None):
@@ -311,39 +472,53 @@ def wallet_of(user):
 
 
 def strike(cast_id, user, now=None, rng=None):
-    """Press «Подсечь». Returns (cast, catch); catch is None when it was too late.
+    """Press the button. Returns (cast, catch); catch is None when it got away —
+    too late, or too big for the tackle (then the cast carries `got_away`).
 
-    Refusals are ValueErrors with the text to show the presser. The check and
-    the catch are one transaction, so the escape timer cannot also fire.
+    Refusals are ValueErrors carrying a T for the presser. The check and the
+    catch are one transaction, so the escape timer cannot also fire.
     """
     now = time.time() if now is None else now
     with transaction() as conn:
         row = _cast(conn, cast_id)
         if not row:
-            raise ValueError("Этот заброс не найден.")
+            raise ValueError(T("Этот заброс не найден.", "This cast is gone."))
         if row["user_id"] != user:
-            raise ValueError(f"Это удочка {row['user_name'] or 'другого рыбака'}. Своя — /fish")
+            owner = row["user_name"]
+            raise ValueError(T(f"Это заброс {owner or 'другого рыбака'}. Свой — /fish",
+                               f"That's {owner}'s cast. Yours: /fish" if owner else "That's another angler's cast. Yours: /fish"))
         if row["status"] == "waiting" and now >= row["bite_at"]:
             # The bite message reached the angler before its own task wrote it down.
             row = dict(row, status="biting", bit_at=now)
         if row["status"] == "waiting":
-            raise ValueError("Ещё не клюёт — ждите.")
+            raise ValueError(T("Ещё не клюёт — ждите.", "Nothing's biting yet — wait."))
         if row["status"] != "biting":
-            raise ValueError("Этот заброс уже закончился. Новый — /fish")
-        if now - row["bit_at"] > HOOK_WINDOW:
+            raise ValueError(T("Этот заброс уже закончился. Новый — /fish", "This cast is over. A new one: /fish"))
+        if now - row["bit_at"] > gear_of(row)["window"]:
             conn.execute(text("UPDATE fishing_casts SET status='escaped', ready_at=:r WHERE id=:id"),
                          {"r": int(now) + MISS_COOLDOWN, "id": cast_id})
             return dict(row, status="escaped"), None
 
         hooked = roll(rng)
+        if RANK[hooked["rarity"]] > RANK[gear_of(row)["holds"]]:
+            conn.execute(text("UPDATE fishing_casts SET status='escaped', ready_at=:r WHERE id=:id"),
+                         {"r": int(now) + MISS_COOLDOWN, "id": cast_id})
+            return dict(row, status="escaped", got_away=hooked), None
+
         is_fish = hooked["rarity"] != "trash"
         catch_id = conn.execute(text("""
             INSERT INTO fishing_catches(cast_id,chat_id,user_id,user_name,species,rarity,grams,trophy,seed,
-                                        caught_at,nft_status)
-            VALUES(:cast,:c,:u,:name,:s,:r,:g,:t,:seed,:at,:nft) RETURNING id
+                                        caught_at,nft_status,gear,lang)
+            VALUES(:cast,:c,:u,:name,:s,:r,:g,:t,:seed,:at,:nft,:gear,:lang) RETURNING id
         """), {"cast": cast_id, "c": row["chat_id"], "u": user, "name": row["user_name"],
                "s": hooked["species"], "r": hooked["rarity"], "g": hooked["grams"], "t": hooked["trophy"],
-               "seed": hooked["seed"], "at": int(now), "nft": "pending" if is_fish else "none"}).scalar_one()
+               "seed": hooked["seed"], "at": int(now), "nft": "pending" if is_fish else "none",
+               "gear": row["gear"], "lang": row["lang"]}).scalar_one()
+        conn.execute(text("""
+            INSERT INTO fishing_anglers(user_id, shells, gear, updated_at) VALUES(:u, :s, :g, :t)
+            ON CONFLICT(user_id) DO UPDATE SET shells=fishing_anglers.shells + excluded.shells,
+                updated_at=excluded.updated_at
+        """), {"u": user, "s": shells_for(hooked), "g": STARTER, "t": int(now)})
         conn.execute(text("UPDATE fishing_casts SET status='caught', ready_at=:r WHERE id=:id"),
                      {"r": int(now) + (COOLDOWN if is_fish else MISS_COOLDOWN), "id": cast_id})
         catch = conn.execute(text("SELECT * FROM fishing_catches WHERE id=:id"), {"id": catch_id}).mappings().first()
@@ -567,123 +742,306 @@ def _send(chain, catch, before, after, raw, **fields):
 
 
 # --- messages ----------------------------------------------------------------
+def _lang(row):
+    """Rows from before the language choice were all Russian."""
+    return (row or {}).get("lang") or "ru"
+
+
+def _ru_plural(count, one, few, many):
+    count = abs(int(count)) % 100
+    if 11 <= count <= 19:
+        return many
+    count %= 10
+    return one if count == 1 else few if 2 <= count <= 4 else many
+
+
 def _short(address):
     return f"{address[:6]}…{address[-4:]}" if address else ""
 
 
-def _bot_hint(bot_username):
-    return f"в личке @{bot_username}" if bot_username else "в личке бота"
+def _bot_hint(bot_username, lang):
+    if bot_username:
+        return tr(lang, f"в личке @{bot_username}", f"in a DM to @{bot_username}")
+    return tr(lang, "в личке бота", "in a DM to the bot")
 
 
-def nft_line(catch, wallet=None, bot_username=None, minting=None):
+def _angler_name(row, lang):
+    return row.get("user_name") or tr(lang, "рыбак", "angler")
+
+
+def nft_line(catch, wallet=None, bot_username=None, minting=None, lang="ru"):
     minting = (FISHING_MINT and bool(DEPLOYER_PK)) if minting is None else minting
     status = catch["nft_status"]
     if status == "delivered":
-        return f"🖼 NFT #{catch['token_id']} — в кошельке {_short(catch['recipient'])}"
+        short = _short(catch["recipient"])
+        return tr(lang, f"🖼 NFT #{catch['token_id']} — в кошельке {short}", f"🖼 NFT #{catch['token_id']} — in wallet {short}")
     if status == "failed":
-        return "NFT не получился — улов сохранён в /fish_bag, разберёмся."
+        return tr(lang, "NFT не получился — улов сохранён в /fish_bag, разберёмся.",
+                  "The NFT didn't work out — the catch is kept in /fish_bag, we'll look into it.")
     if not minting:
-        return "Улов сохранён в /fish_bag — NFT отправим, когда включим чеканку."
+        return tr(lang, "Улов сохранён в /fish_bag — NFT отправим, когда включим чеканку.",
+                  "Kept in /fish_bag — the NFT goes out once minting is switched on.")
     if status in ("minting", "minted", "sending") or wallet:
-        return f"🖼 Чеканим NFT в кошелёк {_short(catch.get('recipient') or wallet)}…"
-    return f"🖼 Станет NFT, как только привяжете кошелёк: /set_wallet 0x… {_bot_hint(bot_username)}."
+        short = _short(catch.get("recipient") or wallet)
+        return tr(lang, f"🖼 Чеканим NFT в кошелёк {short}…", f"🖼 Minting the NFT to {short}…")
+    hint = _bot_hint(bot_username, lang)
+    return tr(lang, f"🖼 Станет NFT, как только привяжете кошелёк: /set_wallet 0x… {hint}.",
+              f"🖼 Becomes an NFT as soon as you link a wallet: /set_wallet 0x… {hint}.")
 
 
-def caption(catch, wallet=None, bot_username=None, minting=None):
-    fish, rarity = SPECIES[catch["species"]], RARITIES[catch["rarity"]]
+def upgrade_hint(state, lang):
+    upgrade = affordable_upgrade(state)
+    if not upgrade:
+        return None
+    gear = GEAR[upgrade]
+    return tr(lang, f"🛒 Ракушек хватает на {gear['ru_acc']} {gear['emoji']}: /fish_shop",
+              f"🛒 You have the shells for a {gear['en']} {gear['emoji']}: /fish_shop")
+
+
+def caption(catch, wallet=None, bot_username=None, minting=None, lang=None, hint=None):
+    lang = lang or _lang(catch)
+    gear = gear_of(catch)
+    name = _angler_name(catch, lang)
+    trophy = tr(lang, " · 🏆 трофей", " · 🏆 trophy") if catch["trophy"] else ""
     lines = [
-        f"🎣 Улов — {catch['user_name'] or 'рыбак'}",
-        f"{fish['name']}, {weight(catch['grams'])}" + (" · 🏆 трофей" if catch["trophy"] else ""),
-        f"{stars(catch['rarity'])} {rarity['label']}",
+        f"{gear['emoji']} " + tr(lang, f"Улов — {name}", f"Catch — {name}"),
+        f"{fish_name(catch['species'], lang)}, {weight(catch['grams'], lang)}{trophy}",
+        f"{stars(catch['rarity'])} {rarity_label(catch['rarity'], lang)} · +{shells_for(catch)} 🐚",
         "",
-        nft_line(catch, wallet, bot_username, minting),
+        nft_line(catch, wallet, bot_username, minting, lang),
     ]
     if COOLDOWN:
-        lines.append(f"Следующий заброс — через {_wait(COOLDOWN)}.")
+        lines.append(tr(lang, f"Следующий заброс — через {_wait(COOLDOWN, lang)}.",
+                        f"Next cast in {_wait(COOLDOWN, lang)}."))
+    if hint:
+        lines.append(hint)
     return "\n".join(lines)
 
 
-def nft_markup(catch):
+def nft_markup(catch, lang=None):
     if catch["nft_status"] != "delivered" or catch["token_id"] is None:
         return None
     url = f"{EXPLORER_URL}/token/{CYBERIA_NFT_ADDRESS}/instance/{catch['token_id']}"
-    return InlineKeyboardMarkup([[InlineKeyboardButton("Открыть NFT", url=url)]])
+    label = tr(lang or _lang(catch), "Открыть NFT", "Open NFT")
+    return InlineKeyboardMarkup([[InlineKeyboardButton(label, url=url)]])
 
 
-def waiting_text(name):
-    return f"🎣 {name} закидывает удочку…\n〰️〰️〰️🔴〰️〰️〰️\nЖдите поклёвку и жмите «Подсечь»."
+def _bare(gear_key):
+    return gear_key == STARTER
 
 
-def biting_text(name):
-    return f"🎣 Клюёт у {name}!\n〰️〰️🫧🔴🫧〰️〰️\nПодсекайте — {HOOK_WINDOW:g} секунд!"
+def waiting_text(name, gear_key=STARTER, lang="ru"):
+    if _bare(gear_key):
+        return tr(lang,
+                  f"✋ {name} заходит в воду по колено и ждёт рыбу…\n〰️〰️〰️🦵〰️〰️〰️\nКак подплывёт — хватайте!",
+                  f"✋ {name} wades in knee-deep and waits for a fish…\n〰️〰️〰️🦵〰️〰️〰️\nGrab it when it swims up!")
+    gear = GEAR[gear_key]
+    return tr(lang,
+              f"{gear['emoji']} {name} закидывает {gear['ru_acc']}…\n〰️〰️〰️🔴〰️〰️〰️\nЖдите поклёвку и жмите «Подсечь».",
+              f"{gear['emoji']} {name} casts the {gear['en']}…\n〰️〰️〰️🔴〰️〰️〰️\nWait for the bite, then press «Strike».")
 
 
-def escaped_text(name):
-    return f"🎣 Сорвалась у {name} — не успели подсечь.\nЕщё раз: /fish"
+def biting_text(name, gear_key=STARTER, lang="ru"):
+    gear = GEAR[gear_key]
+    window = f"{gear['window']:g}"
+    if _bare(gear_key):
+        return tr(lang, f"✋ Рыба у самых ног, {name}!\n〰️〰️🫧🐟🫧〰️〰️\nХватайте — {window} секунд!",
+                  f"✋ A fish right at your feet, {name}!\n〰️〰️🫧🐟🫧〰️〰️\nGrab it — {window} seconds!")
+    return tr(lang, f"{gear['emoji']} {name}, клюёт!\n〰️〰️🫧🔴🫧〰️〰️\nПодсекайте — {window} секунд!",
+              f"{gear['emoji']} It's biting, {name}!\n〰️〰️🫧🔴🫧〰️〰️\nStrike — {window} seconds!")
 
 
-def trash_text(catch):
-    return (f"🎣 На крючке у {catch['user_name'] or 'рыбака'} — {TRASH[catch['species']]}.\n"
-            f"Не рыба и не NFT, выбросили обратно. Ещё раз: /fish (через {_wait(MISS_COOLDOWN)})")
+def escaped_text(name, gear_key=STARTER, lang="ru"):
+    if _bare(gear_key):
+        return tr(lang, f"✋ {name}: рыба выскользнула — не успели схватить.\nЕщё раз: /fish",
+                  f"✋ It slipped away from {name} — too slow.\nAgain: /fish")
+    return tr(lang, f"🎣 {name}: сорвалась — не успели подсечь.\nЕщё раз: /fish",
+              f"🎣 It got away from {name} — the strike came too late.\nAgain: /fish")
 
 
-def hook_markup(cast_id):
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🪝 Подсечь", callback_data=f"fish:{cast_id}")]])
+def too_big_text(name, gear_key, hooked, lang="ru"):
+    """A fish the tackle cannot hold: what it was, and where the rod is."""
+    gear = GEAR[gear_key]
+    fish = SPECIES[hooked["species"]]
+    star = stars(hooked["rarity"])
+    weak = tr(lang, gear["weak_ru"], gear["weak_en"])
+    return tr(lang,
+              f"💥 {name}: сорвался крупный улов — {fish['name']} {star}!\n{weak}. Снасть покрепче — /fish_shop",
+              f"💥 {name} lost a big one — a {fish['en'].lower()} {star}!\n{weak}. Better tackle: /fish_shop")
+
+
+def trash_text(catch, hint=None, lang=None):
+    lang = lang or _lang(catch)
+    name = _angler_name(catch, lang)
+    junk = fish_name(catch["species"], lang)
+    earned = shells_for(catch)
+    wait = _wait(MISS_COOLDOWN, lang)
+    if _bare(catch.get("gear")):
+        head = tr(lang, f"✋ {name} достаёт из воды: {junk}.", f"✋ {name} pulls out {junk}.")
+    else:
+        head = tr(lang, f"🎣 {name} вытаскивает: {junk}.", f"🎣 {name} reels in {junk}.")
+    lines = [head, tr(lang, f"Не рыба и не NFT — сдали в утиль: +{earned} 🐚.",
+                      f"Not a fish and not an NFT — sold for scrap: +{earned} 🐚."),
+             tr(lang, f"Ещё раз: /fish (через {wait})", f"Again: /fish (in {wait})")]
+    if hint:
+        lines.append(hint)
+    return "\n".join(lines)
+
+
+def lost_text(row):
+    lang = _lang(row)
+    if _bare(row.get("gear")):
+        return tr(lang, "✋ Рыба уплыла — заходите снова: /fish", "✋ The fish swam off — try again: /fish")
+    return tr(lang, "🎣 Леска оборвалась — закидывайте снова: /fish", "🎣 The line snapped — cast again: /fish")
+
+
+def hook_markup(cast_id, gear_key=STARTER, lang="ru"):
+    label = tr(lang, "✋ Хватать!", "✋ Grab!") if _bare(gear_key) else tr(lang, "🪝 Подсечь", "🪝 Strike")
+    return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=f"fish:{cast_id}")]])
 
 
 def _ranked(rows):
     return sorted(rows, key=lambda row: (-RANK[row["rarity"]], -int(row["grams"]), row["id"]))
 
 
-def bag(user, name=None):
-    """An angler's catches across every chat, best first."""
+def tackle_line(state, lang):
+    gear = GEAR[state["gear"]]
+    return tr(lang, f"{gear['emoji']} Снасть: {gear['ru']} · 🐚 {state['shells']}",
+              f"{gear['emoji']} Tackle: {gear['en']} · 🐚 {state['shells']}")
+
+
+def bag(user, name=None, lang="ru"):
+    """An angler's catches across every chat, best first, and their tackle."""
     with engine.connect() as conn:
         rows = [dict(row) for row in conn.execute(text(
             "SELECT * FROM fishing_catches WHERE user_id=:u AND rarity!='trash'"
         ), {"u": user}).mappings()]
         wallet = _wallet(conn, user)
+        state = _angler(conn, user)
+    tackle = [tackle_line(state, lang)] + [line for line in [upgrade_hint(state, lang)] if line]
     if not rows:
-        return "🪣 В садке пусто. Закидывайте удочку: /fish"
+        return "\n".join([tr(lang, "🪣 В садке пусто. Первая рыба ждёт: /fish", "🪣 The bag is empty. Your first fish awaits: /fish"),
+                          "", *tackle])
+    count = len(rows)
     trophies = sum(1 for row in rows if row["trophy"])
     minted = sum(1 for row in rows if row["nft_status"] == "delivered")
-    lines = [f"🪣 Садок {name or ''}".rstrip() + f": {len(rows)} рыб · трофеев {trophies} · NFT {minted}", ""]
+    whose_ru = f"Садок {name}" if name else "Садок"
+    whose_en = f"{name}'s bag" if name else "Bag"
+    head = tr(lang,
+              f"🪣 {whose_ru}: {count} {_ru_plural(count, 'рыба', 'рыбы', 'рыб')} · трофеев {trophies} · NFT {minted}",
+              f"🪣 {whose_en}: {count} fish · {trophies} {'trophy' if trophies == 1 else 'trophies'} · "
+              f"{minted} {'NFT' if minted == 1 else 'NFTs'}")
+    lines = [head, *tackle, ""]
     for index, row in enumerate(_ranked(rows)[:10], 1):
-        fish = SPECIES[row["species"]]
-        tag = f"NFT #{row['token_id']}" if row["nft_status"] == "delivered" else (
-            "ждёт кошелька" if row["nft_status"] == "pending" and not wallet else "чеканится")
+        if row["nft_status"] == "delivered":
+            tag = f"NFT #{row['token_id']}"
+        elif row["nft_status"] == "pending" and not wallet:
+            tag = tr(lang, "ждёт кошелька", "waiting for a wallet")
+        else:
+            tag = tr(lang, "чеканится", "minting")
         trophy = " 🏆" if row["trophy"] else ""
-        lines.append(f"{index}. {stars(row['rarity'])} {fish['name']}, {weight(row['grams'])}{trophy} — {tag}")
+        lines.append(f"{index}. {stars(row['rarity'])} {fish_name(row['species'], lang)}, "
+                     f"{weight(row['grams'], lang)}{trophy} — {tag}")
     waiting = sum(1 for row in rows if row["nft_status"] == "pending")
     if waiting and not wallet:
-        lines += ["", f"{waiting} ждут кошелька: /set_wallet 0x… в личке бота — и они станут NFT."]
+        lines += ["", tr(lang, f"Ждут кошелька: {waiting}. /set_wallet 0x… в личке бота — и они станут NFT.",
+                         f"{waiting} waiting for a wallet: /set_wallet 0x… in a DM to the bot and they become NFTs.")]
     return "\n".join(lines)
 
 
-def top(chat):
+def top(chat, lang="ru"):
     """The chat's best catches."""
     with engine.connect() as conn:
         rows = [dict(row) for row in conn.execute(text(
             "SELECT * FROM fishing_catches WHERE chat_id=:c AND rarity!='trash'"
         ), {"c": chat}).mappings()]
     if not rows:
-        return "🏆 Здесь ещё никто ничего не поймал. Первым будет тот, кто напишет /fish"
-    lines = ["🏆 Рекорды чата", ""]
+        return tr(lang, "🏆 Здесь ещё никто ничего не поймал. Первым будет тот, кто напишет /fish",
+                  "🏆 Nobody has caught anything here yet. The first will be whoever sends /fish")
+    lines = [tr(lang, "🏆 Рекорды чата", "🏆 This chat's records"), ""]
     for index, row in enumerate(_ranked(rows)[:10], 1):
-        fish = SPECIES[row["species"]]
         trophy = " 🏆" if row["trophy"] else ""
-        lines.append(f"{index}. {stars(row['rarity'])} {fish['name']}, {weight(row['grams'])}{trophy} — "
-                     f"{row['user_name'] or 'рыбак'}")
+        lines.append(f"{index}. {stars(row['rarity'])} {fish_name(row['species'], lang)}, "
+                     f"{weight(row['grams'], lang)}{trophy} — {_angler_name(row, lang)}")
     return "\n".join(lines)
 
 
-def odds():
+def odds(lang="ru"):
     lines = []
     for rarity, info in RARITIES.items():
         share = info["odds"] / TOTAL_ODDS * 100
-        names = (", ".join(fish["name"] for fish in SPECIES.values() if fish["rarity"] == rarity)
-                 if rarity != "trash" else "ботинки, банки, дискеты")
-        lines.append(f"{stars(rarity) if rarity != 'trash' else '🥾'} {info['label']} — {share:g}%: {names}")
+        if rarity == "trash":
+            names = tr(lang, "ботинки, банки, дискеты", "boots, cans, floppies")
+        else:
+            names = ", ".join(fish_name(key, lang) for key, fish in SPECIES.items() if fish["rarity"] == rarity)
+        needs = GEAR[first_gear_for(rarity)]["emoji"]
+        mark = stars(rarity) if rarity != "trash" else "🥾"
+        percent = tr(lang, f"{share:g}".replace(".", ","), f"{share:g}")
+        lines.append(f"{mark} {rarity_label(rarity, lang)} — {percent}% · {needs}: {names}")
     return "\n".join(lines)
+
+
+def help_text(lang):
+    return "\n".join([
+        tr(lang, "🎣 Рыбалка", "🎣 Fishing"), "", odds(lang), "",
+        tr(lang,
+           "Начинаете с голыми руками ✋ — они держат только обычную рыбу, крупная выскальзывает. "
+           "Каждый улов приносит 🐚 ракушки, а на них в /fish_shop покупаются удочки покрепче: "
+           "значок у шанса — с какой снасти такая рыба уже не уйдёт.",
+           "You start with bare hands ✋ — they hold only common fish, bigger ones slip away. "
+           "Every catch earns 🐚 shells, and /fish_shop sells stronger rods for them: "
+           "the icon by each chance is the tackle from which that fish no longer gets away."),
+        "",
+        tr(lang, "Каждая рыба — NFT в вашем кошельке. /fish — заброс, /fish_bag — садок, "
+                 "/fish_shop — снасти, /fish_top — рекорды чата.",
+           "Every fish is an NFT in your wallet. /fish to cast, /fish_bag for your bag, "
+           "/fish_shop for tackle, /fish_top for this chat's records."),
+    ])
+
+
+def shop(user, name, lang="ru"):
+    """The tackle shop as the angler sees it, with a button per rod above theirs."""
+    state = angler(user)
+    mine = LADDER.index(state["gear"])
+    current = GEAR[state["gear"]]
+    lines = [tr(lang, "🛒 Снасти", "🛒 Tackle shop"),
+             f"{name}: {current['emoji']} {gear_name(state['gear'], lang)} · 🐚 {state['shells']}", ""]
+    buttons = []
+    for index, key in enumerate(LADDER):
+        gear = GEAR[key]
+        reach = _reach(gear, lang)
+        if key == STARTER:
+            price = tr(lang, "даром", "free")
+            what = tr(lang, f"только {reach}", f"{reach} only")
+        else:
+            price = f"{gear['price']} 🐚"
+            what = tr(lang, f"до {reach}", f"up to {reach}")
+        mark = " ✓" if index == mine else (" ·" if index < mine else "")
+        title = tr(lang, gear["ru"], gear["en"])
+        lines.append(f"{gear['emoji']} {title[0].upper() + title[1:]} — {price} · {what}{mark}")
+        if index > mine:
+            label = tr(lang, f"Купить {gear['emoji']} за {gear['price']} 🐚", f"Buy {gear['emoji']} for {gear['price']} 🐚")
+            buttons.append([InlineKeyboardButton(label, callback_data=f"fishshop:{key}")])
+    lines += ["", tr(lang,
+                     f"Ракушки дают за каждый улов: мусор — {SHELLS['trash']} 🐚, рыба — от {SHELLS['common']} 🐚, "
+                     "трофей — вдвое. Удочка покрепче держит рыбу крупнее и даёт дольше подсечь.",
+                     f"Every catch pays shells: trash {SHELLS['trash']} 🐚, a fish from {SHELLS['common']} 🐚, "
+                     "a trophy double. A stronger rod holds bigger fish and gives longer to strike.")]
+    return "\n".join(lines), (InlineKeyboardMarkup(buttons) if buttons else None)
+
+
+def _reach(gear, lang):
+    """The rarest fish a rod holds: «★★☆☆☆ (необычная)» / «★★☆☆☆ uncommon»."""
+    label = rarity_label(gear["holds"], lang)
+    return f"{stars(gear['holds'])} " + tr(lang, f"({label})", label)
+
+
+def bought_text(name, state, lang):
+    gear = GEAR[state["gear"]]
+    reach = _reach(gear, lang)
+    return tr(lang,
+              f"🛒 {name} теперь рыбачит: {gear['emoji']} {gear['ru']}. Держит рыбу до {reach}. Осталось 🐚 {state['shells']}.",
+              f"🛒 {name} now fishes with a {gear['en']} {gear['emoji']}: holds fish up to {reach}. 🐚 {state['shells']} left.")
 
 
 # --- handlers ----------------------------------------------------------------
@@ -700,8 +1058,8 @@ def _detach(context, coro):
         asyncio.ensure_future(coro)
 
 
-async def _float(bot, cast_id, chat_id, message_id, name, delay):
-    """The float sits, then bites, then — if nobody struck — the fish leaves.
+async def _float(bot, cast_id, chat_id, message_id, name, delay, gear_key=STARTER, lang="ru"):
+    """The line sits, then bites, then — if nobody struck — the fish leaves.
 
     Detached from the handler: this bot's dispatcher is sequential, and a
     handler that slept through a bite would stall every other one.
@@ -711,17 +1069,18 @@ async def _float(bot, cast_id, chat_id, message_id, name, delay):
     if not row or row["status"] != "waiting":
         return
     try:
-        await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=biting_text(name),
-                                    reply_markup=hook_markup(cast_id))
+        await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=biting_text(name, gear_key, lang),
+                                    reply_markup=hook_markup(cast_id, gear_key, lang))
     except TelegramError:
         lose(cast_id)
         return
     # The window opens when the button is on screen, not when the task woke.
     bite(cast_id)
-    await asyncio.sleep(HOOK_WINDOW + 0.5)
+    await asyncio.sleep(GEAR[gear_key]["window"] + 0.5)
     if escape(cast_id):
         try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=escaped_text(name))
+            await bot.edit_message_text(chat_id=chat_id, message_id=message_id,
+                                        text=escaped_text(name, gear_key, lang))
         except TelegramError:
             pass
 
@@ -730,26 +1089,32 @@ async def fish_command(update, context):
     chat, user, msg = update.effective_chat, update.effective_user, update.effective_message
     if not chat or not msg:
         return
+    lang = lang_of(update)
     if getattr(msg, "sender_chat", None) or not user or user.is_bot:
-        await msg.reply_text("Рыбачить можно только от своего аккаунта, а не от имени канала.")
+        await msg.reply_text(tr(lang, "Рыбачить можно только от своего аккаунта, а не от имени канала.",
+                                "You can only fish from your own account, not as a channel."))
         return
-    if context.args and context.args[0].lower() in ("help", "odds", "шансы", "?"):
-        await msg.reply_text("🎣 Рыбалка\n\n" + odds() + "\n\nКаждая рыба — NFT в вашем кошельке. "
-                             "/fish — заброс, /fish_bag — садок, /fish_top — рекорды чата.")
+    word = context.args[0].lower() if context.args else ""
+    if word in ("help", "odds", "шансы", "помощь", "?"):
+        await msg.reply_text(help_text(lang))
+        return
+    if word in ("shop", "магазин", "снасти"):
+        await fish_shop_command(update, context)
         return
     name = _name(user)
     try:
-        cast_id, delay = cast(chat.id, user.id, display_name=name)
+        cast_id, delay = cast(chat.id, user.id, display_name=name, lang=lang)
     except ValueError as exc:
-        await msg.reply_text(str(exc))
+        await msg.reply_text(say(lang, exc))
         return
+    gear_key = get_cast(cast_id)["gear"]
     try:
-        sent = await msg.reply_text(waiting_text(name))
+        sent = await msg.reply_text(waiting_text(name, gear_key, lang))
     except TelegramError:
         lose(cast_id)
         raise
     attach(cast_id, sent.message_id, msg.message_id)
-    _detach(context, _float(context.bot, cast_id, chat.id, sent.message_id, name, delay))
+    _detach(context, _float(context.bot, cast_id, chat.id, sent.message_id, name, delay, gear_key, lang))
 
 
 async def fish_callback(update, context):
@@ -761,18 +1126,25 @@ async def fish_callback(update, context):
     try:
         row, catch = strike(int(match[1]), query.from_user.id)
     except ValueError as exc:
-        await query.answer(str(exc)[:200], show_alert=True)
+        await query.answer(say(lang_of(update), exc)[:200], show_alert=True)
         return
     bot = context.bot
+    lang, gear_key = _lang(row), row.get("gear") or STARTER
+    name = _angler_name(row, lang)
+    if catch is None and row.get("got_away"):
+        await query.answer(tr(lang, "Сорвалась — слишком крупная!", "Lost it — too big!"))
+        await _edit(bot, row, too_big_text(name, gear_key, row["got_away"], lang))
+        return
     if catch is None:
-        await query.answer("Поздно — сорвалась!")
-        await _edit(bot, row, escaped_text(row["user_name"]))
+        await query.answer(tr(lang, "Поздно — ушла!", "Too late — it got away!"))
+        await _edit(bot, row, escaped_text(name, gear_key, lang))
         return
-    await query.answer("Есть! Тянем…")
+    await query.answer(tr(lang, "Есть! Тянем…", "Got it! Reeling in…"))
+    hint = upgrade_hint(angler(catch["user_id"]), lang)
     if catch["rarity"] == "trash":
-        await _edit(bot, row, trash_text(catch))
+        await _edit(bot, row, trash_text(catch, hint))
         return
-    await land(bot, row, catch)
+    await land(bot, row, catch, hint)
 
 
 async def _edit(bot, row, body, markup=None):
@@ -783,11 +1155,11 @@ async def _edit(bot, row, body, markup=None):
         logger.info("fishing: could not edit cast %s", row["id"])
 
 
-async def land(bot, row, catch):
+async def land(bot, row, catch, hint=None):
     """Show the fish: its picture, replying to the /fish that caught it, in
-    place of the float message. Text only if the chat refuses photos."""
+    place of the line's message. Text only if the chat refuses photos."""
     wallet = wallet_of(catch["user_id"])
-    body = caption(catch, wallet, getattr(bot, "username", None))
+    body = caption(catch, wallet, getattr(bot, "username", None), hint=hint)
     try:
         image = await asyncio.to_thread(picture, catch)
         sent = await bot.send_photo(
@@ -802,24 +1174,62 @@ async def land(bot, row, catch):
     try:
         await bot.delete_message(chat_id=row["chat_id"], message_id=row["message_id"])
     except TelegramError:
-        await _edit(bot, row, "🎣 Улов — ниже.")
+        await _edit(bot, row, tr(_lang(catch), "🎣 Улов — ниже.", "🎣 The catch is below."))
 
 
 async def fish_bag_command(update, context):
     user, msg = update.effective_user, update.effective_message
     if not user or not msg:
         return
-    await msg.reply_text(bag(user.id, _name(user)))
+    await msg.reply_text(bag(user.id, _name(user), lang_of(update)))
+
+
+async def fish_shop_command(update, context):
+    user, msg = update.effective_user, update.effective_message
+    if not user or not msg:
+        return
+    body, markup = shop(user.id, _name(user), lang_of(update))
+    await msg.reply_text(body, reply_markup=markup)
+
+
+async def fish_shop_callback(update, context):
+    query = update.callback_query
+    match = re.fullmatch(r"fishshop:([a-z]+)", query.data or "")
+    lang = lang_of(update)
+    if not match:
+        await query.answer()
+        return
+    buyer = query.from_user
+    try:
+        state = buy(buyer.id, match[1])
+    except ValueError as exc:
+        await query.answer(say(lang, exc)[:200], show_alert=True)
+        return
+    name = _name(buyer)
+    await query.answer(tr(lang, "Куплено!", "Bought!"))
+    body, markup = shop(buyer.id, name, lang)
+    try:
+        await query.edit_message_text(body, reply_markup=markup)
+    except TelegramError:
+        pass
+    chat = update.effective_chat
+    if chat is not None:
+        try:
+            await context.bot.send_message(chat_id=chat.id, text=bought_text(name, state, lang))
+        except TelegramError as exc:
+            logger.info("fishing: could not announce a purchase in %s: %s", chat.id, exc)
 
 
 async def fish_top_command(update, context):
     chat, msg = update.effective_chat, update.effective_message
     if not chat or not msg:
         return
+    lang = lang_of(update)
     if chat.type == "private":
-        await msg.reply_text("Рекорды — у каждого чата свои: /fish_top в группе. Ваш улов — /fish_bag")
+        await msg.reply_text(tr(lang, "Рекорды — у каждого чата свои: /fish_top в группе. Ваш улов — /fish_bag",
+                                "Records are per chat: /fish_top in a group. Your own catch: /fish_bag"))
         return
-    await msg.reply_text(top(chat.id))
+    await msg.reply_text(top(chat.id, lang))
 
 
 async def _announce_delivery(bot, catch_id):
@@ -843,7 +1253,7 @@ async def loop(application):
         try:
             for row in sweep():
                 if row["message_id"]:
-                    await _edit(application.bot, row, "🎣 Леска оборвалась — закидывайте снова: /fish")
+                    await _edit(application.bot, row, lost_text(row))
             if FISHING_MINT and DEPLOYER_PK:
                 chain = chain or Chain()
                 delivered, busy = await asyncio.to_thread(advance, chain)

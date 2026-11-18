@@ -36,6 +36,7 @@ from bot.chain import (
 )
 from bot.config import EVENT_WATCH_POLL_SECONDS, RPC_URL, WALLET_MINI_APP_URL, WCYBER_ADDRESS
 from bot.db import _kv_get, _kv_set, engine
+from bot.language import T, lang_for, say, tr
 from bot.reminders import OFF_CALLBACK, is_opted_in
 from bot.utils import _fmt_amount, _fmt_usd, _format_decimal_amount, _short_addr
 from bot.watchers import _cyber_usd
@@ -62,15 +63,20 @@ BALANCE_OF_ABI = [{
 BRIDGE_CURSOR = "personal_bridge_id"
 BLOCK_CURSOR = "personal_block"
 
-LINKED_TEXT = (
+LINKED_TEXT = T(
     "Готово: кошелёк {addr} связан с этим Telegram.\n\n"
     "Буду писать сюда, когда на него что-то придёт, когда мост доставит перевод, "
-    "и раз в день — если серия заданий под угрозой. Выключить — /remind off."
+    "и раз в день — если серия заданий под угрозой. Выключить — /remind off.",
+    "Done: wallet {addr} is linked to this Telegram.\n\n"
+    "I'll write here when something arrives in it, when the bridge delivers a transfer, "
+    "and once a day if your quest streak is at risk. Turn it off: /remind off.",
 )
 
-LINK_EXPIRED_TEXT = (
+LINK_EXPIRED_TEXT = T(
     "Ссылка устарела или уже использована. Откройте кошелёк и нажмите "
-    "«Уведомления в Telegram» ещё раз."
+    "«Уведомления в Telegram» ещё раз.",
+    "This link has expired or was already used. Open the wallet and press "
+    "«Notifications in Telegram» again.",
 )
 
 
@@ -126,10 +132,10 @@ def consume_link(token: str, tg_user_id: int) -> str | None:
     return row[0]
 
 
-def wallet_markup() -> InlineKeyboardMarkup:
+def wallet_markup(lang: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Открыть кошелёк", web_app=WebAppInfo(url=WALLET_MINI_APP_URL))],
-        [InlineKeyboardButton("Выключить уведомления", callback_data=OFF_CALLBACK)],
+        [InlineKeyboardButton(tr(lang, "Открыть кошелёк", "Open wallet"), web_app=WebAppInfo(url=WALLET_MINI_APP_URL))],
+        [InlineKeyboardButton(tr(lang, "Выключить уведомления", "Turn notifications off"), callback_data=OFF_CALLBACK)],
     ])
 
 
@@ -146,10 +152,12 @@ def linked_owners() -> dict[str, list[int]]:
 async def notify(bot, tg_user_id: int, body: str) -> bool:
     if not is_opted_in(tg_user_id):
         return False
+    # A private chat: the language its owner chose there, else as written.
+    lang = lang_for(tg_user_id, fallback="ru")
     try:
         await bot.send_message(
-            chat_id=tg_user_id, text=body,
-            reply_markup=wallet_markup(), disable_web_page_preview=True,
+            chat_id=tg_user_id, text=say(lang, body),
+            reply_markup=wallet_markup(lang), disable_web_page_preview=True,
         )
     except TelegramError as exc:
         # Never started the bot, blocked it, left Telegram: not retried.
@@ -168,10 +176,12 @@ def bridge_messages(rows, owners: dict[str, list[int]]) -> list[tuple[int, str]]
         route = _direction_label(direction)
         to_owner = owners.get((recipient or "").lower(), [])
         for tg in to_owner:
-            out.append((tg, f"Мост доставил {what} ({route}) на {_short_addr(recipient)}."))
+            out.append((tg, T(f"Мост доставил {what} ({route}) на {_short_addr(recipient)}.",
+                              f"The bridge delivered {what} ({route}) to {_short_addr(recipient)}.")))
         for tg in owners.get((sender or "").lower(), []):
             if tg not in to_owner:
-                out.append((tg, f"Ваш перевод через мост дошёл: {what} ({route}) на {_short_addr(recipient)}."))
+                out.append((tg, T(f"Ваш перевод через мост дошёл: {what} ({route}) на {_short_addr(recipient)}.",
+                                  f"Your bridge transfer arrived: {what} ({route}) to {_short_addr(recipient)}.")))
     return out
 
 
@@ -205,7 +215,8 @@ def bridge_tick() -> list[tuple[int, str]]:
 
 def _arrived(amount: str, symbol: str, usd: float | None, sender: str) -> str:
     worth = f" (≈ {_fmt_usd(usd)})" if usd is not None else ""
-    return f"Пришло {amount} {symbol}{worth} от {_short_addr(sender)}."
+    return T(f"Пришло {amount} {symbol}{worth} от {_short_addr(sender)}.",
+             f"Received {amount} {symbol}{worth} from {_short_addr(sender)}.")
 
 
 def token_messages(w3: Web3, logs, owners: dict[str, list[int]]) -> list[tuple[int, str]]:
@@ -307,10 +318,11 @@ def price_moves(prices, marks, now: float) -> tuple[list[tuple[str, str, float, 
 
 def _move_text(symbol: str, before: float, after: float, amount: float) -> str:
     change = (after / before - 1) * 100
-    verb = "вырос" if change > 0 else "упал"
-    return (
-        f"{symbol} {verb} на {abs(change):.0f}%: {_fmt_usd(before)} → {_fmt_usd(after)}.\n"
-        f"У вас {_fmt_amount(amount)} {symbol} ≈ {_fmt_usd(amount * after)}."
+    prices = f"{abs(change):.0f}%: {_fmt_usd(before)} → {_fmt_usd(after)}."
+    holding = f"{_fmt_amount(amount)} {symbol} ≈ {_fmt_usd(amount * after)}."
+    return T(
+        f"{symbol} {'вырос' if change > 0 else 'упал'} на {prices}\nУ вас {holding}",
+        f"{symbol} {'rose' if change > 0 else 'fell'} {prices}\nYou hold {holding}",
     )
 
 
