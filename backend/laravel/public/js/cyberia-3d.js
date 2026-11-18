@@ -676,7 +676,15 @@ function boot() {
   }
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0x5ff3e6, size: 0.045, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+  // A mote that drifts up to the lens would grow to a square across the screen,
+  // so its size on screen is capped and it fades out close to the camera.
+  const dustMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { uScale: { value: 400 } },
+    vertexShader: 'uniform float uScale; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; float d = -mv.z; gl_PointSize = clamp(0.045 * uScale / d, 0.0, 2.5); vA = smoothstep(1.5, 4.0, d) * exp(-d * 0.04); }',
+    fragmentShader: 'varying float vA; void main(){ if (length(gl_PointCoord - 0.5) > 0.5) { discard; } gl_FragColor = vec4(vec3(0.15, 0.9, 0.82) * vA, 1.0); }',
+  });
+  const dust = new THREE.Points(dustGeo, dustMat);
   scene.add(dust);
 
   /* ------------------------------------------------------------ labels -- */
@@ -953,6 +961,7 @@ function boot() {
     composer.setPixelRatio(dpr);
     composer.setSize(w, h);
     bloom.resolution.set(w / 2, h / 2);
+    dustMat.uniforms.uScale.value = h * Math.min(devicePixelRatio || 1, 2) / 2;
     camera.aspect = w / h;
     camera.fov = w / h < 1.1 ? 46 : 38;
     camera.updateProjectionMatrix();
