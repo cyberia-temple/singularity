@@ -91,6 +91,27 @@ type NFTItem = {
 const wallet = useWallet();
 
 const items = ref<NFTItem[]>([]);
+// `/market?token=448` — a link from the Telegram bot to one catch: show that
+// token alone until the visitor asks for the whole collection.
+const focusToken = ref<string | null>(
+    typeof window === 'undefined'
+        ? null
+        : new URLSearchParams(window.location.search).get('token'),
+);
+const shownItems = computed(() =>
+    focusToken.value
+        ? items.value.filter(
+              (item) => item.tokenId.toString() === focusToken.value,
+          )
+        : items.value,
+);
+const showAll = (): void => {
+    focusToken.value = null;
+
+    if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', window.location.pathname);
+    }
+};
 const loading = ref(false);
 const status = ref<string | null>(null);
 const error = ref<string | null>(null);
@@ -807,9 +828,21 @@ const formatPrice = (p: bigint, decimals: number): string => {
                     No NFTs minted yet.
                 </div>
 
+                <div v-if="focusToken" class="hint">
+                    Token #{{ focusToken }}
+                    <span v-if="!shownItems.length && loading">
+                        — loading…</span
+                    >
+                    <span v-else-if="!shownItems.length"> — not found.</span>
+                    ·
+                    <button type="button" class="linkish" @click="showAll">
+                        Show the whole collection
+                    </button>
+                </div>
+
                 <div class="grid-cards">
                     <div
-                        v-for="item in items"
+                        v-for="item in shownItems"
                         :key="item.tokenId.toString()"
                         class="nftCard"
                     >
@@ -1282,5 +1315,13 @@ const formatPrice = (p: bigint, decimals: number): string => {
     .grid {
         grid-template-columns: 1fr;
     }
+}
+.linkish {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
 }
 </style>

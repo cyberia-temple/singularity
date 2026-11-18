@@ -140,9 +140,11 @@ def commands(lang):
     ]
     if FISHING_ENABLED:
         menu += [
-            c("fish", "🎣 Рыбалка: каждая рыба — NFT", "🎣 Fishing: every fish is an NFT"),
-            c("fish_bag", "🪣 Ваш улов, снасть и ракушки", "🪣 Your catch, tackle and shells"),
-            c("fish_shop", "🛒 Снасти: удочки за ракушки", "🛒 Tackle shop: rods for shells"),
+            c("fish", "🎣 Рыбалка: весь улов — NFT-лут; /fish ⚡ — энергетик", "🎣 Fishing: every catch is NFT loot; /fish ⚡ pours energy"),
+            c("fish_bucket", "🪣 Ведро: улов в NFT или скупщику", "🪣 Bucket: mint the catch or sell it"),
+            c("fish_spots", "🗺 Места ловли и ключи к ним", "🗺 Fishing places and their keys"),
+            c("fish_shop", "🛒 Удочки, вёдра, наживки, энергетики", "🛒 Rods, buckets, bait, energy drinks"),
+            c("fish_bag", "🎒 Рюкзак: снасть, наживки, лучший улов", "🎒 Your gear, bait and best catches"),
             c("fish_top", "🏆 Рекорды чата по рыбалке", "🏆 This chat's fishing records"),
         ]
     menu += [

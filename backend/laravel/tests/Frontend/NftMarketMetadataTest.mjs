@@ -23,6 +23,18 @@ test('IPFS metadata and images have independent gateway fallbacks', () => {
     );
 });
 
+test('a bare CID is asked of this site first', () => {
+    const cid = 'bafkreibpcjavlnrcnk4xpqb25y6aujlwwgpclbluw5llpxm3gnth26wneq';
+    assert.deepEqual(
+        nftMetadataUrls(`ipfs://${cid}`, 'https://ipfs.io/ipfs/'),
+        [
+            `/ipfs/${cid}`,
+            `https://ipfs.io/ipfs/${cid}`,
+            `https://gateway.pinata.cloud/ipfs/${cid}`,
+        ],
+    );
+});
+
 test('external posts only allow HTTP links', () => {
     assert.equal(
         nftExternalUrl('https://t.me/channel/42'),

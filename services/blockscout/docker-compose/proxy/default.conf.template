@@ -42,6 +42,35 @@ server {
     # have no business taking 128 MB bodies.
     client_max_body_size 128m;
 
+    # What this node itself pinned — NFT pictures and metadata (channel posts,
+    # the Telegram bot's fishing loot) — straight from the local Kubo store, so
+    # the NFT market does not wait on rate-limited public gateways. Not a
+    # general IPFS proxy: `only-if-cached` makes Kubo answer 412 for anything
+    # not already here instead of fetching it for a stranger. Whatever it
+    # serves is inert on this origin: a sandboxed, script-free CSP and nosniff.
+    location ~ "^/ipfs/([A-Za-z0-9]{46,100})$" {
+        set                   $ipfs_upstream ipfs:8080;
+        proxy_pass            http://$ipfs_upstream/ipfs/$1;
+        proxy_http_version    1.1;
+        proxy_set_header      Host ipfs;
+        proxy_set_header      Cache-Control "only-if-cached";
+        proxy_set_header      Cookie "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    15s;
+        proxy_intercept_errors on;
+        error_page 412 = @ipfs_missing;
+
+        proxy_hide_header     Set-Cookie;
+        add_header            Content-Security-Policy "default-src 'none'; img-src 'self' data:; sandbox" always;
+        add_header            X-Content-Type-Options nosniff always;
+        add_header            Access-Control-Allow-Origin * always;
+        # Kubo already marks a CID immutable: its bytes can never change.
+    }
+
+    location @ipfs_missing {
+        return 404;
+    }
+
     location / {
         set                   $cyberia_church_upstream cyberia_church:9001;
         proxy_pass            http://$cyberia_church_upstream;

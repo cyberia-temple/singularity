@@ -179,7 +179,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/wallet — ваш привязанный кошелёк и ссылка на эксплорер",
             "/rps <ставка> — камень–ножницы–бумага на накопленные токены этого чата",
             "/slots <ставка> — 🎰 слот-автомат чата на накопленные токены",
-            *(["/fish — 🎣 рыбалка: каждая рыба — NFT в вашем кошельке"] if FISHING_ENABLED else []),
+            *(["/fish — 🎣 рыбалка: места, наживки, ведро; весь улов можно выпустить NFT"] if FISHING_ENABLED else []),
             "/balance — TG, все токены чатов и начисления",
             "/token — токен наград этого чата (только в группе)",
             "/unset_wallet — отвязать кошелёк (начисления сохранятся)",
@@ -216,7 +216,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/wallet - show your linked wallet and explorer link",
         "/rps <stake> - play rock-paper-scissors with this chat’s accrued tokens",
         "/slots <stake> - pull the chat’s 🎰 slot machine with accrued tokens",
-        *(["/fish - 🎣 fishing: every fish is an NFT in your wallet"] if FISHING_ENABLED else []),
+        *(["/fish - 🎣 fishing: places, bait, a bucket; any catch can become an NFT"] if FISHING_ENABLED else []),
         "/balance - show TG, all chat tokens, and pending rewards",
         "/token - show this chat's reward token (group only)",
         "/unset_wallet - unlink your wallet (pending rewards are kept)",
@@ -283,8 +283,9 @@ HELP_RU = (
     "начислены разом, когда вы сделаете /set_wallet."
 )
 HELP_RU_FISHING = (
-    "/fish — 🎣 рыбалка: каждая пойманная рыба — NFT в вашем кошельке\n"
-    "/fish_bag — улов и снасть · /fish_shop — удочки · /fish_top — рекорды чата · /fish odds — что клюёт\n"
+    "/fish — 🎣 рыбалка: рыба, хлам и сокровища — всё можно выпустить NFT и продать на маркете\n"
+    "/fish_bucket — ведро · /fish_spots — места · /fish_shop — лавка · /fish_bag — рюкзак · "
+    "/fish_top — рекорды · /fish odds — что клюёт · /fish ⚡ — энергетик всему чату\n"
 )
 HELP_RU_MUSIC = (
     "/track <исполнитель — название> — найти песню и прислать её (ссылка на трек "
@@ -344,9 +345,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/slots <stake> - pull the chat’s 🎰 slot machine with accrued tokens\n"
         "/slots_bank [amount] - show the machine’s till (admins top it up)\n"
         + (
-            "/fish - 🎣 cast a line; every fish you catch becomes an NFT in your wallet\n"
-            "/fish_bag - catch and tackle · /fish_shop - rods · /fish_top - this chat's records · "
-            "/fish odds - what bites\n"
+            "/fish - 🎣 cast a line; fish, junk and treasure can all be minted and sold on the market\n"
+            "/fish_bucket - bucket · /fish_spots - places · /fish_shop - shop · /fish_bag - gear · "
+            "/fish_top - records · /fish odds - what bites · /fish ⚡ - energy drink for the chat\n"
             if FISHING_ENABLED
             else ""
         ) +
