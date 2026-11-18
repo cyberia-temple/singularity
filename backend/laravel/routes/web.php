@@ -71,6 +71,7 @@ use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\ServiceMonitorController;
 use App\Http\Controllers\StakingController;
 use App\Http\Controllers\Teams\TeamInvitationController;
+use App\Http\Controllers\TempleController;
 use App\Http\Controllers\TokenController;
 use App\Http\Controllers\TrackerController;
 use App\Http\Controllers\UndergroundController;
@@ -130,6 +131,7 @@ Route::get('/{path?}', [LaunchpadController::class, 'showSubdomain'])
 
 Route::get('/', fn () => SessionReplay::page(resource_path('views/landing/index.html')))->name('home');
 Route::get('/thesis', fn () => SessionReplay::page(resource_path('views/landing/index1.html')))->name('thesis');
+Route::get('/3d', TempleController::class)->name('temple');
 Route::redirect('/underground', config('launchpad.underground_url'))->name('underground');
 Route::get('/robinhood-chain', function (BridgeConfigService $bridgeConfig) {
     $routes = array_values(array_filter(
