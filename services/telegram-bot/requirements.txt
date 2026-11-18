@@ -5,5 +5,8 @@
 python-telegram-bot==22.7
 httpx==0.28.1
 web3==7.15.0
+# bot/music.py decrypts VK's AES-128 HLS segments. Already installed through
+# web3 (eth-keyfile); pinned here because the bot imports it directly.
+pycryptodome==3.23.0
 SQLAlchemy==2.0.49
 python-dotenv==1.2.2

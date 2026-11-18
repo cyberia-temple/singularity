@@ -23,6 +23,7 @@ from bot.config import (
     CYBER_SOL_DECIMALS,
     AI_ENABLED,
     AI_MODEL_CHOICE,
+    MUSIC_ENABLED,
 )
 from bot.db import engine
 from bot import projects
@@ -197,6 +198,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    music_lines = (
+        "/track <artist — title> - find a song and post it (a Yandex Music or VK "
+        "track link works too, in any message)\n"
+        "/music [on|off] - music here; (admins) answer bare \"Artist — Title\" lines\n"
+        if MUSIC_ENABLED
+        else ""
+    )
     ai_lines = (
         "/ask <question> - ask the Cyberia AI assistant\n" if AI_ENABLED else ""
     ) + (
@@ -236,7 +244,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/ca - this chat's token contract address (also replies to \"ca\")\n"
         "/buybot - (admins) configure this chat's project and buy alerts\n"
         "/stats [window] - this chat's project stats (Cyberia digest: /stats 6h)\n"
-        + ai_lines +
+        + music_lines + ai_lines +
         "/set_channel_wallet <@channel> <0x..> - (channel admins) wallet that receives post NFTs\n"
         "/app - download the Cyberia wallet app\n"
         "/website - project website\n\n"

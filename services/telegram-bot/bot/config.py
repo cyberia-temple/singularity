@@ -497,6 +497,27 @@ GROQ_FREE_TIER = (
 )
 GROQ_PREFIX = "groq/"
 
+# --- Music: tracks on request (bot/music.py) -----------------------------------
+# A Yandex Music or VK track link, `/track <artist — title>`, or a bare
+# "Artist — Title" line brings back the song as an audio file.
+MUSIC_ENABLED = (
+    os.environ.get("MUSIC_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+)
+# Whether a bare "Artist — Title" line is searched in chats that never chose;
+# admins choose per chat with /music on|off.
+MUSIC_AUTO_DETECT = (
+    os.environ.get("MUSIC_AUTO_DETECT", "1").strip().lower() in {"1", "true", "yes", "on"}
+)
+# OAuth token of a Yandex account. With Plus, Yandex gives whole tracks;
+# without a token (or without Plus) only 30-second previews.
+YANDEX_MUSIC_TOKEN = (os.environ.get("YANDEX_MUSIC_TOKEN", "") or "").strip()
+# Yandex Music answers 451 outside Russia, and prod is in Germany: an http(s)
+# proxy in Russia for every Yandex request. Empty means direct.
+YANDEX_MUSIC_PROXY_URL = (os.environ.get("YANDEX_MUSIC_PROXY_URL", "") or "").strip()
+# A VK user token of the Kate Mobile client, the only kind audio.* accepts.
+# Empty leaves VK out.
+VK_AUDIO_TOKEN = (os.environ.get("VK_AUDIO_TOKEN", "") or "").strip()
+
 # Contract addresses surfaced by "ca". CYBER.sol is the community pump.fun token
 # (also gates the whales chat); its EVM counterpart is the bridged CYBER.sol on
 # Cyberia (matches PRICE_RELAY_TOKENS). Blank values are simply omitted.
@@ -606,7 +627,10 @@ class SecurityFilter(logging.Filter):
 
     def filter(self, record):
         if isinstance(record.msg, str):
-            for secret_value in (TELEGRAM_BOT_TOKEN, AI_API_KEY):
+            for secret_value in (
+                TELEGRAM_BOT_TOKEN, AI_API_KEY,
+                YANDEX_MUSIC_TOKEN, YANDEX_MUSIC_PROXY_URL, VK_AUDIO_TOKEN,
+            ):
                 if secret_value:
                     record.msg = record.msg.replace(secret_value, "***")
         return True

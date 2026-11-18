@@ -47,7 +47,7 @@ singularity/
 ├── services/vpn/         # Cyberia VPN node (Xray VLESS + Reality): access = a running CyberiaVpnPass, link issued for a wallet signature
 ├── services/compute-agent/ # Compute hosting: runs CyberiaCompute leases (CYBER per second, paid by each service's ServiceTreasury) and meters them
 ├── services/lisp/        # Common Lisp daemon/http services
-├── services/telegram-bot/ # Cyberia Telegram bot (Python): rewards, announcers, pump.fun buy bot, whales gate, wallet Mini App, AI assistant with a per-user free-model picker
+├── services/telegram-bot/ # Cyberia Telegram bot (Python): rewards, announcers, pump.fun buy bot, whales gate, wallet Mini App, AI assistant with a per-user free-model picker, songs on request (Yandex Music/VK)
 ├── services/lainos/      # LainOS: autonomous AI agent framework (TypeScript), Cyberia chain plugin
 ├── game/wired/           # Wired: 3D on-chain game (Godot 4), NPCs powered by LainOS
 ├── game/nocarrier/       # NO CARRIER: netstalking survival-horror sim (Godot 4, en/ru, optional on-chain NFT sealing)

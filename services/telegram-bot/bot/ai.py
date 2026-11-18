@@ -28,8 +28,10 @@ from bot.config import (
     GROQ_API_KEY,
     GROQ_BASE_URL,
     GROQ_PREFIX,
+    MUSIC_ENABLED,
 )
 from bot.ai_models import model_for, served_note
+from bot.music import claims_message
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +303,10 @@ async def ai_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data.get(key)
         for key in ("awaiting_wallet", "awaiting_token_name", "awaiting_token_interval")
     ):
+        return
+
+    # A track link is answered with the track (bot/music.py), not with text.
+    if MUSIC_ENABLED and claims_message(message):
         return
 
     if chat.type == "private":

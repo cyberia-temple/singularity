@@ -28,6 +28,7 @@ bot/
   slots.py       🎰 slot machine: Telegram's own dice, a per-chat bank
   pumpfun.py     pump.fun buy detection (Solana RPC + market feed) and the post
   buybot.py      opt-in LAIN/Pons v4 buy cards and ecosystem buttons
+  music.py       songs on request: Yandex Music/VK links, /track, "Artist — Title"
   market_gaps.py sized V2 buy/sell comparisons against outside reference markets
   announcers.py  background loops (bridge/swap/liquidity/lending/convert/
                  staking/pumpfun/digest/snapshot/whale) + run_snapshot_once
@@ -355,6 +356,46 @@ overrides the derived catalogue endpoint, and `AI_PROXY_URL` sends both the
 catalogue and the answers through a proxy on a host where the provider is
 blocked. `tests/test_ai_models.py` pins the reading of the catalogue and the
 size of what a button carries.
+
+### Music: tracks on request
+
+Three ways to get a song posted as an audio file:
+
+* a **Yandex Music or VK track link** anywhere in a message, in any chat
+  (`music.yandex.ru/album/…/track/…`, `music.yandex.ru/track/…`,
+  `vk.com/audio-…_…`);
+* **`/track Artist — Title`** (free words work too), or `/track` in reply to
+  a message with a link or such a line;
+* a **bare one-line "Artist — Title"** message. This one is answered only when
+  a search returns that very song: artist and title must both match, in either
+  order, a surname being enough for the artist. Anything else, a sentence with
+  a dash in it included, gets no reply at all, and no 30-second preview is
+  posted for it. Admins switch this off per chat with `/music off`
+  (`/music` shows the state and the sources).
+
+Sources, in the order they are tried for the file:
+
+1. **Yandex Music in full**: needs `YANDEX_MUSIC_TOKEN` of an account with
+   Plus. Search and track pages need no account.
+2. **The same recording on VK**: artist and title match, length within
+   ~6 %. Needs `VK_AUDIO_TOKEN`, a user token of the **Kate Mobile** client,
+   the only kind `audio.*` still accepts. VK gives an mp3, or an HLS playlist
+   of AES-128 MPEG-TS segments that `bot/music.py` decrypts and demuxes into
+   one mp3 itself (no ffmpeg; pycryptodome, already there through web3).
+3. **The Yandex 30-second preview**, only for a link or `/track`, captioned as
+   a fragment, and never cached.
+
+**Yandex Music answers HTTP 451 to hosts outside Russia**, and prod is in
+Germany. Without `YANDEX_MUSIC_PROXY_URL` (an `http(s)://` proxy in Russia;
+`socks5://` needs the `socksio` package, which is not installed) prod cannot
+open a Yandex link at all: the source is parked for 30 minutes after a 451 and
+the log says so once, and bare lines are searched on VK only.
+
+Telegram's `file_id` of every full track sent is kept in `bot_kv`
+(`music:tg:<source>:<id>`), so a song asked for again is one `sendAudio`
+and no download. The handler is non-blocking: a download never holds up the
+rest of the bot. Bot API uploads stop at 50 MB. `tests/test_music.py` pins
+what counts as a request, the matching, the source order and the HLS reader.
 
 ## Production runbook
 

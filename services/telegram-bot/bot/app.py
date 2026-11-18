@@ -29,6 +29,7 @@ from bot.config import (
     WHALE_CHAT_ID, WHALE_MIN_CYBER_SOL, WHALE_POLL_SECONDS, WHALE_RECHECK_SECONDS,
     NFT_FROM_POSTS, NFT_FROM_POSTS_DRYRUN, CYBERIA_NFT_ADDRESS, IPFS_API_URL,
     AI_ENABLED, AI_API_KEY, AI_MODEL, AI_MODEL_CHOICE,
+    MUSIC_ENABLED, YANDEX_MUSIC_TOKEN, YANDEX_MUSIC_PROXY_URL, VK_AUDIO_TOKEN,
     WALLET_MINI_APP_URL, WALLET_MINI_APP_MENU,
 )
 from bot.rps import rps_command, rps_callback, expiry_loop, ensure_schema as ensure_rps_schema
@@ -61,7 +62,7 @@ from bot.announcers import (
     run_snapshot_once,
 )
 from bot.watchers import WATCHERS, event_watcher_loop
-from bot import buybot, projects, pumpfun
+from bot import buybot, music, projects, pumpfun
 from bot.personal import ensure_personal_schema, personal_loop
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,14 @@ async def post_init(application: Application):
             BotCommand("stats", "This chat's market data or activity digest"),
             BotCommand("buybot", "(admins) Project settings and buy alerts"),
             BotCommand("ask", "Ask the Cyberia AI assistant"),
+            *(
+                [
+                    BotCommand("track", "Найти трек и прислать его: Исполнитель — Название"),
+                    BotCommand("music", "Музыка в чате; админам: автопоиск on/off"),
+                ]
+                if MUSIC_ENABLED
+                else []
+            ),
             *(
                 [BotCommand("model", "Choose which free AI model answers you")]
                 if AI_ENABLED and AI_MODEL_CHOICE
@@ -248,6 +257,16 @@ async def post_init(application: Application):
     else:
         logger.info("AI assistant disabled: AI_API_KEY not set")
 
+    if MUSIC_ENABLED:
+        logger.info(
+            "Music enabled: Yandex %s%s, VK %s",
+            "with token" if YANDEX_MUSIC_TOKEN else "previews only (no token)",
+            " via proxy" if YANDEX_MUSIC_PROXY_URL else "",
+            "on" if VK_AUDIO_TOKEN else "off (no VK_AUDIO_TOKEN)",
+        )
+    else:
+        logger.info("Music disabled: MUSIC_ENABLED off")
+
 
 def run_dispatcher():
     logger.info("Building application...")
@@ -310,6 +329,10 @@ def run_dispatcher():
         application.add_handler(
             CallbackQueryHandler(model_callback, pattern=rf"^{AI_MODEL_CALLBACK}\|")
         )
+    # Downloads take seconds; block=False keeps every other update moving meanwhile.
+    if MUSIC_ENABLED:
+        application.add_handler(CommandHandler("track", music.track_command, block=False))
+        application.add_handler(CommandHandler("music", music.music_command))
     application.add_handler(CommandHandler("set_channel_wallet", set_channel_wallet_command))
     application.add_handler(CommandHandler("channel_wallet", channel_wallet_command))
 
@@ -364,9 +387,23 @@ def run_dispatcher():
         group=3,
     )
 
+    # A Yandex Music / VK track link, or a bare "Artist — Title" line, brings
+    # back the song. Non-blocking: the download must not hold up other updates.
+    if MUSIC_ENABLED:
+        application.add_handler(
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND & ~filters.ChatType.CHANNEL
+                & ~filters.Regex(_QUICK_REPLY_RE),
+                music.music_message_handler,
+                block=False,
+            ),
+            group=4,
+        )
+
     # AI answers all ordinary text in DMs, but only explicit mentions/replies
     # in groups. A separate handler group lets interactive wallet/token flows
-    # inspect the same update first; the AI handler checks those states itself.
+    # inspect the same update first; the AI handler checks those states itself,
+    # and leaves track links to the music handler above.
     # With AI_ENABLED off the handler is not registered at all, so the bot
     # stays silent instead of replying that the assistant is not configured.
     if AI_ENABLED:
@@ -376,7 +413,7 @@ def run_dispatcher():
                 & ~filters.Regex(_QUICK_REPLY_RE),
                 ai_message_handler,
             ),
-            group=4,
+            group=5,
         )
 
     # Mint each new post in public channels the bot administers into CyberiaNFT.
