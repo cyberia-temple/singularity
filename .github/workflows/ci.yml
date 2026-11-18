@@ -220,7 +220,9 @@ jobs:
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          # cyberia-temple names the key DEPLOY_SSH_KEY, the CH4rnel fork DEPLOY_KEY;
+          # either repository deploys with whichever it has.
+          key: ${{ secrets.DEPLOY_SSH_KEY || secrets.DEPLOY_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           # A cold production build can exceed the action's ten-minute default.
           command_timeout: 30m
