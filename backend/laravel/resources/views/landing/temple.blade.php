@@ -188,13 +188,6 @@ window.CYBERIA_3D = {
         </div>
       </aside>
     </div>
-    <dl class="pulse" id="pulse">
-      <div><dt>Blocks</dt><dd data-pulse="blocks">–</dd></div>
-      <div><dt>Transactions</dt><dd data-pulse="transactions">–</dd></div>
-      <div><dt>Transactions today</dt><dd data-pulse="today">–</dd></div>
-      <div><dt>Tokens launched</dt><dd data-pulse="launched">–</dd></div>
-      <div><dt>Doors open</dt><dd data-pulse="doors">–</dd></div>
-    </dl>
   </section>
 
   <section class="panel" id="chain" data-scene="chain">
