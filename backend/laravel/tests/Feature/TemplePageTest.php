@@ -43,3 +43,25 @@ it('sends every door and button to a page this site serves', function () {
         }
     }
 });
+
+/*
+ * The swap window on /3d prices routes through the wallet's own cross-chain
+ * endpoints. Renaming one of them would leave the window quoting a 404 with
+ * nothing failing anywhere else, so the page's configuration is checked
+ * against the router.
+ */
+it('prices the swap window through cross-chain routes this site serves', function () {
+    $html = $this->get(route('temple'))->assertOk()->getContent();
+
+    expect($html)->toContain('id="swap"');
+
+    foreach (['GET' => '/api/wallet/crosschain', 'POST' => '/api/wallet/crosschain/quote'] as $method => $path) {
+        expect($html)->toContain(json_encode(url($path)));
+
+        try {
+            Route::getRoutes()->match(Request::create($path, $method));
+        } catch (HttpException) {
+            $this->fail("No route serves {$method} {$path}, which the swap window on /3d calls.");
+        }
+    }
+});

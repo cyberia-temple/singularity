@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#05090a">
 <title>Cyberia — the chain that pays open source back</title>
-<meta name="description" content="Cyberia is a sovereign EVM chain where a contribution is an economic event. The cube is the chain itself, live: every block on the road behind it is a real one, read as it lands. Wallet, swap, bridge, DAO, lending and a launchpad, all running on it.">
+<meta name="description" content="Cyberia is a sovereign EVM chain where a contribution is an economic event, now relaunching as its own Avalanche L1 — Cyberia 2.0. The cube is the chain itself, live: every block on the road behind it is a real one. Swap across chains, open the wallet, walk through the doors.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Cyberia — the chain that pays open source back">
-<meta property="og:description" content="A sovereign EVM chain, live in 3D: every block as it lands, every door into the ecosystem, every token launched on it.">
+<meta property="og:description" content="A sovereign EVM chain, live in 3D — relaunching on Avalanche as Cyberia 2.0. Every block as it lands, a swap across chains, every door into the ecosystem.">
 <meta property="og:url" content="{{ route('temple') }}">
 <meta property="og:image" content="https://cyberia.church/cyberia_logo.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -29,12 +29,20 @@ window.CYBERIA_3D = {
   fuji: @json(url('/api/fuji/chain')),
   tokenPage: @json(url('/token')),
   cube: '/assets/cube.png',
+  textures: '/assets/3d/',
+  texturesVersion: @json($assetsVersion),
+  swap: {
+    config: @json(url('/api/wallet/crosschain')),
+    quote: @json(url('/api/wallet/crosschain/quote')),
+    wallet: @json(url('/wallet')),
+  },
 };
 </script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+  "cyberia-swap": "/js/cyberia-3d-swap.js?v={{ filemtime(public_path('js/cyberia-3d-swap.js')) }}"
 } }
 </script>
 </head>
@@ -59,12 +67,58 @@ window.CYBERIA_3D = {
     <div class="copy">
       <p class="live" id="live"><i></i><span>Reading the chain…</span></p>
       <h1>Open source built the world.<br><em>The world forgot to pay it back.</em></h1>
-      <p class="lede">Cyberia is the missing layer: a sovereign chain where a contribution — code, content, moderation, capital — is an economic event, recorded and settled. The cube is the chain itself. Every stone on the road behind it is a real block, read from the network the second it lands.</p>
+      <p class="lede">Cyberia is the missing layer: a sovereign chain where a contribution — code, content, moderation, capital — is an economic event, recorded and settled. The cube is the chain itself; every stone on the road behind it is a real block, read the second it lands.</p>
       <div class="ctas">
         <a class="btn cyan" href="/wallet">Open the wallet</a>
         <a class="btn" href="#doors">Walk through the doors</a>
       </div>
-      <p class="hint">Drag to turn the cube. Point at a block to read it, click it to open it in the explorer.</p>
+      <a class="relaunch" href="#next">
+        <span class="relaunch-tag">Cyberia 2.0</span>
+        <span class="relaunch-text"><b>The chain is relaunching on Avalanche.</b> Its testnet is live; mainnet is next, and bridges open with it.</span>
+      </a>
+    </div>
+    <div class="swap-home">
+      <aside class="swap" id="swap" aria-labelledby="swap-title">
+        <header class="swap-head">
+          <h2 id="swap-title">Swap across chains</h2>
+          <p class="swap-kicker">Any coin · any chain</p>
+        </header>
+        <div class="swap-row">
+          <span class="swap-coin" data-coin="from" aria-hidden="true"></span>
+          <div class="swap-cell">
+            <label class="swap-label" for="swap-amount">You pay</label>
+            <div class="swap-line">
+              <input class="swap-amount" id="swap-amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.05" aria-describedby="swap-in-usd">
+              <button class="swap-asset" type="button" data-pick="from" aria-haspopup="listbox">ETH</button>
+            </div>
+            <span class="swap-sub" id="swap-in-usd" data-out="in-usd"></span>
+          </div>
+        </div>
+        <div class="swap-mid"><button class="swap-flip" type="button" aria-label="Turn the route around">⇅</button></div>
+        <div class="swap-row">
+          <span class="swap-coin" data-coin="to" aria-hidden="true"></span>
+          <div class="swap-cell">
+            <span class="swap-label">You get</span>
+            <div class="swap-line">
+              <output class="swap-amount" data-out="amount" aria-live="polite">–</output>
+              <button class="swap-asset" type="button" data-pick="to" aria-haspopup="listbox">BTC</button>
+            </div>
+            <span class="swap-sub" data-out="out-usd"></span>
+          </div>
+        </div>
+        <dl class="swap-facts">
+          <div><dt>Arrives</dt><dd data-out="time">–</dd></div>
+          <div><dt>Cyberia fee</dt><dd data-out="fee">–</dd></div>
+          <div><dt>Total cost</dt><dd data-out="impact">–</dd></div>
+        </dl>
+        <p class="swap-note" data-out="note" role="status"></p>
+        <a class="btn cyan swap-go" data-out="go" href="/wallet?section=crosschain">Swap in Cyberia Wallet →</a>
+        <p class="swap-small">A live price from Relay. You sign in the wallet, which prices it again for your own address — keys never leave your browser.</p>
+        <div class="swap-pick" hidden>
+          <div class="swap-pick-head"><b>Pay with</b><button class="swap-x" type="button" aria-label="Close the list">×</button></div>
+          <ul role="listbox" aria-label="Coins and networks"></ul>
+        </div>
+      </aside>
     </div>
     <dl class="pulse" id="pulse">
       <div><dt>Blocks</dt><dd data-pulse="blocks">–</dd></div>
@@ -149,22 +203,25 @@ window.CYBERIA_3D = {
 
   <section class="panel" id="next" data-scene="next">
     <div class="copy">
-      <p class="eyebrow">Cyberia 2.0</p>
-      <h2>The same temple, on Avalanche.</h2>
-      <p>The wireframe cube is Cyberia 2.0: its own Avalanche L1, running on the Fuji testnet today. Network fees go to the DAO treasury, a multisig Safe, instead of to a company. The wallet already speaks both chains, and the old one stays.</p>
+      <p class="eyebrow">Cyberia 2.0 · Avalanche</p>
+      <h2>The chain is moving to Avalanche.</h2>
+      <p>Cyberia relaunches as its own Avalanche L1 — the same temple on stronger ground, with CYBER still the coin you pay gas in. The wired cube on the horizon is that chain, live on the Fuji testnet today. Its network fees already go to the DAO treasury, a multisig Safe, instead of to a company.</p>
+      <p><b class="hl">Bridges are coming.</b> When mainnet opens, CYBER.sol from Solana, CYBER from today’s chain and AVAX from the C-Chain will cross into 2.0. Nothing needs moving yet: today’s chain keeps running, and the wallet already speaks both.</p>
       <dl class="params" id="fuji">
-        <div><dt>Block</dt><dd data-fuji="block">–</dd></div>
+        <div><dt>Testnet block</dt><dd data-fuji="block">–</dd></div>
         <div><dt>Chain ID</dt><dd data-fuji="chain">49407</dd></div>
         <div><dt>DAO treasury</dt><dd data-fuji="treasury">–</dd></div>
         <div><dt>Validator</dt><dd data-fuji="validator">–</dd></div>
       </dl>
-      <ul class="road">
-        <li><b>Running</b> Sovereign EVM L1 · wallet, DEX, bridge, DAO, lending, launchpad · on-chain profiles</li>
-        <li><b>In motion</b> Cyberia 2.0 on Avalanche · Lain’s agents on-chain · the Wired and NO CARRIER</li>
-        <li><b>Next</b> Independent validators · contribution-weighted governance · settlement for open-source work</li>
-      </ul>
+      <ol class="road">
+        <li class="done"><b>Live</b> Fuji testnet · chain 49407 · test CYBER from the faucet · every fee to the DAO</li>
+        <li><b>Next</b> Bridges into 2.0 — from Solana, from today’s chain and from the C-Chain</li>
+        <li><b>Then</b> An outside security review of the protocol, and mainnet</li>
+        <li><b>After</b> Independent validators · contribution-weighted governance</li>
+      </ol>
       <div class="ctas">
-        <a class="btn" href="/fuji">Get test CYBER on 2.0</a>
+        <a class="btn cyan" href="/fuji">Get test CYBER on 2.0</a>
+        <a class="btn" href="/wallet">Open the wallet</a>
       </div>
     </div>
   </section>
@@ -173,7 +230,7 @@ window.CYBERIA_3D = {
     <div class="copy">
       <p class="eyebrow">Step inside</p>
       <h2>One wallet. Every door.</h2>
-      <p>One seed phrase for Cyberia, Solana, Bitcoin, Litecoin, Monero and every EVM network you add, with encrypted messages between wallets. In the browser, or installed on Windows, macOS, Linux and Android.</p>
+      <p>One seed phrase for Cyberia, Solana, Bitcoin, Litecoin, Monero and every EVM network you add, with a swap between any two of them and encrypted messages between wallets. In the browser, or installed on Windows, macOS, Linux and Android.</p>
       <div class="ctas">
         <a class="btn cyan" href="/wallet">Open the wallet</a>
         <a class="btn" href="/download">Install it</a>

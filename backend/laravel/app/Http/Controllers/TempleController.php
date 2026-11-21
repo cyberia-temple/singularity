@@ -11,8 +11,9 @@ use Illuminate\View\View;
  *
  * Everything the scene shows is read live by the browser — blocks from the
  * public RPC, totals from the explorer, tokens from /api/launchpad/tokens,
- * Cyberia 2.0 from /api/fuji/chain — so this only names where to read and
- * which doors there are.
+ * Cyberia 2.0 from /api/fuji/chain, cross-chain prices from the wallet's own
+ * /api/wallet/crosschain routes — so this only names where to read and which
+ * doors there are.
  */
 class TempleController extends Controller
 {
@@ -31,7 +32,20 @@ class TempleController extends Controller
             ],
             'cyberSol' => config('cyber.contracts.cyber_sol_mint'),
             'doors' => self::doors(),
+            'assetsVersion' => self::texturesVersion(),
         ]);
+    }
+
+    /**
+     * One version for the scene's textures, which the script fetches by name:
+     * the newest file's time, so a deploy that changes any of them reaches
+     * browsers that cached the old ones.
+     */
+    private static function texturesVersion(): int
+    {
+        $files = glob(public_path('assets/3d/*.webp')) ?: [];
+
+        return $files === [] ? 0 : max(array_map('filemtime', $files));
     }
 
     /**
