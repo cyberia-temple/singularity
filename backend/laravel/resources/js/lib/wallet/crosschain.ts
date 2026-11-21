@@ -234,6 +234,66 @@ export const routerNativeCurrency = (id: WalletChainId): string => {
 };
 
 /**
+ * A route picked somewhere else and handed to this screen to be signed:
+ * `/wallet?section=crosschain&from=4663&to=8253038&amount=0.05`, optionally
+ * with `fromToken`/`toToken` in the router's own ids (an address, a mint, a
+ * bc1… id). The swap window on cyberia.church/3d quotes routes without a
+ * wallet and sends them here.
+ *
+ * Only the shape is read. Whether the route can happen is still decided by
+ * the screen against the router's list, exactly as if the user had picked it
+ * by hand — a link may fill the form, it never skips a check, and nothing in
+ * it can sign.
+ */
+export type CrossSwapLink = {
+    from: number;
+    to: number;
+    fromToken: string | null;
+    toToken: string | null;
+    amount: string | null;
+};
+
+/** The query keys a link uses; the screen deletes them once read. */
+export const CROSS_LINK_KEYS = [
+    'from',
+    'to',
+    'fromToken',
+    'toToken',
+    'amount',
+] as const;
+
+export const readCrossSwapLink = (search: string): CrossSwapLink | null => {
+    const query = new URLSearchParams(search);
+    const chainId = (value: string | null): number | null =>
+        value !== null && /^[1-9][0-9]{0,11}$/.test(value)
+            ? Number(value)
+            : null;
+    const token = (value: string | null): string | null =>
+        value !== null && /^[0-9A-Za-z]{1,128}$/.test(value) ? value : null;
+    const from = chainId(query.get('from'));
+    const to = chainId(query.get('to'));
+
+    if (from === null || to === null) {
+        return null;
+    }
+
+    const amount = query.get('amount');
+
+    return {
+        from,
+        to,
+        fromToken: token(query.get('fromToken')),
+        toToken: token(query.get('toToken')),
+        amount:
+            amount !== null &&
+            /^(0|[1-9][0-9]{0,17})(\.[0-9]{1,18})?$/.test(amount) &&
+            /[1-9]/.test(amount)
+                ? amount
+                : null,
+    };
+};
+
+/**
  * The destination a cross-chain swap opens on, among the chains this wallet
  * holds an account on: bitcoin first, then any other non-EVM chain, then the
  * first EVM one. Bitcoin is what no pool on an EVM network can give, which is

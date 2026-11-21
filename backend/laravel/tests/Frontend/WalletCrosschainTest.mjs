@@ -10,6 +10,7 @@ import {
     fetchCrosschainConfig,
     nativeCurrencyOf,
     preferredDestination,
+    readCrossSwapLink,
 } from '@/lib/wallet/crosschain';
 
 /**
@@ -248,10 +249,43 @@ test('a network’s own coin is named the way the router names it', () => {
 test('the wallet keeps the router’s id for each network’s own coin', async () => {
     const original = globalThis.fetch;
     globalThis.fetch = async () => new Response(JSON.stringify({ enabled: true, fee: { address: null, bps: 0 }, chains: [{ id: 8253038, name: 'Bitcoin', symbol: 'BTC', decimals: 8, vm: 'bvm', native: 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+
     try {
         const config = await fetchCrosschainConfig();
         assert.equal(nativeCurrencyOf(config.chains[0]), 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8');
     } finally {
         globalThis.fetch = original;
     }
+});
+
+/*
+ * The /3d page sends a route it priced without a wallet here to be signed.
+ * A link may fill the form; a malformed one fills nothing rather than half of
+ * it, and nothing in it is trusted beyond its shape.
+ */
+test('a link from the swap window fills the route and nothing else', () => {
+    assert.deepEqual(
+        readCrossSwapLink('?section=crosschain&from=4663&to=8253038&toToken=bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8&amount=0.05'),
+        { from: 4663, to: 8253038, fromToken: null, toToken: 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmql8k8', amount: '0.05' },
+    );
+    assert.equal(
+        readCrossSwapLink('?from=8453&to=792703809&fromToken=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913').fromToken,
+        '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    );
+    assert.equal(readCrossSwapLink('?section=crosschain'), null);
+    assert.equal(readCrossSwapLink('?from=base&to=8253038'), null);
+    assert.equal(readCrossSwapLink('?from=8453'), null);
+});
+
+test('an amount from a link is a plain positive decimal or it is dropped', () => {
+    const amountOf = (value) => readCrossSwapLink(`?from=8453&to=1&amount=${encodeURIComponent(value)}`).amount;
+
+    assert.equal(amountOf('12.5'), '12.5');
+    assert.equal(amountOf('0.000001'), '0.000001');
+    assert.equal(amountOf('0'), null);
+    assert.equal(amountOf('0.0'), null);
+    assert.equal(amountOf('-1'), null);
+    assert.equal(amountOf('1e18'), null);
+    assert.equal(amountOf('1,5'), null);
+    assert.equal(readCrossSwapLink('?from=8453&to=1&fromToken=%3Cscript%3E').fromToken, null);
 });

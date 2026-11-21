@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    watch,
+} from 'vue';
 import CrossTokenIcon from '@/components/wallet/CrossTokenIcon.vue';
 import HoldButton from '@/components/wallet/HoldButton.vue';
 import { useLocale } from '@/composables/useLocale';
 import type { MultiWallet } from '@/composables/useMultiWallet';
 import { formatUnits, parseUnits, walletChain } from '@/lib/wallet';
 import type { WalletChainId } from '@/lib/wallet';
+import { NETWORK_CATALOGUE } from '@/lib/wallet/catalogue';
 import { knownChain, shippedChainByEvmId } from '@/lib/wallet/chains';
 import {
+    CROSS_LINK_KEYS,
     CROSS_NATIVE,
     crossDestinationProblem,
     crossDestinationValidator,
@@ -19,6 +28,8 @@ import {
     nativeCurrencyOf,
     preferredDestination,
     quoteCrossSwap,
+    readCrossSwapLink,
+    routerChainId,
 } from '@/lib/wallet/crosschain';
 import type {
     CrossChainRow,
@@ -705,7 +716,110 @@ onMounted(async () => {
     } finally {
         loading.value = false;
     }
+
+    await takeLink();
 });
+
+/**
+ * A route picked before the wallet was open — the swap window on
+ * cyberia.church/3d sends `?section=crosschain&from=…&to=…&amount=…`.
+ *
+ * It fills the form and nothing else: the source still has to be a network
+ * this wallet signs on and the destination one whose addresses it checks, and
+ * the hold is still the user's. The keys leave the address once read, like
+ * `?swap=`: this is a form over somebody's money and must not refill itself
+ * on a refresh.
+ */
+const takeLink = async (): Promise<void> => {
+    const url = new URL(window.location.href);
+    const link = readCrossSwapLink(url.search);
+
+    if (CROSS_LINK_KEYS.some((key) => url.searchParams.has(key))) {
+        CROSS_LINK_KEYS.forEach((key) => url.searchParams.delete(key));
+        window.history.replaceState(window.history.state, '', url.toString());
+    }
+
+    if (link === null || !config.value) {
+        return;
+    }
+
+    const origin = chainRow(link.from);
+    const target = chainRow(link.to);
+
+    // A source the wallet knows but has switched off is the one tap this
+    // screen already offers — following the link was that tap.
+    if (
+        origin !== null &&
+        origin.vm === 'evm' &&
+        origin.deposits &&
+        walletChainOf(origin.id) === null
+    ) {
+        const id =
+            shippedChainByEvmId(origin.id)?.id ??
+            NETWORK_CATALOGUE.find((network) => network.chainId === origin.id)
+                ?.id;
+
+        if (id) {
+            props.wallet.enableNetwork(id);
+        }
+    }
+
+    if (origin !== null && origin.vm === 'evm' && origin.deposits) {
+        sourceChainId.value = origin.id;
+    }
+
+    if (target !== null && crossDestinationProblem(target) === null) {
+        // Where it lands, too: with Solana or Bitcoin switched on, the
+        // recipient becomes the user's own address there instead of a blank
+        // field — the reason a cross-chain swap belongs in a wallet.
+        const home = (['solana', 'bitcoin'] as const).find(
+            (id) => routerChainId(id) === target.id,
+        );
+
+        if (
+            home &&
+            !props.wallet.accounts.value.some(
+                (account) => account.chain === home,
+            )
+        ) {
+            props.wallet.enableNetwork(home);
+        }
+
+        destChainId.value = target.id;
+    }
+
+    // The chain watchers clear the picked tokens; let them run first.
+    await nextTick();
+
+    const tokenOf = async (
+        chain: CrossChainRow | null,
+        id: string | null,
+    ): Promise<CrossToken | null> => {
+        if (chain === null || id === null || id === nativeCurrencyOf(chain)) {
+            return null;
+        }
+
+        const same = (address: string): boolean =>
+            id.startsWith('0x')
+                ? address.toLowerCase() === id.toLowerCase()
+                : address === id;
+        const rows = await fetchCrossTokens(chain.id, id).catch(() => []);
+
+        return rows.find((row) => same(row.address)) ?? null;
+    };
+
+    if (sourceChainId.value === link.from) {
+        sourceToken.value = await tokenOf(source.value, link.fromToken);
+    }
+
+    if (destChainId.value === link.to) {
+        destToken.value = await tokenOf(destination.value, link.toToken);
+    }
+
+    if (link.amount !== null) {
+        amount.value = link.amount;
+    }
+};
 
 onBeforeUnmount(stopPolling);
 
