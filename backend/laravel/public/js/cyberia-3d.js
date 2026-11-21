@@ -935,7 +935,7 @@ function boot(swap) {
   // The bridge from today's chain to 2.0: drawn, flowing, and missing its
   // last span — bridges open with mainnet, and the picture says no more than that.
   const bridgeCurve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0.7, 3.2, -0.7), new THREE.Vector3(8.2, 9.4, -7.6), new THREE.Vector3(NEXT.x - 1.4, NEXT.y + 0.9, NEXT.z + 1.2));
-  const bridgeMat = flowMaterial({ colorA: new THREE.Color(0.0, 1.3, 1.2), colorB: new THREE.Color(0.55, 1.0, 1.9), dashes: 38, speed: 0.5, alpha: 0.75, gap: 0.045, gapAt: 0.86 });
+  const bridgeMat = flowMaterial({ colorA: new THREE.Color(0.0, 1.3, 1.2), colorB: new THREE.Color(0.55, 1.0, 1.9), dashes: 38, speed: 0.5, alpha: 0, gap: 0.045, gapAt: 0.86 });
   scene.add(new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve, 200, 0.03, 8, false), bridgeMat));
 
   /* -- the swap window, standing in the scene beside the cube */
@@ -1621,7 +1621,7 @@ function boot(swap) {
       updateBeam();
     }
     bridgeMat.uniforms.uTime.value = reduced ? 0 : now;
-    bridgeMat.uniforms.uAlpha.value += (want.bridge * 0.8 - bridgeMat.uniforms.uAlpha.value) * Math.min(1, dt * 3);
+    bridgeMat.uniforms.uAlpha.value += (want.bridge * 0.8 - bridgeMat.uniforms.uAlpha.value) * (reduced ? 1 : Math.min(1, dt * 3));
 
     const b = road[road.length - 1];
     if (b) { setLabel(newest, `#${fmt.format(b.n)}<small>${b.tx === null ? 'newest block' : b.tx + ' tx'} · ${b.ts ? ago(b.ts) : ''}</small>`); }
