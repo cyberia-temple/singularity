@@ -1096,9 +1096,9 @@ function boot(swap) {
     heroCam.aspect = W / H;
     heroCam.near = camera.near;
     heroCam.far = camera.far;
-    heroCam.position.set(...shot.pos);
+    shotVec('hero', 'pos', heroCam.position, false);
     heroCam.lookAt(...shot.look);
-    heroCam.setViewOffset(W, H, -W * shot.shift, 0, W, H);
+    heroCam.setViewOffset(W, H, -W * shiftOf('hero'), 0, W, H);
     heroCam.updateProjectionMatrix();
     heroCam.updateMatrixWorld();
     const ppu = H / (2 * PANEL.distance * Math.tan(THREE.MathUtils.degToRad(heroCam.fov / 2)));
@@ -1314,12 +1314,18 @@ function boot(swap) {
   const A = new THREE.Vector3();
   const B = new THREE.Vector3();
 
+  // On a narrow desktop the copy, the cube and the swap window share less
+  // width: the first shot steps back and slides the scene right.
+  const tight = (name, isPhone) => (isPhone || name !== 'hero' ? 0 : THREE.MathUtils.clamp((1240 - canvas.clientWidth) / 300, 0, 1));
+  const shiftOf = (name) => SHOTS[name].shift + 0.07 * tight(name, false);
   const shotVec = (name, key, out, isPhone) => {
     const s = SHOTS[name];
     out.set(...(key === 'look' && isPhone && s.phoneLook ? s.phoneLook : s[key]));
     if (key === 'pos' && isPhone) {
       // the same direction and distance, scaled, around the phone's own focus
       out.sub(new THREE.Vector3(...s.look)).multiplyScalar(s.phone).add(new THREE.Vector3(...(s.phoneLook || s.look)));
+    } else if (key === 'pos') {
+      out.sub(new THREE.Vector3(...s.look)).multiplyScalar(1 + 0.3 * tight(name, isPhone)).add(new THREE.Vector3(...s.look));
     }
     return out;
   };
@@ -1345,7 +1351,7 @@ function boot(swap) {
     shotVec(a, 'look', A, isPhone);
     shotVec(b, 'look', B, isPhone);
     want.look.lerpVectors(A, B, t);
-    want.shift = isPhone ? 0 : THREE.MathUtils.lerp(SHOTS[a].shift, SHOTS[b].shift, t);
+    want.shift = isPhone ? 0 : THREE.MathUtils.lerp(shiftOf(a), shiftOf(b), t);
     want.orbit = (SHOTS[a].orbit ? 1 - t : 0) + (SHOTS[b].orbit ? t : 0);
     want.doors = THREE.MathUtils.lerp(SHOTS[a].doors, SHOTS[b].doors, t);
     want.swap = THREE.MathUtils.clamp(THREE.MathUtils.lerp(SHOTS[a].swap || 0, SHOTS[b].swap || 0, Math.min(1, t * 1.6)), 0, 1);
