@@ -544,7 +544,9 @@ function boot(swap) {
         col *= 1.0 - grout * 0.75;
         vec2 wob = vec2(texture2D(tMarble, p * 0.031).r - 0.5, texture2D(tMarble, p * 0.027 + 0.37).r - 0.5) * 0.005;
         float lod = mix(1.1, 3.4, vein) + (1.0 - smoothstep(0.0, 0.07, ed)) * 0.9;
-        vec3 refl = blurred(vRefl.xy / vRefl.w + wob, lod);
+        vec2 ruv = vRefl.xy / vRefl.w + wob;
+        vec2 inner = smoothstep(vec2(0.0), vec2(0.035), ruv) * smoothstep(vec2(1.0), vec2(0.965), ruv);
+        vec3 refl = blurred(ruv, lod) * inner.x * inner.y;
         vec3 V = normalize(cameraPosition - vW);
         float F = 0.04 + 0.96 * pow(1.0 - clamp(V.y, 0.0, 1.0), 5.0);
         col += refl * uReflect * mix(0.2, 0.95, F) * (1.0 - grout) * (1.0 - 0.5 * vein);
@@ -572,6 +574,10 @@ function boot(swap) {
 
   // The mirror pass, after three's Reflector: the camera reflected in the
   // floor, its near plane bent onto the floor so nothing under it is drawn.
+  // A reflected camera sees the floor flipped left to right, so the scene's
+  // sideways shift (setViewOffset) has to be flipped too — copied as it is,
+  // the mirror looked past one edge of the screen and the floor there
+  // smeared the texture's last column into streaks.
   const UP = new THREE.Vector3(0, 1, 0);
   const plane = new THREE.Plane();
   const clip = new THREE.Vector4();
@@ -590,6 +596,7 @@ function boot(swap) {
     mirror.far = camera.far;
     mirror.updateMatrixWorld();
     mirror.projectionMatrix.copy(camera.projectionMatrix);
+    mirror.projectionMatrix.elements[8] *= -1;
     textureMatrix.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
     textureMatrix.multiply(mirror.projectionMatrix).multiply(mirror.matrixWorldInverse);
     plane.setFromNormalAndCoplanarPoint(UP, floor.position).applyMatrix4(mirror.matrixWorldInverse);
