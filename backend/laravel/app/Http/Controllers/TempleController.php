@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * Cyberia in 3D (/3d): the chain drawn as a black glass cube with the logo's
- * glyphs, its newest blocks laid out as a road behind it as they land, the
- * ecosystem as two rings of doors and the launchpad's tokens as a step pyramid.
+ * Cyberia in 3D — the home page, and /3d by name: the chain drawn as a black
+ * glass cube with the logo's glyphs, its newest blocks laid out as a road
+ * behind it as they land, a cross-chain swap window beside it, the ecosystem
+ * as two rings of doors and the launchpad's tokens as a step pyramid.
  *
  * Everything the scene shows is read live by the browser — blocks from the
  * public RPC, totals from the explorer, tokens from /api/launchpad/tokens,
@@ -17,11 +19,15 @@ use Illuminate\View\View;
  */
 class TempleController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
         $chain = (array) config('cyber.chain');
 
         return view('landing.temple', [
+            // Served as the home page it also does the home page's old job:
+            // a returning wallet owner, or the installed app launching, goes
+            // on to the wallet. /3d is a visit to the site on purpose.
+            'home' => $request->routeIs('home'),
             'network' => [
                 'name' => $chain['name'],
                 'chainId' => $chain['id'],

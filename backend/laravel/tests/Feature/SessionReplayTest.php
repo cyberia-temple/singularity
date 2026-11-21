@@ -47,7 +47,7 @@ it('records an ordinary visitor with our own recorder', function () {
 });
 
 it('records the static landing page too', function () {
-    $html = $this->get(route('home'))->assertOk()->getContent();
+    $html = $this->get(route('classic'))->assertOk()->getContent();
 
     expect($html)->toContain('/replay/recorder.js')
         ->toContain('data-hide-notice="true"')
@@ -58,7 +58,7 @@ it('serves the landing page untouched when recording and counting are off', func
     config()->set('replay.enabled', false);
     config()->set('analytics.umami.enabled', false);
 
-    expect($this->get(route('home'))->assertOk()->getContent())
+    expect($this->get(route('classic'))->assertOk()->getContent())
         ->toBe(file_get_contents(resource_path('views/landing/index.html')));
 });
 

@@ -129,9 +129,12 @@ Route::get('/{path?}', [LaunchpadController::class, 'showSubdomain'])
     ])
     ->name('launchpad.subdomain-site');
 
-Route::get('/', fn () => SessionReplay::page(resource_path('views/landing/index.html')))->name('home');
-Route::get('/thesis', fn () => SessionReplay::page(resource_path('views/landing/index1.html')))->name('thesis');
+// The home page is Cyberia in 3D; /3d is the same site asked for by name, and
+// the static landing it replaced stays at /classic.
+Route::get('/', TempleController::class)->name('home');
 Route::get('/3d', TempleController::class)->name('temple');
+Route::get('/classic', fn () => SessionReplay::page(resource_path('views/landing/index.html')))->name('classic');
+Route::get('/thesis', fn () => SessionReplay::page(resource_path('views/landing/index1.html')))->name('thesis');
 Route::redirect('/underground', config('launchpad.underground_url'))->name('underground');
 Route::get('/robinhood-chain', function (BridgeConfigService $bridgeConfig) {
     $routes = array_values(array_filter(

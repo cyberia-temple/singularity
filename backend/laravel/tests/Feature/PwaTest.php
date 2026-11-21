@@ -64,26 +64,24 @@ it('publishes a valid installable web app manifest', function () {
 });
 
 /**
- * The landing page is a static file served outside the Inertia app, and it is
- * where every copy installed before the manifest said `/wallet` still launches
- * — an iOS icon reads `start_url` once, when it is created, and never again.
- * So the page forwards the launch itself, and the two guards are the test: a
- * same-origin referrer is somebody following the wallet's own link out to the
- * site, and the session flag is that window having been forwarded already.
+ * The home page is served outside the Inertia app, and it is where every copy
+ * installed before the manifest said `/wallet` still launches — an iOS icon
+ * reads `start_url` once, when it is created, and never again. So the page
+ * forwards the launch itself, and the two guards are the test: a same-origin
+ * referrer is somebody following the wallet's own link out to the site, and
+ * the session flag is that window having been forwarded already.
  */
-it('opens the wallet when the landing page is the installed app launching', function () {
-    $landing = file_get_contents(resource_path('views/landing/index.html'));
+it('opens the wallet when the home page is the installed app launching', function () {
+    $home = $this->get('/')->assertOk()->getContent();
 
-    expect($landing)
-        ->toContain('<link rel="manifest" href="/manifest.webmanifest" />')
+    expect($home)
+        ->toContain('<link rel="manifest" href="/manifest.webmanifest">')
         ->toContain("window.matchMedia('(display-mode: standalone)').matches")
         ->toContain('window.navigator.standalone === true')
         ->toContain('document.referrer ||')
         ->toContain("sessionStorage.getItem('cyberia.pwa.launched')")
         ->toContain("sessionStorage.setItem('cyberia.pwa.launched', '1')")
         ->toContain("location.replace('/wallet')");
-
-    $this->get('/')->assertOk();
 });
 
 /**

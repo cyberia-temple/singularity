@@ -2,14 +2,82 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+@if ($home)
+<script>
+// A returning wallet owner goes straight to their wallet: this page is for
+// people who have none yet. A link from inside this site (the wallet's own
+// Settings links here) and asking for the site outright (/?site) still show it.
+(function () {
+  try {
+    if (/[?&]site(=|&|$)/.test(location.search)) return;
+    var fromThisSite = document.referrer &&
+      new URL(document.referrer).origin === location.origin;
+    if (!fromThisSite && localStorage.getItem('cyberia.wallet.vault.v1') !== null) {
+      location.replace('/wallet');
+    }
+  } catch (e) {
+    // If storage is unavailable, the site stays accessible.
+  }
+})();
+</script>
+<script>
+/*
+ * An app icon opens the wallet, and the home page is not the wallet.
+ *
+ * The manifest asks for `/wallet`, but a `start_url` is read at install time:
+ * every copy installed before it said so still launches here, and an iOS icon
+ * never re-reads a manifest at all. So the page forwards the launch itself.
+ *
+ * A launch is the only thing forwarded, and two guards say what a launch is.
+ * A same-origin referrer means somebody inside the app followed a link out to
+ * the site — the wallet's own Settings has exactly that link — and sending
+ * them back would make the site unreachable from the app. The session flag
+ * means it has already happened once in this window, so a person who came
+ * back here on purpose stays here.
+ */
+(function () {
+  try {
+    var standalone =
+      (window.matchMedia &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true;
+    if (
+      !standalone ||
+      document.referrer ||
+      sessionStorage.getItem('cyberia.pwa.launched')
+    ) {
+      return;
+    }
+    sessionStorage.setItem('cyberia.pwa.launched', '1');
+    location.replace('/wallet');
+  } catch (e) {
+  }
+})();
+</script>
+<!-- Google tag (gtag.js), as the home page has carried it -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BJNFCHJMN5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-BJNFCHJMN5');
+</script>
+@endif
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#05090a">
+{{-- The page people are on when they press "Add to Home Screen": it carries the app's window settings. --}}
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cyberia">
+<link rel="canonical" href="{{ rtrim(route('home'), '/') }}/">
 <title>Cyberia — the chain that pays open source back</title>
 <meta name="description" content="Cyberia is a sovereign EVM chain where a contribution is an economic event, now relaunching as its own Avalanche L1 — Cyberia 2.0. The cube is the chain itself, live: every block on the road behind it is a real one. Swap across chains, open the wallet, walk through the doors.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Cyberia — the chain that pays open source back">
 <meta property="og:description" content="A sovereign EVM chain, live in 3D — relaunching on Avalanche as Cyberia 2.0. Every block as it lands, a swap across chains, every door into the ecosystem.">
-<meta property="og:url" content="{{ route('temple') }}">
+<meta property="og:url" content="{{ rtrim(route('home'), '/') }}/">
 <meta property="og:image" content="https://cyberia.church/cyberia_logo.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@cyberia_chain">
@@ -241,7 +309,7 @@ window.CYBERIA_3D = {
         <li><a href="https://github.com/cyberia-temple/singularity/" rel="noopener">GitHub</a></li>
         <li><a href="https://cyberia-temple.github.io" rel="noopener">Blog</a></li>
         <li><a href="https://pump.fun/coin/{{ $cyberSol }}" rel="noopener">$CYBER.sol</a></li>
-        <li><a href="{{ route('home') }}?site">The classic site</a></li>
+        <li><a href="{{ route('classic') }}">The classic site</a></li>
       </ul>
     </div>
   </section>

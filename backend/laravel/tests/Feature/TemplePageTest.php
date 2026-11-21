@@ -31,7 +31,7 @@ it('sends every door and button to a page this site serves', function () {
     preg_match_all('~href="(/[^"#?]*)~', $html, $links);
     $paths = collect($links[1])
         ->unique()
-        ->reject(fn (string $path) => (bool) preg_match('~\.(css|js|svg|png|ico)$~', $path));
+        ->reject(fn (string $path) => (bool) preg_match('~\.(css|js|svg|png|ico|webmanifest)$~', $path));
 
     expect($paths)->toContain('/wallet', '/launchpad', '/swap');
 
@@ -64,4 +64,25 @@ it('prices the swap window through cross-chain routes this site serves', functio
             $this->fail("No route serves {$method} {$path}, which the swap window on /3d calls.");
         }
     }
+});
+
+/*
+ * The home page is the 3D site, and it took over the old landing's one job
+ * beyond being read: a returning wallet owner goes on to the wallet. /3d is the
+ * same site asked for by name and sends nobody anywhere; the static landing it
+ * replaced is still served at /classic.
+ */
+it('serves the 3D site as the home page, sending wallet owners on only from there', function () {
+    $sendsOwnersOn = "localStorage.getItem('cyberia.wallet.vault.v1')";
+
+    expect($this->get(route('home'))->assertOk()->getContent())
+        ->toContain('id="swap"')
+        ->toContain($sendsOwnersOn);
+
+    expect($this->get(route('temple'))->assertOk()->getContent())
+        ->toContain('id="swap"')
+        ->not->toContain($sendsOwnersOn);
+
+    expect($this->get(route('classic'))->assertOk()->getContent())
+        ->toContain('<title>Cyberia — Wallet, Bridge and Swap</title>');
 });
