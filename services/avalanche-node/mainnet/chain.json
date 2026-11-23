@@ -1,0 +1,8 @@
+{
+  "pruning-enabled": true,
+  "eth-apis": ["eth", "eth-filter", "net", "web3", "internal-eth", "internal-blockchain", "internal-transaction"],
+  "warp-api-enabled": true,
+  "rpc-tx-fee-cap": 1000000,
+  "feeRecipient": "0xae7a8d0A81617DDF94561e578e1A2deBB3Bcc25E",
+  "log-level": "info"
+}
