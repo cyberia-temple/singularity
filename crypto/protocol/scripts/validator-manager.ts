@@ -53,6 +53,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+import { SAFE_ABI, SAFE_L2, SAFE_PROXY_FACTORY, safeInitializer, safeSalt } from "./lib/safe.ts";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VENDORED = path.join(ROOT, "scripts/lib/validator-manager.json");
 
@@ -73,9 +75,6 @@ const BINDING_FILES: Record<string, string> = {
 /** solc's placeholder for the ValidatorMessages library inside ValidatorManager's bytecode. */
 const VALIDATOR_MESSAGES_PLACEHOLDER = "__$add2235b6a6cf493060b757d4655105486$__";
 
-const SAFE_L2: Address = "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762";
-const SAFE_PROXY_FACTORY: Address = "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67";
-const SAFE_FALLBACK_HANDLER: Address = "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99";
 const WARP_PRECOMPILE: Address = "0x0200000000000000000000000000000000000005";
 const ERC1967_ADMIN_SLOT: Hex = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
 const PRIMARY_NETWORK_ID = "11111111111111111111111111111111LpoYY";
@@ -86,13 +85,6 @@ const C_CHAIN_IDS: Record<number, string> = {
   43113: "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
 };
 
-const SAFE_ABI = parseAbi([
-  "function setup(address[] owners, uint256 threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address paymentReceiver)",
-  "function getOwners() view returns (address[])",
-  "function getThreshold() view returns (uint256)",
-  "function createProxyWithNonce(address singleton, bytes initializer, uint256 saltNonce) returns (address)",
-  "event ProxyCreation(address indexed proxy, address singleton)",
-]);
 const OWNABLE_ABI = parseAbi(["function owner() view returns (address)"]);
 
 type Vendored = { name: string; abi: Abi; bytecode: Hex; codeHash: Hex; source: string };
@@ -126,7 +118,7 @@ export function cb58Decode(text: string): Uint8Array {
   return new Uint8Array(payload);
 }
 
-const id32 = (cb58: string): Hex => {
+export const id32 = (cb58: string): Hex => {
   const bytes = cb58Decode(cb58);
   if (bytes.length !== 32) throw new Error(`${cb58} is not a 32-byte ID`);
   return toHex(bytes);
@@ -246,12 +238,8 @@ async function deployAll(): Promise<void> {
   const poa = vendored("PoAManager");
 
   if (!record.contracts.Safe) {
-    const initializer = encodeFunctionData({
-      abi: SAFE_ABI,
-      functionName: "setup",
-      args: [owners, threshold, `0x${"0".repeat(40)}`, "0x", SAFE_FALLBACK_HANDLER, `0x${"0".repeat(40)}`, 0n, `0x${"0".repeat(40)}`],
-    });
-    const salt = BigInt(keccak256(toHex(`cyberia validator manager ${subnetID}`)));
+    const initializer = safeInitializer(owners, threshold);
+    const salt = safeSalt(subnetID);
     const hash = await wallet.writeContract({
       address: SAFE_PROXY_FACTORY,
       abi: SAFE_ABI,

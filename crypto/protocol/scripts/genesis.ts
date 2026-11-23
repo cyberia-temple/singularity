@@ -6,6 +6,18 @@
  *       --out genesis.json
  *   node scripts/genesis.ts --check genesis.json --remote-deployer 0x…
  *
+ *   node scripts/genesis.ts --network mainnet --fixed-supply 1000000 --subnet-id <cb58> \
+ *       --safe-owners 0x…,0x…,0x… --threshold 2 --operator 0x… --operator-gas 1000 --fee-admin 0x… \
+ *       --transfer-fee 10 --out genesis.json
+ *   node scripts/genesis.ts --check genesis.json --fixed-supply 1000000
+ *
+ * **Fixed supply (mainnet, the operator's call of 2026-11-23).** CYBER.sol reached Ethereum through
+ * Wormhole (0x16EcD5995bC2d934F3Cb98fe79c0BE36a4EC05e9), which does not reach this chain, so there is
+ * no NativeTokenRemote to mint: genesis creates the whole supply -- the operator's gas and the rest to
+ * the DAO Safe, at the address validator-manager.ts will give it (lib/safe.ts) -- and the NativeMinter
+ * stays off, so no key can create more. The DAO holds as many CYBER.sol on Ethereum as backing.
+ * Everything below about the remote applies to the bridged layout only.
+ *
  * CYBER is CYBER.sol brought over from Solana, one for one: Wormhole NTT locks it on Solana and mints
  * it on the C-Chain, and ICTT locks that in an ERC20TokenHome and mints the same amount here as the
  * native coin, through Ava Labs' NativeTokenRemote. Genesis is where the rules that keep this honest
@@ -44,7 +56,9 @@ import * as path from "node:path";
 import { getAddress, getContractAddress, keccak256, parseEther, toHex, type Address, type Hex } from "viem";
 
 import { CREATE2_DEPLOYER, CREATE2_DEPLOYER_CODE, ROOT } from "./lib/create2.ts";
+import { predictSafe, safeSalt } from "./lib/safe.ts";
 import type { Predeploy } from "./predeploys.ts";
+import { id32 } from "./validator-manager.ts";
 
 export const CHAIN_IDS = { mainnet: 49406, fuji: 49407 } as const;
 
@@ -66,8 +80,14 @@ type Genesis = { config: Record<string, any>; alloc: Record<string, any>; [key: 
 
 const key = (address: Address) => address.toLowerCase().replace(/^0x/, "");
 
-/** Every rule above, as checks. Returns the genesis' total balance: the remote's initialReserveImbalance. */
-export function check(genesis: Genesis, remoteDeployer: Address): bigint {
+/** Which supply a genesis is checked against: minted by the bridge's remote, or fixed at genesis. */
+export type Supply = { remoteDeployer: Address } | { fixedSupply: bigint };
+
+/**
+ * Every rule above, as checks. Returns the genesis' total balance: for the bridged layout the remote's
+ * initialReserveImbalance; for a fixed supply, the supply itself.
+ */
+export function check(genesis: Genesis, supply: Supply): bigint {
   const config = genesis.config ?? {};
   const fail = (message: string): never => {
     throw new Error(`genesis: ${message}`);
@@ -77,16 +97,20 @@ export function check(genesis: Genesis, remoteDeployer: Address): bigint {
   if (!Object.values(CHAIN_IDS).includes(chainId as never)) fail(`chainId ${chainId} is neither mainnet nor fuji`);
 
   const minter = config[NATIVE_MINTER];
-  const remote = predictRemote(remoteDeployer);
-  if (!minter) fail("the NativeMinter is off: NativeTokenRemote could not mint");
-  const enabled: string[] = minter.enabledAddresses ?? [];
-  if (enabled.length !== 1 || getAddress(enabled[0]) !== remote) {
-    fail(`the NativeMinter must enable exactly the remote ${remote}, not [${enabled.join(", ")}]`);
+  if ("fixedSupply" in supply) {
+    if (minter) fail("the NativeMinter is on: a fixed supply must have no way to mint");
+  } else {
+    const remote = predictRemote(supply.remoteDeployer);
+    if (!minter) fail("the NativeMinter is off: NativeTokenRemote could not mint");
+    const enabled: string[] = minter.enabledAddresses ?? [];
+    if (enabled.length !== 1 || getAddress(enabled[0]) !== remote) {
+      fail(`the NativeMinter must enable exactly the remote ${remote}, not [${enabled.join(", ")}]`);
+    }
+    if ((minter.adminAddresses ?? []).length || (minter.managerAddresses ?? []).length) {
+      fail("the NativeMinter has an admin or manager who could enable another minter");
+    }
+    if (minter.initialMint && Object.keys(minter.initialMint).length) fail("the NativeMinter mints at genesis");
   }
-  if ((minter.adminAddresses ?? []).length || (minter.managerAddresses ?? []).length) {
-    fail("the NativeMinter has an admin or manager who could enable another minter");
-  }
-  if (minter.initialMint && Object.keys(minter.initialMint).length) fail("the NativeMinter mints at genesis");
 
   const rewards = config.rewardManagerConfig;
   if (!rewards || rewards.initialRewardConfig?.allowFeeRecipients !== true || rewards.initialRewardConfig?.rewardAddress) {
@@ -116,6 +140,9 @@ export function check(genesis: Genesis, remoteDeployer: Address): bigint {
 
   let total = 0n;
   for (const entry of Object.values(genesis.alloc)) total += BigInt(entry.balance ?? "0x0");
+  if ("fixedSupply" in supply && total !== supply.fixedSupply) {
+    fail(`genesis holds ${total} wei, not the fixed supply ${supply.fixedSupply}`);
+  }
   return total;
 }
 
@@ -135,11 +162,14 @@ function runtime(name: string, file: string): Hex {
 
 export type GenesisOptions = {
   network: keyof typeof CHAIN_IDS;
-  remoteDeployer: Address;
   operator: Address;
   feeAdmin: Address;
-  remoteGas: bigint;
   operatorGas: bigint;
+  /** Bridged layout: NativeTokenRemote's deployer and its gas. */
+  remoteDeployer?: Address;
+  remoteGas?: bigint;
+  /** Fixed supply: the operator's gas, and the rest of `supply` to the DAO Safe. No minter. */
+  fixed?: { supply: bigint; safe: Address };
   allocations?: Record<string, string>;
   minBaseFee?: bigint;
   gasLimit?: number;
@@ -157,8 +187,16 @@ export function build(options: GenesisOptions): Genesis {
     alloc[key(address)] = { ...(alloc[key(address)] ?? {}), balance: toHex(current + wei) };
   };
 
-  credit(options.remoteDeployer, options.remoteGas);
-  credit(options.operator, options.operatorGas);
+  if (options.fixed) {
+    if (options.remoteDeployer) throw new Error("a fixed supply has no remote");
+    if (options.operatorGas > options.fixed.supply) throw new Error("the operator's gas exceeds the supply");
+    credit(options.operator, options.operatorGas);
+    credit(options.fixed.safe, options.fixed.supply - options.operatorGas);
+  } else {
+    if (!options.remoteDeployer) throw new Error("the bridged layout needs the remote's deployer");
+    credit(options.remoteDeployer, options.remoteGas ?? 0n);
+    credit(options.operator, options.operatorGas);
+  }
   for (const [address, cyber] of Object.entries(options.allocations ?? {})) credit(getAddress(address), parseEther(cyber));
 
   const place = (address: Address, entry: { code: Hex; storage?: Record<string, Hex>; nonce?: number }) => {
@@ -186,7 +224,7 @@ export function build(options: GenesisOptions): Genesis {
       },
       allowFeeRecipients: true,
       warpConfig: { blockTimestamp: timestamp, quorumNumerator: 67, requirePrimaryNetworkSigners: true },
-      [NATIVE_MINTER]: { blockTimestamp: 0, enabledAddresses: [predictRemote(options.remoteDeployer)] },
+      ...(options.fixed ? {} : { [NATIVE_MINTER]: { blockTimestamp: 0, enabledAddresses: [predictRemote(options.remoteDeployer!)] } }),
       feeManagerConfig: { blockTimestamp: 0, adminAddresses: [options.feeAdmin] },
       rewardManagerConfig: {
         blockTimestamp: 0,
@@ -217,23 +255,44 @@ function arg(name: string, fallback?: string): string {
   throw new Error(`missing --${name}`);
 }
 
+/** The base fee at which a plain transfer (21,000 gas) costs at least `cyber` CYBER. */
+export function baseFeeForTransfer(cyber: string): bigint {
+  const wei = parseEther(cyber);
+  return (wei + 20_999n) / 21_000n;
+}
+
 function main(): void {
-  const remoteDeployer = getAddress(arg("remote-deployer"));
   const checkPath = arg("check", "");
+  const fixedSupply = arg("fixed-supply", "");
+  const supply: Supply = fixedSupply
+    ? { fixedSupply: parseEther(fixedSupply) }
+    : { remoteDeployer: getAddress(arg("remote-deployer")) };
 
   if (checkPath) {
-    const total = check(JSON.parse(fs.readFileSync(checkPath, "utf8")), remoteDeployer);
-    console.log(`${checkPath} passes; initialReserveImbalance ${total} wei (${cyber(total)} CYBER)`);
+    const total = check(JSON.parse(fs.readFileSync(checkPath, "utf8")), supply);
+    console.log(`${checkPath} passes; ${cyber(total)} CYBER at genesis (${total} wei)`);
     return;
   }
 
   const network = arg("network") as GenesisOptions["network"];
   if (!(network in CHAIN_IDS)) throw new Error(`--network must be one of ${Object.keys(CHAIN_IDS).join(", ")}`);
   const allocPath = arg("alloc", "");
-  const minBaseFee = arg("min-base-fee", "");
+  const transferFee = arg("transfer-fee", "");
+  const minBaseFee = transferFee ? baseFeeForTransfer(transferFee) : arg("min-base-fee", "") ? BigInt(arg("min-base-fee")) : undefined;
+
+  let fixed: GenesisOptions["fixed"];
+  if ("fixedSupply" in supply) {
+    if (allocPath) throw new Error("a fixed supply goes to the operator and the Safe only; --alloc is for the bridged layout");
+    const owners = arg("safe-owners").split(",").map((a) => getAddress(a.trim()));
+    const threshold = BigInt(arg("threshold"));
+    if (threshold < 1n || threshold > BigInt(owners.length)) throw new Error("--threshold must be between 1 and the owner count");
+    const subnetID = id32(arg("subnet-id"));
+    fixed = { supply: supply.fixedSupply, safe: predictSafe(owners, threshold, safeSalt(subnetID)) };
+  }
+
   const genesis = build({
     network,
-    remoteDeployer,
+    remoteDeployer: "remoteDeployer" in supply ? supply.remoteDeployer : undefined,
     operator: getAddress(arg("operator")),
     feeAdmin: getAddress(arg("fee-admin")),
     // Gas only, and owed collateral: at a minimal base fee this lasts practically forever, and even at
@@ -241,17 +300,27 @@ function main(): void {
     remoteGas: parseEther(arg("remote-gas", "100")),
     operatorGas: parseEther(arg("operator-gas", "10000")),
     allocations: allocPath ? JSON.parse(fs.readFileSync(allocPath, "utf8")) : undefined,
-    minBaseFee: minBaseFee ? BigInt(minBaseFee) : undefined,
+    minBaseFee,
+    fixed,
   });
-  const total = check(genesis, remoteDeployer);
+  const total = check(genesis, supply);
 
   const output = arg("out");
   fs.writeFileSync(output, JSON.stringify(genesis, null, 2) + "\n");
+  const fee = BigInt(genesis.config.feeConfig.minBaseFee);
   console.log(`chain id          ${genesis.config.chainId} (${network})`);
-  console.log(`NativeMinter      only ${predictRemote(remoteDeployer)}: ${remoteDeployer}'s nonce-1 contract`);
-  console.log(`genesis CYBER     ${cyber(total)} = NativeTokenRemote initialReserveImbalance ${total} wei`);
-  console.log(`min base fee      ${genesis.config.feeConfig.minBaseFee} wei`);
+  if (fixed) {
+    console.log(`NativeMinter      off: ${cyber(total)} CYBER, fixed`);
+    console.log(`DAO Safe          ${fixed.safe}: ${cyber(fixed.supply - parseEther(arg("operator-gas", "10000")))} CYBER`);
+    console.log(`operator          ${getAddress(arg("operator"))}: ${arg("operator-gas", "10000")} CYBER`);
+  } else {
+    const remoteDeployer = (supply as { remoteDeployer: Address }).remoteDeployer;
+    console.log(`NativeMinter      only ${predictRemote(remoteDeployer)}: ${remoteDeployer}'s nonce-1 contract`);
+    console.log(`genesis CYBER     ${cyber(total)} = NativeTokenRemote initialReserveImbalance ${total} wei`);
+  }
+  console.log(`min base fee      ${fee} wei (a transfer: ${cyber(fee * 21_000n)} CYBER)`);
   console.log(`fee admin         ${genesis.config.feeManagerConfig.adminAddresses[0]}`);
+  console.log(`fees              to each block producer's feeRecipient`);
   console.log(`block gas limit   ${genesis.config.feeConfig.gasLimit}`);
   console.log(`wrote ${output}`);
 }
