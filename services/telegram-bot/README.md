@@ -32,6 +32,7 @@ bot/
   fish_art.py    64×64 pixel art written as PNG by hand: places by hour, fish, loot
   pumpfun.py     pump.fun buy detection (Solana RPC + market feed) and the post
   buybot.py      opt-in LAIN/Pons v4 buy cards and ecosystem buttons
+  node_runway.py daily post: days each Cyberia L1 validator has left on the P-Chain
   music.py       songs on request: Yandex Music/VK links, /track, "Artist — Title"
   market_gaps.py sized V2 buy/sell comparisons against outside reference markets
   announcers.py  background loops (bridge/swap/liquidity/lending/convert/
@@ -229,6 +230,21 @@ arriving late. A buy older than `PUMPFUN_MAX_AGE_SECONDS` (default 30 min) is
 recorded for the digest but not posted: when the watcher returns from an outage
 its cursor is hours behind, and the catch-up scan would otherwise announce
 yesterday's trades one after another as if they had just happened.
+
+### Validator runway
+
+An Avalanche L1 validator pays the P-Chain by the second out of its own AVAX
+balance (512 nAVAX/s, about 0.044 AVAX a day, at the minimum fee) and stops
+when the balance is empty; a chain with one validator stops with it, as the
+Fuji L1 did on 2026-11-01. Once a day after `NODE_RUNWAY_HOUR_UTC` (default 9)
+`bot/node_runway.py` posts to `NODE_RUNWAY_CHAT` (default: the pump.fun buy
+bot's chat) how many days each L1 in `NODE_RUNWAY_L1S` has left at the
+P-Chain's current fee, flags anything under a week, and links where anyone can
+top a validator up (`NODE_RUNWAY_TOPUP_URL`). It reads `platform.getCurrentValidators`
+and `platform.getValidatorFeeState` from the public P-Chain APIs; a subnet not
+converted to an L1 yet has no validators to pay and is left out. An unreadable
+P-Chain defers the post to the next 10-minute tick rather than posting without
+a chain. Blank `NODE_RUNWAY_CHAT` turns it off.
 
 ### Solana RPC failover
 

@@ -358,6 +358,23 @@ PUMPFUN_ROADMAP_URL = os.environ.get(
     "PUMPFUN_ROADMAP_URL", PROJECT_WEBSITE_URL.rstrip("/") + "/whitepaper"
 )
 
+# --- validator runway -----------------------------------------------------------
+# Once a day, after NODE_RUNWAY_HOUR_UTC, the chat hears how many days each
+# Cyberia L1 validator has left before its P-Chain balance runs out and it stops
+# (bot/node_runway.py). NODE_RUNWAY_L1S: "network:subnetID:name" entries,
+# comma-separated; a subnet not converted to an L1 yet is left out of the post.
+# Blank NODE_RUNWAY_CHAT disables the loop.
+NODE_RUNWAY_CHAT = os.environ.get("NODE_RUNWAY_CHAT", PUMPFUN_ANNOUNCE_CHAT)
+NODE_RUNWAY_HOUR_UTC = int(os.environ.get("NODE_RUNWAY_HOUR_UTC", "9"))
+NODE_RUNWAY_L1S = os.environ.get(
+    "NODE_RUNWAY_L1S",
+    "mainnet:2LbFy4goShd9scLbts42CLC646hqfRtGUpqN4r84jMraBdX5mi:Cyberia 2.0,"
+    "fuji:UVRXcqMkQM9X8Wv6BmXXEbFbAcbKoW1t8vde5Lds35SLQSVn3:Cyberia 2.0 testnet (Fuji)",
+)
+NODE_RUNWAY_TOPUP_URL = os.environ.get(
+    "NODE_RUNWAY_TOPUP_URL", "https://build.avax.network/console/layer-1/l1-validator-balance"
+)
+
 # LAIN on Robinhood Chain: read-only Pons v4 buy notifications. Destinations
 # are opted in by a chat administrator with /buybot on, never inferred from
 # the Cyberia announcers' destination. No trading/signing key is used.

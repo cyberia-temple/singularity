@@ -63,7 +63,7 @@ from bot.announcers import (
     run_snapshot_once,
 )
 from bot.watchers import WATCHERS, event_watcher_loop
-from bot import buybot, fishing, language, music, projects, pumpfun
+from bot import buybot, fishing, language, music, node_runway, projects, pumpfun
 from bot.personal import ensure_personal_schema, personal_loop
 
 logger = logging.getLogger(__name__)
@@ -84,6 +84,8 @@ async def post_init(application: Application):
     logger.info("Bot commands published to Telegram")
     application.create_task(buybot.loop(application))
     application.create_task(pumpfun.project_loop(application))
+    # Days each Cyberia L1 validator has left on its P-Chain balance, daily.
+    application.create_task(node_runway.loop(application))
 
     # The ☰ beside the input box becomes the wallet. This is the entry point
     # people actually find — a command has to be remembered, a button does not
