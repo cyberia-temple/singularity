@@ -19,9 +19,9 @@ The validator of Cyberia's Avalanche L1 (Subnet-EVM). It replaces `services/cybe
 
 | Network | Host | Node ID |
 | --- | --- | --- |
-| Mainnet | 91.132.163.19 (Senko, Frankfurt; 4 vCPU, 4 GB, 40 GB), `avalanchego-mainnet` (since 2026-11-24) | `NodeID-3ZQ8FRjf5htMpZNefbNcykNsmPWFJ2pm1` |
+| Mainnet | for now the operator's own machine (since 2026-11-24), until it moves to the main server | `NodeID-3ZQ8FRjf5htMpZNefbNcykNsmPWFJ2pm1` |
 
-The Fuji node (`NodeID-6VfUgV34HC4b6S7wu375cDmsUG3gzcHZ7`) ran on the same host until 2026-11-24, when the testnet was retired to give mainnet its disk; its identity and configs are kept in `/root/fuji-retired-20261124` there.
+The Fuji node (`NodeID-6VfUgV34HC4b6S7wu375cDmsUG3gzcHZ7`) ran on 91.132.163.19 (Senko, Frankfurt; 4 vCPU, 4 GB, 40 GB) until 2026-11-24, when the testnet was retired to give mainnet its disk; its identity and configs are kept in `/root/fuji-retired-20261124` there. Mainnet did not fit either: an L1 node must hold the whole P-Chain (25.9M blocks at about 1.23 KB each, some 32 GB, growing only a few MB a day), and AvalancheGo 1.15 can neither state-sync nor prune it. Give a mainnet host at least 60 GB.
 
 A node's identity is its data dir's `staking/` (TLS key and BLS `signer.key`). Losing it
 loses the validator; copying it to a second running node splits it. Back it up encrypted, never
