@@ -9,6 +9,8 @@
   "public-ip": "91.132.163.19",
   "api-admin-enabled": false,
   "index-enabled": false,
+  "system-tracker-disk-required-available-space-percentage": 8,
+  "system-tracker-disk-warning-available-space-percentage": 15,
   "log-level": "info",
   "log-rotater-max-files": 7
 }

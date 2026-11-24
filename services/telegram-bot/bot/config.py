@@ -368,8 +368,7 @@ NODE_RUNWAY_CHAT = os.environ.get("NODE_RUNWAY_CHAT", PUMPFUN_ANNOUNCE_CHAT)
 NODE_RUNWAY_HOUR_UTC = int(os.environ.get("NODE_RUNWAY_HOUR_UTC", "9"))
 NODE_RUNWAY_L1S = os.environ.get(
     "NODE_RUNWAY_L1S",
-    "mainnet:2LbFy4goShd9scLbts42CLC646hqfRtGUpqN4r84jMraBdX5mi:Cyberia 2.0,"
-    "fuji:UVRXcqMkQM9X8Wv6BmXXEbFbAcbKoW1t8vde5Lds35SLQSVn3:Cyberia 2.0 testnet (Fuji)",
+    "mainnet:2LbFy4goShd9scLbts42CLC646hqfRtGUpqN4r84jMraBdX5mi:Cyberia 2.0",
 )
 NODE_RUNWAY_TOPUP_URL = os.environ.get(
     "NODE_RUNWAY_TOPUP_URL", "https://build.avax.network/console/layer-1/l1-validator-balance"

@@ -2,10 +2,9 @@
 # Installs (or upgrades) AvalancheGo and the Subnet-EVM plugin as a systemd service.
 # Idempotent: rerun after changing the pinned version below. Run as root on Debian 13.
 #
-#   install.sh [fuji|mainnet]    (default: fuji)
+#   install.sh [mainnet]
 #
-# Each network is a node of its own (service, data dir, ports, identity), so one host can run both.
-# Rerunning restarts only that network's node.
+# The Fuji node (49407) was retired on 2026-11-24; its files under fuji/ are the record of that chain.
 set -euo pipefail
 
 AVALANCHEGO_VERSION="v1.15.1"
@@ -14,16 +13,9 @@ SUBNET_EVM_SHA256="984090867966368608fa2a46353030352d0e8d0b20029c022a3755b991432
 # Subnet-EVM's default VM ID: the plugin file must carry this name.
 SUBNET_EVM_VM_ID="srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy"
 
-NETWORK="${1:-fuji}"
+NETWORK="${1:-mainnet}"
 # The L1's blockchain ID (its subnet is track-subnets in the node config), and where the node keeps its data.
 case "${NETWORK}" in
-  fuji)
-    SERVICE="avalanchego"
-    DATA_DIR="/var/lib/avalanchego"
-    NODE_CONFIG="/etc/avalanchego/node.json"
-    STAKING_PORT=9651
-    L1_BLOCKCHAIN_ID="Lm8HNjKAQ7ujA7XDphehkqbnu8wKjfzxpF1THX3HLyzoJhfv7"
-    ;;
   mainnet)
     SERVICE="avalanchego-mainnet"
     DATA_DIR="/var/lib/avalanchego-mainnet"
@@ -32,7 +24,7 @@ case "${NETWORK}" in
     L1_BLOCKCHAIN_ID="2wT6Vohp7kxKpFuTSUAnbwKeVcWaH8XEBLdjXt1FNwK1erkvB7"
     ;;
   *)
-    echo "usage: $0 [fuji|mainnet]" >&2
+    echo "usage: $0 [mainnet]" >&2
     exit 64
     ;;
 esac
@@ -44,11 +36,6 @@ UNIT="${HERE}/${NETWORK}/avalanchego.service"
 L1_CHAIN_CONFIG="${HERE}/${NETWORK}/chain.json"
 # Scheduled precompile upgrades. Every node must carry the same file, and an applied entry stays forever.
 L1_UPGRADE="${HERE}/${NETWORK}/upgrade.json"
-# Fuji's node predates the per-network layout.
-if [ "${NETWORK}" = fuji ]; then
-  NODE_JSON="${HERE}/node.json"
-  UNIT="${HERE}/avalanchego.service"
-fi
 
 RELEASES="https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}"
 TARGET="/opt/avalanchego/${AVALANCHEGO_VERSION}"
@@ -67,7 +54,7 @@ if ! swapon --show | grep -q /swapfile; then
   grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-id avalanche >/dev/null 2>&1 || useradd --system --home-dir /var/lib/avalanchego --shell /usr/sbin/nologin avalanche
+id avalanche >/dev/null 2>&1 || useradd --system --home-dir "${DATA_DIR}" --shell /usr/sbin/nologin avalanche
 install -d -o avalanche -g avalanche -m 750 "${DATA_DIR}" "${DATA_DIR}/plugins"
 install -d -m 755 /etc/avalanchego
 
@@ -102,7 +89,8 @@ install -m 644 "${UNIT}" "/etc/systemd/system/${SERVICE}.service"
 # The firewall. A host without it gets nftables.conf whole; on a host that has it, the file is never
 # reloaded: a reload flushes the whole ruleset, and with it the rules other services added (Docker's
 # tables, ports opened for a VPN). Only this node's staking port is added, to the file and live.
-if ! grep -q "tcp dport 9651 accept" /etc/nftables.conf 2>/dev/null; then
+# A host has the firewall once its file lets SSH in (Debian's stock file has an empty table).
+if ! grep -q "tcp dport 22 accept" /etc/nftables.conf 2>/dev/null; then
   install -m 755 "${HERE}/nftables.conf" /etc/nftables.conf
   nft -c -f /etc/nftables.conf
   systemctl enable --now nftables
