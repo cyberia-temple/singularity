@@ -3,8 +3,102 @@
     {
       "rewardManagerConfig": {
         "blockTimestamp": 1792580770,
-        "adminAddresses": ["0xae8F9c21b082d09857622824ADA365D71b18B44B"],
-        "initialRewardConfig": { "allowFeeRecipients": true }
+        "adminAddresses": [
+          "0xae8F9c21b082d09857622824ADA365D71b18B44B"
+        ],
+        "initialRewardConfig": {
+          "allowFeeRecipients": true
+        }
+      }
+    },
+    {
+      "feeManagerConfig": {
+        "blockTimestamp": 1793155036,
+        "disable": true
+      }
+    },
+    {
+      "rewardManagerConfig": {
+        "blockTimestamp": 1793155036,
+        "disable": true
+      }
+    },
+    {
+      "feeManagerConfig": {
+        "blockTimestamp": 1793155038,
+        "adminAddresses": [
+          "0x472725293D97dFf80eA34C22840872832Edbe8DC"
+        ],
+        "initialFeeConfig": {
+          "gasLimit": 20000000,
+          "targetBlockRate": 2,
+          "minBaseFee": 238095238095238,
+          "targetGas": 60000000,
+          "baseFeeChangeDenominator": 36,
+          "minBlockGasCost": 0,
+          "maxBlockGasCost": 1000000,
+          "blockGasCostStep": 200000
+        }
+      }
+    },
+    {
+      "rewardManagerConfig": {
+        "blockTimestamp": 1793155038,
+        "adminAddresses": [
+          "0x472725293D97dFf80eA34C22840872832Edbe8DC"
+        ],
+        "initialRewardConfig": {
+          "allowFeeRecipients": false,
+          "rewardAddress": "0x96cd117786EBC0fDbef56a6559FEB2bd2BaE3393"
+        }
+      }
+    },
+    {
+      "feeManagerConfig": {
+        "blockTimestamp": 1793155197,
+        "disable": true
+      }
+    },
+    {
+      "feeManagerConfig": {
+        "blockTimestamp": 1793155199,
+        "adminAddresses": [
+          "0x472725293D97dFf80eA34C22840872832Edbe8DC"
+        ],
+        "initialFeeConfig": {
+          "gasLimit": 20000000,
+          "targetBlockRate": 2,
+          "minBaseFee": 238095238095238,
+          "targetGas": 60000000,
+          "baseFeeChangeDenominator": 1,
+          "minBlockGasCost": 0,
+          "maxBlockGasCost": 1000000,
+          "blockGasCostStep": 200000
+        }
+      }
+    },
+    {
+      "feeManagerConfig": {
+        "blockTimestamp": 1793155257,
+        "disable": true
+      }
+    },
+    {
+      "feeManagerConfig": {
+        "blockTimestamp": 1793155259,
+        "adminAddresses": [
+          "0x472725293D97dFf80eA34C22840872832Edbe8DC"
+        ],
+        "initialFeeConfig": {
+          "gasLimit": 20000000,
+          "targetBlockRate": 2,
+          "minBaseFee": 238095238095238,
+          "targetGas": 60000000,
+          "baseFeeChangeDenominator": 36,
+          "minBlockGasCost": 0,
+          "maxBlockGasCost": 1000000,
+          "blockGasCostStep": 200000
+        }
       }
     }
   ]

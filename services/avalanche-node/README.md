@@ -35,6 +35,8 @@ ssh root@<host> 'curl -s -X POST -H "content-type:application/json" \
   127.0.0.1:9650/ext/info'   # the mainnet node: install.sh mainnet, port 9660
 ```
 
+The ICM relayer reads the C-Chain from publicnode.com (`icm/icm-relayer.json`), not Ava Labs' public API: that API answers `eth_getLogs` for at most 100 blocks, the relayer catches up in 200-block ranges, and on 2026-11-20…24 it restarted 70,000 times on that one error while nothing crossed from the C-Chain. A relayer that falls far behind catches up from `/var/lib/icm-relayer/<relayerID>.json`'s `latestProcessedBlock`.
+
 The ICM signature-aggregator is installed but not running (`systemctl start signature-aggregator`): it holds over 1 GB of memory, and only `validator-manager.ts init` and validator changes need it; the ICM relayer collects its own signatures.
 
 ## Mainnet L1

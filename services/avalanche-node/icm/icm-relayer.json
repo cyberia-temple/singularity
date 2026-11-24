@@ -9,8 +9,8 @@
     {
       "subnet-id": "11111111111111111111111111111111LpoYY",
       "blockchain-id": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
-      "rpc-endpoint": { "base-url": "https://api.avax-test.network/ext/bc/C/rpc" },
-      "ws-endpoint": { "base-url": "wss://api.avax-test.network/ext/bc/C/ws" },
+      "rpc-endpoint": { "base-url": "https://avalanche-fuji-c-chain-rpc.publicnode.com" },
+      "ws-endpoint": { "base-url": "wss://avalanche-fuji-c-chain-rpc.publicnode.com" },
       "message-contracts": {
         "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf": {
           "message-format": "teleporter",
