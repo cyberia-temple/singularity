@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
-os.environ.setdefault("DB_PATH", tempfile.mktemp(prefix="node-runway-test-", suffix=".sqlite"))
+# Its own database, never CI's shared DB_PATH: the whole bot schema there would change what
+# later test files (which expect some tables to be absent) see.
+os.environ["DB_PATH"] = tempfile.mktemp(prefix="node-runway-test-", suffix=".sqlite")
 
 from sqlalchemy import text  # noqa: E402
 
@@ -77,8 +79,8 @@ class PostTests(unittest.TestCase):
 
 class OncePerDayTests(unittest.TestCase):
     def setUp(self):
-        db.ensure_schema()
         with db.engine.begin() as conn:
+            conn.execute(text("CREATE TABLE IF NOT EXISTS bot_kv (key TEXT PRIMARY KEY, value TEXT)"))
             conn.execute(text("DELETE FROM bot_kv WHERE key = :k"), {"k": node_runway.POSTED_KEY})
         self.bot = AsyncMock()
 
