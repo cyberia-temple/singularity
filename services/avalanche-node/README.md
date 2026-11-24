@@ -5,10 +5,12 @@ The validator of Cyberia's Avalanche L1 (Subnet-EVM). It replaces `services/cybe
 
 | File | What it is |
 | --- | --- |
-| `install.sh` | Installs or upgrades AvalancheGo and the Subnet-EVM plugin (pinned version and SHA-256), time sync, a 2 GB swapfile and the firewall. Idempotent; run as root on Debian 13. |
+| `install.sh [fuji\|mainnet]` | Installs or upgrades one network's node: AvalancheGo and the Subnet-EVM plugin (pinned version and SHA-256), time sync, a 2 GB swapfile and the firewall. Each network is a node of its own (service, data dir, ports, identity), so one host runs both; a rerun restarts only that network's node. On a host that already has the firewall it only adds the node's staking port, live and to the file, and never reloads `nftables.conf` (a reload flushes the whole ruleset, with Docker's tables and any port opened for other services). Idempotent; run as root on Debian 13. |
 | `node.json` | AvalancheGo config: Fuji, P-Chain only from the Primary Network (`partial-sync-primary-network`), tracks the L1's subnet, HTTP API on 127.0.0.1 |
 | `avalanchego.service` | systemd unit, runs as the `avalanche` user, data in `/var/lib/avalanchego` |
-| `nftables.conf` | inbound: SSH (22) and Avalanche p2p (9651) only |
+| `nftables.conf` | a fresh host's firewall, inbound: SSH (22) and Avalanche p2p (9651) only |
+| `mainnet/node.json`, `mainnet/avalanchego.service` | the mainnet node: `avalanchego-mainnet`, data in `/var/lib/avalanchego-mainnet`, HTTP API on 127.0.0.1:9660, p2p on 9661, OOM killer told to spare it |
+| `mainnet/genesis.json`, `mainnet/chain.json` | the mainnet L1's genesis (chain id 49406, only the bridge's NativeTokenRemote mints) and its Subnet-EVM config; `feeRecipient` is the DAO Safe |
 | `fuji/genesis.json` | the Fuji L1's genesis, written by `crypto/protocol/scripts/genesis.ts` (chain id 49407) |
 | `fuji/upgrade.json` | scheduled precompile upgrades of the Fuji L1 (RewardManager, so that fees pay the validators). Every node carries the same file, and an entry that has activated stays in it forever |
 | `fuji/chain.json` | the L1's Subnet-EVM config. `feeRecipient` is where this validator is paid the fees of the blocks it makes (burned if unset). `rpc-tx-fee-cap` (in CYBER) is far above the default 100, so that raising fees through FeeManager later does not make the node refuse transactions |
@@ -20,8 +22,9 @@ The validator of Cyberia's Avalanche L1 (Subnet-EVM). It replaces `services/cybe
 | Network | Host | Node ID |
 | --- | --- | --- |
 | Fuji | 91.132.163.19 (Senko, Frankfurt; 4 vCPU, 4 GB, 40 GB) | `NodeID-6VfUgV34HC4b6S7wu375cDmsUG3gzcHZ7` |
+| Mainnet | the same host, `avalanchego-mainnet` (since 2026-11-24) | `NodeID-3ZQ8FRjf5htMpZNefbNcykNsmPWFJ2pm1` |
 
-The node's identity is `/var/lib/avalanchego/staking/` (TLS key and BLS `signer.key`). Losing it
+A node's identity is its data dir's `staking/` (TLS key and BLS `signer.key`). Losing it
 loses the validator; copying it to a second running node splits it. Back it up encrypted, never
 into this repository.
 
@@ -29,8 +32,20 @@ into this repository.
 scp -r services/avalanche-node root@<host>:/root/ && ssh root@<host> bash /root/avalanche-node/install.sh
 ssh root@<host> 'curl -s -X POST -H "content-type:application/json" \
   --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"info.isBootstrapped\",\"params\":{\"chain\":\"P\"}}" \
-  127.0.0.1:9650/ext/info'
+  127.0.0.1:9650/ext/info'   # the mainnet node: install.sh mainnet, port 9660
 ```
+
+The ICM signature-aggregator is installed but not running (`systemctl start signature-aggregator`): it holds over 1 GB of memory, and only `validator-manager.ts init` and validator changes need it; the ICM relayer collects its own signatures.
+
+## Mainnet L1
+
+| | |
+| --- | --- |
+| Subnet | `2LbFy4goShd9scLbts42CLC646hqfRtGUpqN4r84jMraBdX5mi` (owner `cyberia-mainnet-ops`, `P-avax19zfzk04gyyd3ld44w75wa94v26pe5uh99jrgsk`) |
+| Blockchain | `2wT6Vohp7kxKpFuTSUAnbwKeVcWaH8XEBLdjXt1FNwK1erkvB7` (EVM chain id 49406), created 2026-11-23 from `mainnet/genesis.json` (sha256 `340821e2…87d9a`) |
+| Minter | only `0xD6753b71C47A20b044D8124B1a45da25C4521dF9`: the second contract of `cyberia-mainnet-ictt` (`0xc9De…52f9`), the bridge's NativeTokenRemote proxy. Never send any other transaction from that key on the L1 |
+| Fees | 1 wei for the setup, then 10 CYBER per transfer (FeeManager admin: ops); paid to the DAO Safe `0xae7a8d0A81617DDF94561e578e1A2deBB3Bcc25E` |
+| Status | node syncing the P-Chain; not converted to an L1 yet |
 
 ## Fuji L1
 

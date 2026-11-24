@@ -1,0 +1,23 @@
+[Unit]
+Description=AvalancheGo — Cyberia mainnet L1 validator
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+User=avalanche
+Group=avalanche
+ExecStart=/opt/avalanchego/current/avalanchego --config-file=/etc/avalanchego/mainnet.json
+# The chain stops when its only validator does: the kernel's OOM killer takes anything else first.
+OOMScoreAdjust=-900
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+TimeoutStopSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/avalanchego-mainnet
+
+[Install]
+WantedBy=multi-user.target
