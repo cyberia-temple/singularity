@@ -7,7 +7,12 @@
     "ValidatorManagerImplementation": "0xe402AEd83eef161b97931910a8Ce1ab26C7ac64f",
     "ValidatorManager": "0xDF5D0Fd21440267A966e8AcD8B579a2d8B0ECCb0",
     "PoAManager": "0x63E75b5805D673b514F5F5b37B6BB3aA11D27910",
-    "ProxyAdmin": "0x8b08396794195F7e45B7CC222696EA86b6fD8350"
+    "ProxyAdmin": "0x8b08396794195F7e45B7CC222696EA86b6fD8350",
+    "TestCyberSol": "0xd2C3ae322F495d4FB8e650aF6265CcCbe9bf8697",
+    "BridgeTimelock": "0x1771F239D016644cB6751d966aDAE6eC8D0c4ae2",
+    "BridgeHomeImplementation": "0x93EbFF758bEb06719ae4FD88dc7763789b394764",
+    "BridgeHome": "0xeF20A9529b123CF543CA35836212E01ca8D728DC",
+    "BridgeHomeProxyAdmin": "0xD3372CABF4E482F843DAF6A3ec12b401daB086EA"
   },
   "steps": [
     "ValidatorManager.transferOwnership(PoAManager)",

@@ -61,8 +61,12 @@ const COMPILERS = [PROTOCOL, V3];
 export default defineConfig({
   plugins: [hardhatToolboxViemPlugin],
   solidity: {
-    // The proxy the Validator Manager (and later ICTT) sits behind on the C-Chain; nothing here imports it.
-    npmFilesToBuild: ["@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol"],
+    // The proxy the Validator Manager and the bridge sit behind, and the timelock that owns the bridge's
+    // proxies (scripts/bridge.ts); nothing here imports them.
+    npmFilesToBuild: [
+      "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol",
+      "@openzeppelin/contracts/governance/TimelockController.sol",
+    ],
     profiles: {
       default: { compilers: COMPILERS, overrides: OVERRIDES },
       production: { compilers: COMPILERS, overrides: OVERRIDES },

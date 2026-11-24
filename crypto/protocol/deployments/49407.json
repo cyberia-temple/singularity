@@ -40,7 +40,12 @@
     "WiredForge": "0x22832d086de9f0fe7eb74a60dc5aa98a8232718a",
     "MinecraftLand": "0x6927c153be7248314262c1d77ce2b8f9d7d72b49",
     "StudioToken": "0x6bd153006019a13e79a425f0ecb7635d2b7f5035",
-    "TokenStudio": "0x62eb11895fce4b4269fef275dd74c1c63bc6f9c6"
+    "TokenStudio": "0x62eb11895fce4b4269fef275dd74c1c63bc6f9c6",
+    "TeleporterRegistry": "0x4B8FBFB0824dfb6f30C5194Ac2926990920EEa62",
+    "BridgeTimelock": "0x13cbb55F858296cB4000799eF6E591eb9A0a2A91",
+    "BridgeRemoteImplementation": "0x87f47f792007642Fe2dF26dC39b3C7867b1969A3",
+    "BridgeRemote": "0x386F2a822653F4Af8a35774d3FBE80Bf87AdC71f",
+    "BridgeRemoteProxyAdmin": "0x84e9738C69DEc2A961A1711B5d892797BAC505e9"
   },
   "steps": [
     "Safe.createProxyWithNonce",
@@ -99,7 +104,8 @@
     "studio.setObservationCardinality",
     "grant 4 → 0x62eb11895fce4b4269fef275dd74c1c63bc6f9c6",
     "studio.setModules",
-    "studio.setRewardExclusions"
+    "studio.setRewardExclusions",
+    "BridgeRemote.registerWithHome"
   ],
   "liquidityPolicy": {
     "minimumCyber": "100000",

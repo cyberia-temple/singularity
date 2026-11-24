@@ -260,6 +260,34 @@ calls are permissionless; the backend's scheduler should make them:
    `renounceDeployer: true`.
 5. `node scripts/smoke-launch.ts` against the new chain.
 
+## Bridge: CYBER.sol ↔ native CYBER (ICTT)
+
+`scripts/bridge.ts` deploys Ava Labs' ICTT (Go bindings at `ICM_SERVICES_COMMIT`, vendored in
+`scripts/lib/ictt.json`): `ERC20TokenHome` on the C-Chain locks CYBER.sol (Wormhole Portal's wrap,
+6 decimals), `NativeTokenRemote` on the L1 mints native CYBER (×10¹²) and burns it on the way back.
+Both are TransparentUpgradeableProxies whose ProxyAdmin belongs to a 48 h TimelockController with
+the DAO Safe as its only proposer and executor; the Safe is also each side's teleporterManager.
+
+The remote is the only address genesis lets mint: CREATE(remote deployer, nonce 1), its
+implementation being nonce 0. `remote` therefore refuses unless that key is at nonce 0 (or 1 after
+the implementation), genesis and the chain's NativeMinter enable exactly the predicted proxy, and
+both deployments succeed in an `eth_call` first; it sends with explicit nonces and 30% gas headroom.
+Never send anything else from that key on the L1.
+
+| Step | Chain | Key | Command |
+| --- | --- | --- | --- |
+| 1 | C-Chain | ops | `home --safe <Safe> --token <CYBER.sol>` (Fuji: `--test-token`) |
+| 2 | L1 | ops | `registry --safe <Safe>` — a TeleporterRegistry (v1 = `0x253b…5fcf`) and the L1's timelock |
+| 3 | L1 | remote deployer | `remote --safe <Safe>` |
+| 4 | L1 | any | `register` — waits until the home has heard of the remote |
+| 5 | C-Chain | holder of CYBER.sol | `collateral` — locks genesis' balances (the remote's initialReserveImbalance) |
+| 6 | either | sender | `send --amount <n> [--recipient 0x…]` — waits for the destination's Teleporter |
+
+Each command takes `RPC_URL` (the chain it sends on), `DEPLOYER_PK` and, from step 3, `PEER_RPC_URL`
+(the other chain). Rehearsed end to end on Fuji on 2026-11-24 (`deployments/43113.json`,
+`deployments/49407.json`): the remote landed on the genesis minter `0x386F…C71f`, 1.1M test CYBER.sol
+backed genesis, and transfers arrived both ways.
+
 ## Tests
 
 ```shell
@@ -281,7 +309,7 @@ absolute times or epoch numbers computed before the warp.
   burning wrappers directly, and the scheduler has to run the keeper calls above.
 - **An audit.** The lending book and oracles follow well-studied designs, but this is new code
   holding money.
-- **ICTT** for assets native to Avalanche (USDC on the C-Chain, AVAX) and for CYBER on the
-  C-Chain: deploy Ava Labs' interchain token transfer contracts rather than relaying them.
+- **ICTT for other assets** native to Avalanche (USDC on the C-Chain, AVAX): CYBER has
+  `scripts/bridge.ts`; the same contracts carry any ERC20.
 - **PoS:** move the validator manager from PoA to `NativeTokenStakingManager` when the validator
   set should be open; staking rewards would then be minted through NativeMinter.

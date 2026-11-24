@@ -76,7 +76,7 @@ const BINDING_FILES: Record<string, string> = {
 const VALIDATOR_MESSAGES_PLACEHOLDER = "__$add2235b6a6cf493060b757d4655105486$__";
 
 const WARP_PRECOMPILE: Address = "0x0200000000000000000000000000000000000005";
-const ERC1967_ADMIN_SLOT: Hex = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
+export const ERC1967_ADMIN_SLOT: Hex = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
 const PRIMARY_NETWORK_ID = "11111111111111111111111111111111LpoYY";
 /** Avalanche network IDs by C-Chain chain ID: Warp messages are signed for a network. */
 const NETWORK_IDS: Record<number, number> = { 43114: 1, 43113: 5 };
@@ -85,11 +85,11 @@ const C_CHAIN_IDS: Record<number, string> = {
   43113: "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
 };
 
-const OWNABLE_ABI = parseAbi(["function owner() view returns (address)"]);
+export const OWNABLE_ABI = parseAbi(["function owner() view returns (address)"]);
 
 type Vendored = { name: string; abi: Abi; bytecode: Hex; codeHash: Hex; source: string };
 
-function arg(name: string, fallback?: string): string {
+export function arg(name: string, fallback?: string): string {
   const i = process.argv.indexOf(`--${name}`);
   if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1];
   if (fallback !== undefined) return fallback;
@@ -130,7 +130,7 @@ const nodeIdBytes = (nodeId: string): Hex =>
 // ---------------------------------------------------------------------------------- vendor
 
 /** Pull ABI and creation bytecode out of an abigen file's `<Name>MetaData`. */
-function fromBinding(source: string, name: string): { abi: Abi; bytecode: Hex } {
+export function fromBinding(source: string, name: string): { abi: Abi; bytecode: Hex } {
   const block = source.match(new RegExp(`var ${name}MetaData = &bind\\.MetaData\\{([\\s\\S]*?)\\n\\}`));
   if (!block) throw new Error(`no ${name}MetaData in the bindings`);
   const abi = block[1].match(/ABI:\s*"((?:[^"\\]|\\.)*)"/);
@@ -164,7 +164,7 @@ function vendored(name: string): Vendored {
   return v;
 }
 
-function proxyArtifact(): { abi: Abi; bytecode: Hex } {
+export function proxyArtifact(): { abi: Abi; bytecode: Hex } {
   const file = path.join(
     ROOT,
     "artifacts/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json",
@@ -175,7 +175,7 @@ function proxyArtifact(): { abi: Abi; bytecode: Hex } {
 
 // ---------------------------------------------------------------------------------- chain
 
-async function connect() {
+export async function connect() {
   const RPC_URL = process.env.RPC_URL;
   const PK = process.env.DEPLOYER_PK;
   if (!RPC_URL || !PK) throw new Error("RPC_URL and DEPLOYER_PK must be set");
