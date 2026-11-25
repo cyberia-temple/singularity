@@ -1,16 +1,65 @@
 <?php
 
 /*
- * Versioning: v<MAJOR>.<MINOR>.<PATCH>
- *
- * - MAJOR stays 0 while the app is in alpha (no real users); 1.0.0 is the public launch.
- * - MINOR +1 for any release that adds or changes user-facing functionality.
- * - PATCH +1 for a fix-only release or a hotfix on top of the current minor.
- * - Silent deploys (typos, config, refactors) do not get a version; they land in the next release.
- * - The first entry in `releases` is the current version; keep it in sync with APP_VERSION.
+ * Historical site changelog: v0.x.x. APP_VERSION is the platform/site version,
+ * not the separately tagged Wallet app-v1.x.x release series.
+ * Development updates are unversioned until they ship as a verified build.
  */
 return [
     'current_version' => env('APP_VERSION', 'v0.16.0'),
+
+    'product_tracks' => [
+        [
+            'id' => 'wallet',
+            'name' => 'Cyberia Wallet',
+            'version' => '1.x.x',
+            'status' => 'Active release series',
+            'description' => 'The wallet is packaging and refining features developed in 0.x. A merged commit does not mean the feature is in a published mobile, desktop, or browser-extension build.',
+        ],
+        [
+            'id' => 'platform',
+            'name' => 'Cyberia platform',
+            'version' => '0.x.x',
+            'status' => 'Legacy release history',
+            'description' => 'Historical site and ecosystem releases keep their original versions. The site version is independent from wallet app builds.',
+        ],
+        [
+            'id' => 'chain',
+            'name' => 'Cyberia 2.0',
+            'version' => '2.0 milestone',
+            'status' => 'Not yet released',
+            'description' => 'The milestone requires a working second chain beyond Fuji testing AND Cyberia applications available in their intended marketplaces. Testnet deployments and store submissions alone do not qualify.',
+        ],
+    ],
+    'development_updates' => [
+        [
+            'id' => 'wallet',
+            'name' => 'Wallet 1.x — development updates',
+            'items' => [
+                ['date' => '2026-11-10', 'title' => 'Elysium network support', 'description' => 'Network catalogue integration (chain 99901, HYPE gas) and DEX-index token prices. No native bridge or perpetual trading yet.', 'commit' => '14230791440a8a83145ebb38e90e9ad364ab3f0d'],
+                ['date' => '2026-11-09', 'title' => 'TokenStudio on Fuji', 'description' => 'Wallet token creation: supply caps, initial allocations, liquidity/fee settings, optional lending/farming/DAO, and mint/burn management. Fuji testnet only.', 'commit' => 'cf2daf147d982b8c1b1c6356e5534465013af13d'],
+                ['date' => '2026-11-05', 'title' => 'Cross-chain swap overhaul', 'description' => 'Improved network/token picker, Relay routes, SideShift Ed25519 signing, Bitcoin quote fixes and Robinhood ETH-to-BTC flow.', 'commit' => '305cb17fb4d634b914c992046857d0f25716cfdb'],
+                ['date' => '2026-11-06', 'title' => 'Wallet presentation and distribution', 'description' => 'NFT gallery and metadata, portfolio 24h changes, push-notification integration and PWA/extension refinements. Store-testing editions may be social-only.', 'commit' => '80956104'],
+            ],
+        ],
+        [
+            'id' => 'ecosystem',
+            'name' => 'Trading and ecosystem',
+            'items' => [
+                ['date' => '2026-11-03', 'title' => 'OTC on five networks', 'description' => 'Separate escrow-backed order books on Cyberia, Fuji, Robinhood Chain, Base and BNB Chain; OTC platform fee remains zero.', 'commit' => '48f9e868d325502b0a372a28466be42a0b98ac02'],
+                ['date' => '2026-11-04', 'title' => 'Cross-chain referrals', 'description' => '25% of collected application swap fees from referred users, currently settled manually each week. Not an OTC trading fee.', 'commit' => '43545f19e0a18d7555394b2d6dd95a6a9a714a21'],
+                ['date' => '2026-11-03', 'title' => 'Agent Arena', 'description' => 'Paper-trading league, MCP entry for external agents, agent pages, trade histories and portfolio charts. No real-money trading.', 'commit' => '5fdd4566'],
+            ],
+        ],
+        [
+            'id' => 'infrastructure',
+            'name' => 'Chain and infrastructure',
+            'items' => [
+                ['date' => '2026-11-04', 'title' => 'Bridge recovery safeguards', 'description' => 'Preserve signed transaction identity through RPC failures to reduce duplicate payout and burn risk.', 'commit' => 'ef9f043f0341f486828684b91b7cbf6a5537e0cc'],
+                ['date' => '2026-11-04', 'title' => 'Second-chain groundwork', 'description' => 'Avalanche L1 protocol and node setup merged. Cyberia 2.0 has not reached the production milestone.', 'commit' => '0dbad3a4'],
+            ],
+        ],
+    ],
 
     'releases' => [
         [

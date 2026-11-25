@@ -13,6 +13,11 @@ it('renders the changelog page', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('Changelog')
             ->where('currentVersion', 'v0.16.0')
+            ->has('productTracks', 3)
+            ->where('productTracks.0.name', 'Cyberia Wallet')
+            ->where('productTracks.2.status', 'Not yet released')
+            ->has('developmentUpdates', 3)
+            ->where('developmentUpdates.0.items.0.title', 'Elysium network support')
             ->has('releases', 18)
             ->where('releases.0.version', 'v0.16.0')
             ->where('releases.0.date', '2026-10-18')
