@@ -11,6 +11,7 @@ import {
   isAddress,
   parseUnits,
   type Address,
+  type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
@@ -19,7 +20,7 @@ import { mainnet } from "viem/chains";
  * Interactive CLI for managing the OZ-style mintable/burnable ERC20s
  * registered in `deployments/cyberia-tokens.json`.
  *
- * Run:    npx tsx scripts/token-admin.ts
+ * Run:    node scripts/token-admin.ts (from crypto/hardhat)
  * Env:    DEPLOYER_PK (required, owner of the token), CYBERIA_RPC_URL (optional)
  */
 
@@ -38,6 +39,7 @@ type Registry = {
 };
 
 const REGISTRY_PATH = path.resolve("deployments/cyberia-tokens.json");
+const MANAGED_ASSET_ARTIFACT = "contracts/ManagedAsset.sol/ManagedAsset.json";
 
 function loadRegistry(): Registry {
   if (!fs.existsSync(REGISTRY_PATH)) {
@@ -91,6 +93,96 @@ async function pickFromList<T>(items: T[], render: (item: T, i: number) => strin
     if (Number.isInteger(n) && n >= 1 && n <= items.length) return items[n - 1];
     console.log("  invalid selection");
   }
+}
+
+async function createManagedAsset() {
+  console.log("\nCreate an operator-managed asset token (no initial supply).");
+  console.log("This does NOT tokenize or custody the underlying shares.");
+
+  const name = await ask("Token name (e.g. Sberbank Shares): ");
+  const symbol = await ask("Symbol (e.g. SBER): ");
+  const decimalsInput = await ask("Decimals [18] (0-18): ");
+  const ownerInput = await ask(`Owner/minter address [${account.address}]: `);
+  const owner = ownerInput || account.address;
+  const decimals = decimalsInput === "" ? 18 : Number(decimalsInput);
+
+  if (!name || name.length > 100 || !symbol || !/^[A-Za-z0-9._-]{1,32}$/.test(symbol)) {
+    console.log("Invalid name or symbol (symbol: 1-32 letters/digits/._-). Nothing deployed.");
+    return;
+  }
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
+    console.log("Decimals must be an integer from 0 to 18. Nothing deployed.");
+    return;
+  }
+  if (!isAddress(owner)) {
+    console.log("Invalid owner address. Nothing deployed.");
+    return;
+  }
+  if (loadRegistry().tokens.some((token) => token.symbol.toLowerCase() === symbol.toLowerCase())) {
+    console.log(`Symbol ${symbol} already exists in the registry. Nothing deployed.`);
+    return;
+  }
+
+  const networkId = await publicClient.getChainId();
+  if (networkId !== registry.chainId) {
+    throw new Error(`Wrong network: RPC returned ${networkId}, registry expects ${registry.chainId}`);
+  }
+  const artifact = loadArtifact(MANAGED_ASSET_ARTIFACT);
+
+  console.log(`\nNetwork: ${networkId} (${RPC_URL})`);
+  console.log(`Token:   ${name} (${symbol}), ${decimals} decimals`);
+  console.log(`Owner:   ${owner}`);
+  console.log("Supply:  0 (use the mint action after deployment)");
+  console.log("WARNING: the owner may mint and burn tokens from any address.");
+  const confirm = await ask('Type DEPLOY to send a mainnet transaction: ');
+  if (confirm !== "DEPLOY") {
+    console.log("Cancelled.");
+    return;
+  }
+
+  // Cyberia's eth_estimateGas is unreliable for contract creation.
+  const hash = await walletClient.deployContract({
+    abi: artifact.abi,
+    bytecode: artifact.bytecode as Hex,
+    args: [name, symbol, decimals, owner],
+    gas: 5_000_000n,
+  });
+  console.log("Deployment tx:", hash);
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success" || !receipt.contractAddress) {
+    throw new Error(`Deployment failed (tx ${hash})`);
+  }
+  const address = receipt.contractAddress;
+  console.log("Deployed address:", address);
+
+  // Use the chain as source of truth before adding this token to the local CLI.
+  const [onchainName, onchainSymbol, onchainDecimals, onchainOwner] = await Promise.all([
+    publicClient.readContract({ address, abi: artifact.abi, functionName: "name" }) as Promise<string>,
+    publicClient.readContract({ address, abi: artifact.abi, functionName: "symbol" }) as Promise<string>,
+    publicClient.readContract({ address, abi: artifact.abi, functionName: "decimals" }) as Promise<number>,
+    publicClient.readContract({ address, abi: artifact.abi, functionName: "owner" }) as Promise<Address>,
+  ]);
+  if (onchainName !== name || onchainSymbol !== symbol || Number(onchainDecimals) !== decimals || onchainOwner.toLowerCase() !== owner.toLowerCase()) {
+    throw new Error(`Deployed token metadata mismatch at ${address}; register it manually after checking`);
+  }
+
+  const freshRegistry = loadRegistry();
+  if (freshRegistry.tokens.some((token) => token.symbol.toLowerCase() === symbol.toLowerCase())) {
+    throw new Error(`Symbol was added while deploying. Token ${address} exists but was not registered.`);
+  }
+  freshRegistry.tokens.push({
+    symbol,
+    contract: "ManagedAsset",
+    artifact: MANAGED_ASSET_ARTIFACT,
+    address,
+    burnable: true,
+  });
+  const temporaryPath = `${REGISTRY_PATH}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(freshRegistry, null, 2)}\n`, { flag: "wx" });
+  fs.renameSync(temporaryPath, REGISTRY_PATH);
+  registry.tokens = freshRegistry.tokens;
+  console.log(`Saved to ${REGISTRY_PATH}. Choose ${symbol} in the menu to mint shares.`);
 }
 
 async function readMeta(token: TokenEntry, abi: unknown) {
@@ -197,25 +289,26 @@ async function main() {
   console.log("Caller: ", account.address);
   console.log();
 
-  const deployed = registry.tokens.filter((t) => t.address);
-  if (deployed.length === 0) {
-    console.log("No deployed tokens in registry. Fill in 'address' fields in");
-    console.log(`  ${REGISTRY_PATH}`);
-    rl.close();
-    return;
-  }
-
   // Outer loop: keep returning to the token picker so several tokens can be
   // managed in one session. The picker carries its own "quit" entry.
-  const QUIT = Symbol("quit");
   while (true) {
+    const deployed = registry.tokens.filter((t) => t.address);
     console.log("\nDeployed tokens:");
-    const choices: (TokenEntry | typeof QUIT)[] = [...deployed, QUIT];
+    type Choice = { kind: "token"; token: TokenEntry } | { kind: "create" } | { kind: "quit" };
+    const choices: Choice[] = [
+      ...deployed.map((token): Choice => ({ kind: "token", token })),
+      { kind: "create" },
+      { kind: "quit" },
+    ];
     const picked = await pickFromList(choices, (c) =>
-      c === QUIT ? "quit" : `${c.symbol.padEnd(7)} ${c.address}`,
+      c.kind === "quit" ? "quit" : c.kind === "create" ? "+ create new asset token" : `${c.token.symbol.padEnd(7)} ${c.token.address}`,
     );
-    if (picked === QUIT) break;
-    const token = picked;
+    if (picked.kind === "quit") break;
+    if (picked.kind === "create") {
+      await createManagedAsset();
+      continue;
+    }
+    const token = picked.token;
 
     const artifact = loadArtifact(token.artifact);
     const meta = await readMeta(token, artifact.abi);
